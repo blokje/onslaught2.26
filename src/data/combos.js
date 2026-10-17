@@ -2,6 +2,7 @@
 // designs (marked isNew). Recipes are checked top to bottom within the lead colour's list.
 //
 // needs: partner counts BESIDES the lead, by colour. exact: counts that must match exactly.
+// takes (optional): partners actually used and put on recharge, up to n per colour of those ready (default: needs).
 // All numeric damage values are base values, scaled by the lead turret's damage modifiers
 // (damage multiplier from modifiers/freak-out). "+chain" means the partner Green's chain damage is added.
 // Blast radii: small 40, medium 60, large 80, huge 87.5, bfg 87.5, poison 110.
@@ -25,7 +26,7 @@ export const COMBOS = {
       fx: { projectile: 'tazerRocket', speed: 200, hit: 5e6, chainSpark: { qty: 6, range: 150, damage: 2e6, poison: 4 } } },
   ],
   green: [
-    { id: 'rocketBfg', name: 'Rocket BFG', needs: { red: 2, blue: 1 }, recharge: 9000,
+    { id: 'rocketBfg', name: 'Rocket BFG', needs: { red: 2, blue: 1 }, takes: { red: 1, blue: 1 }, recharge: 9000,
       fx: { projectile: 'bfg', speed: 60, hit: 6.5e6, chain: true, blast: { size: 'bfg', damage: 7.5e6 },
             laser: { damage: 4.5e6, range: 250, rate: 180 }, rockets: { damage: 2e6, range: 300, rate: 120 } } },
     { id: 'bfg', name: 'BFG', needs: { red: 1, blue: 1 }, recharge: 9000,
@@ -41,7 +42,7 @@ export const COMBOS = {
       fx: { projectile: 'clusterBomb', speed: 750, hit: 4e6, blast: { size: 'large', damage: 6e6 }, cluster: { qty: 8, damage: 2e6, laser: 9e5, chain: true } } },
     { id: 'bigClusterBomb', name: 'Big Cluster Bomb', needs: { red: 2 }, recharge: 6200,
       fx: { projectile: 'clusterBomb', speed: 750, hit: 8e6, blast: { size: 'large', damage: 8e6 }, cluster: { qty: 10, damage: 4.5e6 } } },
-    { id: 'sparkyMine', name: 'Sparky Landmine', needs: { red: 1, blue: 1, yellow: 1 }, recharge: 7000,
+    { id: 'sparkyMine', name: 'Sparky Landmine', needs: { blue: 1, yellow: 1 }, takes: { red: 1, blue: 1, yellow: 1 }, recharge: 7000,
       fx: { projectile: 'mine', hit: 9e6, blast: { size: 'small', damage: 1.5e7 }, sparks: { qty: 8, damage: 5e4, poison: 20, range: 220 } } },
     { id: 'sparkyClusterBomb', name: 'Sparky Cluster Bomb', needs: { red: 1, yellow: 1 }, recharge: 5000,
       fx: { projectile: 'clusterBomb', speed: 750, hit: 5e6, blast: { size: 'small', damage: 7e6 }, sparks: { qty: 8, damage: 1e4, poison: 20, range: 220 } } },
@@ -66,5 +67,6 @@ export const COMBOS = {
 };
 
 // Mines: road points are sampled every 4 units; a mine lands on a random point within the lead's
-// maximum possible range and travels there at 220 units/s, then arms (trigger radius 20).
-export const MINE = { sampleStep: 4, travelSpeed: 220, triggerRadius: 20 };
+// maximum possible range, offset by floor(rnd * 2 * jitter - jitter) on x and y, travels there at 220 units/s,
+// then arms. It checks for an attacker within triggerRadius every checkInterval ms. No limit, no lifetime (original).
+export const MINE = { sampleStep: 4, travelSpeed: 220, triggerRadius: 20, jitter: 5, checkInterval: 150 };

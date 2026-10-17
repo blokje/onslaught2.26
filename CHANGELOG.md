@@ -6,6 +6,11 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
 ## Unreleased
 
 ### Changed
+- Mines and two combo recipes now match the original game (checked against its bytecode): mines have no limit and no
+  lifetime (removed our 12 per turret cap and 60 s expiry), land with a -5..+4 offset and check for attackers every 150 ms,
+  so the road fills with mines over a long game. Sparky Landmine needs only Blue + Yellow (a ready Red is also used);
+  Rocket BFG needs 2 Red but uses and recharges only 1. New optional recipe field `takes`. Docs: `SPEC.md` §6,
+  `docs/claude/simulation.md`, `docs/claude/data-and-balance.md`, `docs/claude/gotchas.md`, `docs/claude/testing.md`.
 - Balance pass on new content only (originals untouched), measured with the new `scripts/balance.mjs`:
   Sniper, Fusion and Railgun ladders rebuilt so they are reachable with real income (about $72K by wave 120) and land at
   0.7x to 1.3x of the best original in their niche; Targeter cheaper; Combo-only $3,000; new weapons unlock at

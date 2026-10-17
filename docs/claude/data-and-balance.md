@@ -4,7 +4,7 @@
 |---|---|
 | `maps.js` | 10 maps (9 original layouts plus the tutorial): waypoints and base top-left corner in the 720 x 450 field. |
 | `turrets.js` | 16 turret kinds: cost, base stats, upgrade ladders `[{cost, value}]`, specials, unlock kills, hotkeys; constants (sell 70%, move $500, footprint 44, combo range 70, freak-out, poison). |
-| `combos.js` | 20 recipes per lead colour, checked top to bottom: `needs`, optional `exact`, `recharge`, `fx`. Blast radii. Mine settings. |
+| `combos.js` | 20 recipes per lead colour, checked top to bottom: `needs`, optional `exact`, optional `takes` (partners used, defaults to `needs`), `recharge`, `fx`. Blast radii. Mine settings (`MINE`: sample step, travel speed, trigger radius, jitter, check interval). |
 | `rules.js` | Field, waves, difficulties, modes, speeds, target modes, directional cones, score. |
 
 ## What may change

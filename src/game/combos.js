@@ -21,8 +21,6 @@ for (const list of Object.values(COMBOS)) for (const r of list) RECIPES[r.id] = 
 const ROCKET_TURN = 8;               // rad/s for combo rockets (they should not miss)
 const BFG_TURN = 4;
 const SMALL_ROCKET = { speed: 250, turn: (270 * Math.PI) / 180, impact: 10, ttl: 12000 };
-const MAX_MINES = 12;
-const MINE_LIFE = 60000;
 const NAPALM_TICK = 250;
 const NAPALM_RADIUS = 14;
 const LASER_ROCKET_TICK = 150;
@@ -194,13 +192,13 @@ export class Combos {
       return false;
     }
 
-    // choose partners at random
+    // choose partners at random: r.takes (up to n of those ready, original quirks) or exactly r.needs
     const chosen = [];
+    const takes = r.takes || r.needs;
     for (const c of COLORS) {
-      const need = r.needs[c] || 0;
-      if (!need) continue;
       const pool = groups[c].slice();
-      for (let k = 0; k < need; k++) chosen.push(pool.splice(this._rand(pool.length), 1)[0]);
+      const take = Math.min(takes[c] || 0, pool.length);
+      for (let k = 0; k < take; k++) chosen.push(pool.splice(this._rand(pool.length), 1)[0]);
     }
     const green = chosen.find((t) => t.kind !== 'comboOnly' && t.color === 'green');
     const needChain = fx.chain || (fx.laser && fx.laser.chain) || (fx.cluster && fx.cluster.chain);
@@ -264,20 +262,22 @@ export class Combos {
       c = { x: lead.x, y: lead.y, pts };
       this.mineCache.set(lead.id, c);
     }
-    return c.pts.length ? c.pts[this._rand(c.pts.length)] : null;
+    if (!c.pts.length) return null;
+    const q = c.pts[this._rand(c.pts.length)];
+    // original: offset by floor(random * 10 - 5) on x and y
+    const J = MINE.jitter;
+    return { x: q.x + Math.floor(game.rng.next() * 2 * J - J), y: q.y + Math.floor(game.rng.next() * 2 * J - J) };
   }
 
   _launchMine(lead, r, mult, chain, spot) {
     const game = this.game;
     const fx = r.fx;
-    // max 12 mines per turret: remove the oldest
-    const mines = game.state.projectiles.filter((p) => p.tag === 'mine' && !p.dead && p.sourceId === lead.id);
-    for (let i = 0; i <= mines.length - MAX_MINES; i++) mines[i].dead = true;
+    // no limit and no lifetime: a mine stays until an attacker triggers it (original)
     const p = game.spawnProjectile('mine', {
       x: lead.x, y: lead.y, angle: Math.atan2(spot.y - lead.y, spot.x - lead.x), speed: MINE.travelSpeed,
       mode: 'goto', destX: spot.x, destY: spot.y, stay: true, sourceId: lead.id, tag: 'mine',
       damage: fx.hit * mult, blast: { size: fx.blast.size, damage: fx.blast.damage * mult, poison: 0 },
-      data: { cid: r.id, mult, chain, armed: false }, armed: false,
+      data: { cid: r.id, mult, chain, armed: false, check: 0 }, armed: false,
     });
     return p;
   }
@@ -443,11 +443,14 @@ export class Combos {
     const src = this._src(p);
 
     if (p.tag === 'mine') {
-      if (p.age > MINE_LIFE) { p.dead = true; return; }
       if (!d.armed) {
         if (Math.hypot(p.destX - p.x, p.destY - p.y) < 0.5) { d.armed = true; p.armed = true; }
         return;
       }
+      // check for attackers every MINE.checkInterval ms (original: 150 ms)
+      d.check = (d.check || 0) - dt;
+      if (d.check > 0) return;
+      d.check += MINE.checkInterval;
       const a = this._nearestAttacker(p.x, p.y, MINE.triggerRadius, null);
       if (a) impact(game, p, p.x, p.y, a);
       return;
