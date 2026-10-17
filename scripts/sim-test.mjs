@@ -1,8 +1,9 @@
 // Headless simulation tests for src/game. Run: node scripts/sim-test.mjs
 import { Game, STEP_MS } from '../src/game/Game.js';
 import { TURRETS } from '../src/data/turrets.js';
-import { DIFFICULTIES, WAVES } from '../src/data/rules.js';
-import { waveHp, waveBounty } from '../src/game/Attacker.js';
+import { MAPS } from '../src/data/maps.js';
+import { DIFFICULTIES, WAVES, WEAVE } from '../src/data/rules.js';
+import { waveHp, waveBounty, laneOffset } from '../src/game/Attacker.js';
 
 let failures = 0;
 function check(name, cond, extra = '') {
@@ -295,18 +296,50 @@ function makePlayer(game, spots) {
   check('(mech) freak ends, stats back, next scheduled 40-80 s minus rate bonus', t.freak === 'available' && near(t.stats.damage, base.damage) && t.freakAt - g.state.time >= 40000 - 7 * 4000 - 1000 && ev.join() === 'warn,on,off', `${ev}`);
 }
 
-// ------------------------------------------------------------------ (w) late-game wave curve (SPEC.md section 3)
+// ------------------------------------------------------------------ (w) attackers weave across the road
+{
+  let maxDist = 0, maxJump = 0, minLane = Infinity, maxLane = -Infinity, maps = 0, waveSpread = Infinity;
+  const stepMax = 2 * 60 * (STEP_MS / 1000); // never more than twice the straight-line step, even in corners
+  for (const m of MAPS) {
+    const g = new Game({ mapId: m.id, difficulty: 'medium', seed: 11 });
+    g.setSpeed(8);
+    const prev = new Map();
+    let steps = 0;
+    while (!g.state.over && steps < 60 * 120) {
+      g.advance(1);
+      steps++;
+      const lanes = [];
+      for (const a of g.state.attackers) {
+        if (a.dead) continue;
+        maxDist = Math.max(maxDist, g.path.distanceTo(a.x, a.y));
+        const l = laneOffset(a);
+        lanes.push(l); minLane = Math.min(minLane, l); maxLane = Math.max(maxLane, l);
+        const p = prev.get(a.id);
+        if (p) maxJump = Math.max(maxJump, Math.hypot(a.x - p[0], a.y - p[1]));
+        prev.set(a.id, [a.x, a.y]);
+      }
+      if (lanes.length >= 8) waveSpread = Math.min(waveSpread, Math.max(...lanes) - Math.min(...lanes));
+    }
+    maps++;
+  }
+  check('(w) attackers stay within the weave amplitude of the centreline', maxDist <= WEAVE.amplitude + 0.01, `max ${maxDist.toFixed(2)} over ${maps} maps`);
+  check('(w) attackers use both sides of the road', minLane < -WEAVE.amplitude * 0.6 && maxLane > WEAVE.amplitude * 0.6, `${minLane.toFixed(2)}..${maxLane.toFixed(2)}`);
+  check('(w) a wave on the road is spread out, not single file', waveSpread > 3, `min spread ${waveSpread.toFixed(2)}`);
+  check('(w) smooth movement, no jumps at corners', maxJump < stepMax, `max step ${maxJump.toFixed(2)} (limit ${stepMax.toFixed(2)})`);
+}
+
+// ------------------------------------------------------------------ (late) late-game wave curve (SPEC.md section 3)
 {
   let orig = true;
   for (const d of Object.values(DIFFICULTIES)) for (let n = 1; n <= WAVES.lateWave; n++) {
     if (!near(waveHp(n, d.hpGrowth), 10 * d.hpGrowth ** n) || waveBounty(n) !== n) orig = false;
   }
-  check('(w) waves 1 to 100: HP 10 x growth^n and bounty $n (original)', orig);
+  check('(late) waves 1 to 100: HP 10 x growth^n and bounty $n (original)', orig);
   const g = 1.125, late = 1 + (g - 1) * WAVES.lateGrowthFactor;
-  check('(w) Medium after 100: growth x1.05 per wave', near(waveHp(150, g) / waveHp(149, g), late) && near(late, 1.05),
+  check('(late) Medium after 100: growth x1.05 per wave', near(waveHp(150, g) / waveHp(149, g), late) && near(late, 1.05),
     `${(waveHp(150, g) / waveHp(149, g)).toFixed(4)}`);
-  check('(w) wave 101 continues from wave 100', near(waveHp(101, g), 10 * g ** 100 * late));
-  check('(w) bounty after 100: round(n x 1.03^(n-100)), integer, growing',
+  check('(late) wave 101 continues from wave 100', near(waveHp(101, g), 10 * g ** 100 * late));
+  check('(late) bounty after 100: round(n x 1.03^(n-100)), integer, growing',
     waveBounty(101) === Math.round(101 * 1.03) && waveBounty(150) === Math.round(150 * 1.03 ** 50)
     && Number.isInteger(waveBounty(173)) && waveBounty(120) > waveBounty(119), `150 -> $${waveBounty(150)}`);
   let order = true;
@@ -314,7 +347,7 @@ function makePlayer(game, spots) {
     const h = ['easy', 'medium', 'hard', 'extreme'].map((k) => waveHp(n, DIFFICULTIES[k].hpGrowth));
     if (!(h[0] < h[1] && h[1] < h[2] && h[2] < h[3])) order = false;
   }
-  check('(w) difficulties keep their HP order after wave 100', order);
+  check('(late) difficulties keep their HP order after wave 100', order);
   const gm = new Game({ mapId: 'map1', difficulty: 'medium', seed: 3 });
   gm.state.wave = 129;
   let paid = null;
@@ -322,9 +355,9 @@ function makePlayer(game, spots) {
   gm.sendWave();
   gm.advance(2);
   const a = gm.state.attackers[0];
-  check('(w) spawned wave-130 attacker uses the late curve', a && a.wave === 130 && near(a.maxHp, waveHp(130, 1.125)) && a.bounty === waveBounty(130),
+  check('(late) spawned wave-130 attacker uses the late curve', a && a.wave === 130 && near(a.maxHp, waveHp(130, 1.125)) && a.bounty === waveBounty(130),
     a ? `${a.maxHp.toExponential(2)} HP, $${a.bounty}` : 'no attacker');
-  if (a) { const c = gm.state.cash; gm.damageAttacker(a, a.hp + 1, null); check('(w) kill pays the late bounty', gm.state.cash - c === waveBounty(130) && paid === waveBounty(130)); }
+  if (a) { const c = gm.state.cash; gm.damageAttacker(a, a.hp + 1, null); check('(late) kill pays the late bounty', gm.state.cash - c === waveBounty(130) && paid === waveBounty(130)); }
 }
 
 // ------------------------------------------------------------------ (e) serialize round trip
