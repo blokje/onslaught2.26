@@ -226,6 +226,7 @@ export class Game {
   sendWave() {
     const s = this.state;
     if (s.over) return this._fail('Game over');
+    if (s.paused) return this._fail('Game is paused');
     const bonus = WAVES.earlyBonusPerSec * Math.floor(Math.max(0, s.nextWaveIn) / 1000);
     s.cash += bonus;
     startWave(this);

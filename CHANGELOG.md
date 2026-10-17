@@ -20,9 +20,13 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
   docs-first and docs-after steps in every skill, doc requirements in agent briefs.
 - `README.md`, `CONTRIBUTING.md` and this changelog for human contributors.
 - Target modes "oldest" (spawned first) and "newest" (spawned last).
+- Setting "Pause when tab is hidden" (default on). An auto-paused game resumes when the tab is visible again; a manual pause does not.
+- Full-screen pause overlay so the paused state is clearly visible.
 - Layered agent docs: `CLAUDE.md` (hard rules and pointers), `docs/claude/` area guides, 7 runbook skills in `.claude/skills/`.
 
 ### Fixed
+- After switching tabs the game stayed paused, so the countdown stopped, and Send wave still paid the early bonus without spawning anything (repeatable for free cash). Send wave is now refused and disabled while paused.
+- HUD indicators (PAUSED, focus fire badge, mode hint) never appeared: `show()` cleared the inline display, which fell back to the CSS `display: none`. They now pass an explicit display.
 - Focus fire shows a reticle on the target (`state.focusId`).
 - Mines blink only when armed (`armed` flag on mine projectiles).
 - Modifier icons are drawn on top of the dish so all 7 are readable.

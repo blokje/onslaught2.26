@@ -318,6 +318,7 @@ class MockGame {
   sendWave() {
     const s = this.state;
     if (s.over) return this.fail('Game over');
+    if (s.paused) return this.fail('Game is paused');
     s.cash += Math.floor(s.nextWaveIn / 1000) * WAVES.earlyBonusPerSec;
     this.startWave(true);
     return { ok: true };

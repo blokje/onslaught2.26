@@ -79,8 +79,11 @@ export class Hud {
     this.leak = h('div', { class: 'os-leak' });
     this.focusBadge = h('div', { class: 'os-focus-badge' }, 'Focus fire on (F or Esc to clear)');
     this.modeHint = h('div', { class: 'os-modehint' });
-    this.paused = h('div', { class: 'os-paused' }, 'PAUSED');
-    this.el.append(this.leak, this.top, this.log, this.toasts, this.focusBadge, this.paused, this.modeHint, this.side, this.rack);
+    this.paused = h('div', { class: 'os-paused' },
+      h('div', { class: 'os-paused-title' }, 'PAUSED'),
+      h('div', { class: 'os-paused-hint' }, 'Press P or click Resume. No waves are sent while paused.'));
+    // the pause tint goes first so the top bar, side panel and rack stay above it and clickable
+    this.el.append(this.paused, this.leak, this.top, this.log, this.toasts, this.focusBadge, this.modeHint, this.side, this.rack);
     // the error bubble sits outside of the clipped root so it can sit anywhere
     this.el.append(this.err);
   }
@@ -137,9 +140,9 @@ export class Hud {
     this.speedBtns.forEach((b, i) => setClass(b, 'is-on', s.speed === SPEEDS[i]));
     setText(this.pauseBtn.firstChild, s.paused ? 'Resume ' : 'Pause ');
     setClass(this.pauseBtn, 'is-on', s.paused);
-    show(this.paused, s.paused && !app.modalOpen());
-    show(this.focusBadge, app.focusId != null);
-    setProp(this.sendBtn, 'disabled', !!s.over);
+    show(this.paused, s.paused && !app.modalOpen(), 'flex');
+    show(this.focusBadge, app.focusId != null, 'block');
+    setProp(this.sendBtn, 'disabled', !!s.over || !!s.paused);
 
     // rack
     const kills = s.kills;
@@ -157,7 +160,7 @@ export class Hud {
     // mode hint
     const hint = app.modeHint();
     setText(this.modeHint, hint);
-    show(this.modeHint, !!hint);
+    show(this.modeHint, !!hint, 'block');
 
     this.updateSide();
   }

@@ -108,9 +108,14 @@
   background: rgba(20, 14, 9, 0.82); border: 1px solid var(--edge); font-size: 0.9em; pointer-events: none; display: none; white-space: nowrap;
 }
 .os-paused {
-  position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); font-size: 3em; font-weight: 900; letter-spacing: 0.2em;
-  color: rgba(255, 226, 160, 0.9); text-shadow: 0 0.05em 0.4em #000; pointer-events: none; display: none;
+  position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 0.4em;
+  background: rgba(10, 7, 4, 0.5); pointer-events: none; text-align: center; padding: 0 1em;
 }
+.os-paused-title {
+  font-size: 3em; font-weight: 900; letter-spacing: 0.2em;
+  color: rgba(255, 226, 160, 0.95); text-shadow: 0 0.05em 0.4em #000;
+}
+.os-paused-hint { font-size: 1em; color: var(--ink-dim); text-shadow: 0 0.05em 0.3em #000; }
 
 /* rack */
 .os-rack {

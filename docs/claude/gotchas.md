@@ -17,3 +17,5 @@
 - **`comboColor: null` on the Sniper entry in `src/data/turrets.js` is ignored.** Combos read the turret's `color` (Sniper blue, Fusion green, Railgun red). Maxing their damage costs $42K to $55K, so they are rarely combo partners in practice.
 - **Nuke dominates:** about 5x the damage per second of any other combo (original numbers, frozen). New combos are balanced against the rest, not against the Nuke.
 - **Freak-out is not in the DPS baselines:** Blue and Yellow freak-out averages about 3.4x their raw DPS; `scripts/balance.mjs` compares against raw numbers.
+- **`show(el, on, display)` in `src/ui/dom.js`** sets `style.display = display` when shown. With the default `''` the element falls back to its CSS, so elements whose CSS says `display: none` (pause overlay, focus badge, mode hint) need an explicit `'block'` or `'flex'`.
+- **Paused games refuse `sendWave()`.** Spawners only run inside `step()`, so a wave started while paused would pay the bonus and spawn nothing.

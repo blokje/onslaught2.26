@@ -51,6 +51,7 @@ export function buildSettings(app) {
     field('Snap to grid', 'Snaps placement to a 22 unit grid.', check('snap')),
     field('Unlock all', 'All turrets, difficulties and modes. Applies to new games.', check('unlockAll')),
     field('Show FPS counter', null, check('showFps')),
+    field('Pause when tab is hidden', 'Resumes automatically when you come back.', check('autoPause')),
     field('Saved progress', 'Unlocks, high scores and the autosave.', resetBtn));
 }
 

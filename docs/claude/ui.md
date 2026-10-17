@@ -27,6 +27,14 @@ DOM overlay over the canvas, input, persistence and audio. Contract: `ARCHITECTU
 - Extreme: reach wave 100 on Medium. Sandbox: reach wave 50 on any difficulty. Both only from Normal mode. "Unlock all" in settings opens everything.
 - Autosave every 10 s and on page hide; cleared on game over.
 
+## Pause
+
+- Manual pause: P, the Pause/Resume button, or the in-game menu (Esc). A manual pause never resumes by itself.
+- Auto-pause: setting "Pause when tab is hidden" (`settings.autoPause`, default on). When the tab is hidden a running game is paused and flagged `App._autoPaused`; when the tab is visible again it resumes, but only if it is still paused and the flag is still set. Any manual pause action (P, button, menu, leaving the game) clears the flag, so the game then stays paused.
+- With auto-pause off the game is not marked paused, but browsers stop `requestAnimationFrame` in hidden tabs, so it still does not advance while hidden (one frame is capped at 100 ms in `main.js`).
+- No wave can start while paused: `game.sendWave()` refuses (`'Game is paused'`, no bonus) and the Send wave button is disabled.
+- Pause overlay (`.os-paused`): full-screen dark tint with "PAUSED" and a hint, `pointer-events: none` and placed below the top bar, side panel and rack so Resume stays clickable. Hidden while a modal is open (the modal layer has its own tint).
+
 ## Demo
 
 `/ui-demo.html` boots the App with mocks. In the console, `app.game.cheat(1e6, 2000)` adds cash and kills.
