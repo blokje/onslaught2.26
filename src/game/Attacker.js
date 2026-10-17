@@ -2,8 +2,20 @@
 import { WAVES, WEAVE } from '../data/rules.js';
 import { POISON } from '../data/turrets.js';
 
-/** HP of an attacker in wave n: baseEnergy * hpGrowth^n (plain doubles, trillions are fine). */
-export const waveHp = (n, growth) => WAVES.baseEnergy * Math.pow(growth, n);
+/**
+ * HP of an attacker in wave n: baseEnergy * hpGrowth^n up to WAVES.lateWave (original), then the growth per wave
+ * drops to 1 + (hpGrowth - 1) * lateGrowthFactor (plain doubles, trillions are fine).
+ */
+export function waveHp(n, growth) {
+  const early = Math.min(n, WAVES.lateWave), late = Math.max(0, n - WAVES.lateWave);
+  return WAVES.baseEnergy * Math.pow(growth, early) * Math.pow(1 + (growth - 1) * WAVES.lateGrowthFactor, late);
+}
+
+/** Bounty of an attacker in wave n: $n up to WAVES.lateWave (original), then n * lateBountyGrowth^(n - lateWave). */
+export function waveBounty(n) {
+  if (n <= WAVES.lateWave) return n;
+  return Math.round(n * Math.pow(WAVES.lateBountyGrowth, n - WAVES.lateWave));
+}
 
 export function createAttacker(game, wave, hpOverride) {
   const hp = hpOverride != null ? hpOverride : waveHp(wave, game.hpGrowth);
@@ -16,7 +28,7 @@ export function createAttacker(game, wave, hpOverride) {
     poisoned: false, blackholed: false,
     progress: 0,
     // additions
-    wave, bounty: wave, dead: false, _seg: 0,
+    wave, bounty: waveBounty(wave), dead: false, _seg: 0,
   };
   // sideways weave: two random phases and wavenumbers, drawn once (laneOffset is a pure function of progress)
   const [w0, w1] = WEAVE.wavelength;

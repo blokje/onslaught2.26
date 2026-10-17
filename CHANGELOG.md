@@ -6,6 +6,11 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
 ## Unreleased
 
 ### Changed
+- Late-game wall softened (approved deviation from the original after wave 100; waves 1 to 100 unchanged): HP growth per
+  wave after wave 100 is 1 + (growth - 1) x 0.4 (Medium x1.05 instead of x1.125) and bounty is round(wave x 1.03^(wave - 100)).
+  Before, even unlimited money stopped at about wave 143 and a strong combo player at about 125; now the strongest bot
+  reaches about 180 on Medium. New `waveBounty()` in `Attacker.js`, `WAVES.lateWave` / `lateGrowthFactor` / `lateBountyGrowth`,
+  `node scripts/balance.mjs late`, sim-test checks (late). Docs: `SPEC.md` sections 3 and 9, `docs/claude/data-and-balance.md`.
 - Attackers no longer walk single file on the road centreline: each one weaves gently from side to side, up to 8 units
   off centre (`WEAVE` in `src/data/rules.js`), like in the original where they were spread over the road. The offset is
   a pure function of progress with per-attacker phases from `game.rng` (new optional attacker field `weave`), so saves and

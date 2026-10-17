@@ -9,6 +9,10 @@ export const WAVES = {
   baseSpeed: 60,        // units per second
   types: 9,             // attacker look cycles by (wave - 1) % 9
   earlyBonusPerSec: 1,  // NEW: cash per second skipped when sending a wave early (Space)
+  // NEW late-game curve (waves 1 to lateWave are exactly original, see SPEC.md section 3):
+  lateWave: 100,          // after this wave the curve below applies
+  lateGrowthFactor: 0.4,  // HP growth per wave becomes 1 + (hpGrowth - 1) * factor (Medium 1.125 -> 1.05)
+  lateBountyGrowth: 1.03, // bounty = round(wave * lateBountyGrowth^(wave - lateWave))
 };
 
 // NEW: attackers weave across the road instead of walking single file on the centreline.

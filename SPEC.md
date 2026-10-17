@@ -35,9 +35,15 @@ Status per item: **[ORIG]** taken from the original, **[SITE]** from the help pa
 
 - A new wave starts every **20 s** (setting; Space sends the next one early).
 - Each wave sends **10 attackers**, **700 ms** apart.
-- On every new wave: HP × **1.125**, bounty + **$1**. Wave *n*: HP = 10 × 1.125ⁿ, bounty = $n.
-  - Wave 50 ≈ 3,600 HP, wave 100 ≈ 1.3 M, wave 150 ≈ 470 M, wave 200 ≈ 170 B.
+- On every new wave: HP × **1.125**, bounty + **$1**. Wave *n*: HP = 10 × 1.125ⁿ, bounty = $n (waves 1 to 100) [ORIG].
+  - Wave 50 ≈ 3,600 HP, wave 100 ≈ 1.3 M.
   - Note: the growth is exponential from wave 1 (the "linear until wave 120" in the pasted text is not what this build does).
+- **Late game (after wave 100) [NEW, deliberate deviation]:** HP growth per wave becomes 1 + (growth − 1) × **0.4**
+  (Medium ×1.05) and bounty = round(n × **1.03**^(n − 100)). Waves 1 to 100 are exactly original.
+  - Why: with the original curve HP doubles every ~6 waves while income grows ~1% per wave; headless bots hit a wall at
+    wave ~125, and even unlimited money stops at ~143 (damage ladders and field space are capped). With this rule a strong
+    game reaches roughly wave 180 to 200. Measurements in `docs/claude/data-and-balance.md`.
+  - Medium: wave 122 ≈ 3.8 M HP, $234 bounty; wave 150 ≈ 15 M, $658; wave 200 ≈ 171 M, $3,844.
 - Base speed **60 units/s**, for all attackers.
 - **9 attacker types** cycle by wave: type = (wave − 1) mod 9. In this build they differ only in look
   (types 0, 2 and 6 don't rotate along the path). [NEW] proposal: keep identical stats, give each type an original look.
@@ -207,6 +213,7 @@ The exact waypoint lists have been recovered and will go into the map data file 
 | | Easy | Medium (= original) | Hard | Extreme (unlockable) |
 |---|---|---|---|---|
 | HP growth per wave | ×1.10 | ×1.125 | ×1.165 | ×1.25 |
+| HP growth after wave 100 | ×1.04 | ×1.05 | ×1.066 | ×1.10 |
 | Start cash | $60 | $30 | $30 | $20 |
 | Lives | 20 | 10 | 5 | 1 |
 | Wave interval | 25 s | 20 s | 17 s | 15 s |
