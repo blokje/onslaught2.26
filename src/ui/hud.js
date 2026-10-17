@@ -1,7 +1,7 @@
 // In-game HUD: top bar, build rack, selected turret panel, message log, toasts, feedback effects.
 // Dynamic values are updated through cached setters so the DOM is only touched when something changes.
 import { h, setText, setClass, setProp, show } from './dom.js';
-import { TURRETS, BUILD_ORDER, SELL_REFUND, MOVE_COST } from '../data/turrets.js';
+import { TURRETS, BUILD_ORDER, SELL_REFUND, MOVE_COST, FREAKOUT } from '../data/turrets.js';
 import { SPEEDS, TARGET_MODES } from '../data/rules.js';
 import { iconSvg, LOCK_SVG } from './icons.js';
 import { formatNum, formatCash, formatTime } from './format.js';
@@ -336,11 +336,22 @@ export class Hud {
     }
     // chips
     const c = r.chips;
+    const fo = r.def.freakout;
     const fr = t.freak || 'off';
-    setClass(c.freak, 'hidden', fr === 'off');
+    setClass(c.freak, 'hidden', !fo);
     setClass(c.freak, 'hot', fr === 'warn');
     setClass(c.freak, 'good', fr === 'on');
-    setText(c.freak, fr === 'warn' ? 'Freak-out incoming!' : fr === 'on' ? 'FREAKING OUT x3 dmg x4 rate' : 'Freak-out ready');
+    if (fo) {
+      let txt;
+      if (fr === 'off') {
+        const lv = t.levels || {};
+        const d = Math.min(lv.damage || 0, fo.damage), ra = Math.min(lv.rate || 0, fo.rate);
+        txt = 'Freak-out at ' + fo.damage + ' dmg + ' + fo.rate + ' rate (' + d + '/' + fo.damage + ', ' + ra + '/' + fo.rate + ')';
+      } else if (fr === 'warn') txt = 'Freak-out incoming!';
+      else if (fr === 'on') txt = 'FREAKING OUT x' + FREAKOUT.damageMult + ' dmg x' + FREAKOUT.rateMult + ' rate';
+      else txt = 'Freak-out ready';
+      setText(c.freak, txt);
+    }
     setClass(c.holding, 'hidden', !t.holding);
     const capable = t.comboCapable;
     setClass(c.combo, 'hidden', !capable);

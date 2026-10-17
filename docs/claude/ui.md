@@ -8,7 +8,7 @@ DOM overlay over the canvas, input, persistence and audio. Contract: `ARCHITECTU
 |---|---|
 | `App.js` | Orchestrator: screens, input modes (build, move, join, focus), game events, autosave, unlock checks. `main.js` reads `app.game` every frame. |
 | `menu.js` | Main menu with a 2D path preview per map, difficulty, mode, Continue. |
-| `hud.js` | Top bar, build rack, selected-turret panel, message log, toasts, leak flash, error bubble. Values update through cached setters at about 10 Hz. |
+| `hud.js` | Top bar, build rack, selected-turret panel, message log, toasts, leak flash, error bubble. Values update through cached setters at about 10 Hz. The panel's status chips include a freak-out chip that is always shown for turrets with `freakout` in their data: upgrade progress toward the requirement ("Freak-out at 4 dmg + 4 rate (2/4, 1/4)") until eligible, then ready, incoming and active. |
 | `dialogs.js` | Settings, how to play, high scores, game over, in-game menu. |
 | `storage.js` | All persistence, prefix `os226.`, try/catch with an in-memory fallback. Autosave format `{ v, at, meta, data: game.serialize() }` under `os226.save`. |
 | `audio.js` | Web Audio synthesized SFX, created on the first user gesture, rate limited, master gain plus compressor. |
