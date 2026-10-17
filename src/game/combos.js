@@ -8,7 +8,7 @@
 // State kept here (all JSON-able, saved by serialize/deserialize): black holes, napalm / poison zones and
 // shockwaves. Mines, rockets, plasma balls and bomblets are ordinary projectiles with a `tag` and a `data`
 // object, so the engine already saves them. Only the cached mine road points are dropped.
-import { COMBOS, MINE } from '../data/combos.js';
+import { COMBOS, MINE, COMBO_LOG_MAX } from '../data/combos.js';
 import { COMBO_RANGE } from '../data/turrets.js';
 import { ladderValue } from './modifiers.js';
 import { impact } from './projectiles.js';
@@ -43,6 +43,78 @@ export class Combos {
   _ready(t) {
     // computed here (not t.comboReady) so a partner used earlier in the same step is not used twice
     return t.comboCapable && t.cd <= 0 && this.game.state.time >= t.comboNext;
+  }
+
+  _colorOf(t) { return t.kind === 'comboOnly' ? t.comboColor : t.color; }
+
+  /** ms until t could take part in a combo (Infinity when it is not combo capable). */
+  _wait(t) {
+    if (!t.comboCapable) return Infinity;
+    return Math.max(0, t.cd, t.comboNext - this.game.state.time);
+  }
+
+  _log(t, id, role) {
+    if (role === 'lead') t.combosFired = (t.combosFired || 0) + 1;
+    else t.combosAssisted = (t.combosAssisted || 0) + 1;
+    const log = t.comboLog || (t.comboLog = []);
+    log.unshift({ id, time: this.game.state.time, role });
+    if (log.length > COMBO_LOG_MAX) log.length = COMBO_LOG_MAX;
+  }
+
+  /**
+   * Read-only combo outlook for the UI (no rng, no state changes).
+   * wait = earliest ms until the recipe could fire: max of the lead's wait and, per colour, the need-th soonest
+   * partner. "Earliest" because normal shots reset cd. Infinity = not possible with the current neighbours.
+   * A Combo-only turret never leads: its recipes are those of capable leads in range that need its colour.
+   */
+  preview(t) {
+    const game = this.game;
+    const partners = [];
+    const waits = { red: [], green: [], blue: [], yellow: [] };
+    for (const id of game.comboPartners(t.id)) {
+      const o = game.turretMap.get(id);
+      if (!o) continue;
+      const color = this._colorOf(o);
+      const wait = this._wait(o);
+      partners.push({ id: o.id, kind: o.kind, color, wait });
+      if (waits[color]) waits[color].push(wait);
+    }
+    for (const c of COLORS) waits[c].sort((a, b) => a - b);
+
+    const own = this._wait(t);
+    const recipes = [];
+    const leads = t.kind !== 'comboOnly' && !!t.color && !!COMBOS[t.color];
+    if (leads) {
+      for (const r of COMBOS[t.color]) {
+        const missing = {};
+        let exactBlocked = false;
+        let wait = own;
+        for (const c of COLORS) {
+          const need = r.needs[c] || 0;
+          const have = waits[c].length;
+          if (have < need) missing[c] = need - have;
+          else if (need) wait = Math.max(wait, waits[c][need - 1]);
+          if (r.exact && r.exact[c] != null && have !== r.exact[c]) exactBlocked = true;
+        }
+        if (Object.keys(missing).length || exactBlocked) wait = Infinity;
+        recipes.push({ id: r.id, name: r.name, isNew: !!r.isNew, needs: r.needs, missing, exactBlocked, wait });
+      }
+    } else {
+      const col = this._colorOf(t);
+      const seen = new Set();
+      for (const p of partners) {
+        const lead = game.turretMap.get(p.id);
+        if (!lead || lead.kind === 'comboOnly' || !lead.comboCapable || !COMBOS[lead.color]) continue;
+        for (const r of COMBOS[lead.color]) {
+          if (!r.needs[col] || seen.has(r.id)) continue;
+          seen.add(r.id);
+          recipes.push({ id: r.id, name: r.name, isNew: !!r.isNew, needs: r.needs, missing: {}, exactBlocked: false, wait: own });
+        }
+      }
+    }
+    let next = null;
+    for (const r of recipes) if (r.wait !== Infinity && (!next || r.wait < next.wait)) next = { id: r.id, name: r.name, wait: r.wait };
+    return { leads, partners, recipes, next };
   }
 
   _rand(n) { return Math.floor(this.game.rng.next() * n); }
@@ -87,7 +159,7 @@ export class Combos {
     for (let i = 0; i < ids.length; i++) {
       const t = game.turretMap.get(ids[i]);
       if (!t || !this._ready(t)) continue;
-      const col = t.kind === 'comboOnly' ? t.comboColor : t.color;
+      const col = this._colorOf(t);
       if (groups[col]) groups[col].push(t);
     }
 
@@ -140,7 +212,9 @@ export class Combos {
       game.startRecharge(t, r.recharge);
       game.addBeam('chain', t.x, t.y, lead.x, lead.y, 300);
     }
-    game.emit('combo', { id: r.id, name: r.name, turretId: lead.id });
+    this._log(lead, r.id, 'lead');
+    for (const t of chosen) this._log(t, r.id, 'partner');
+    game.emit('combo', { id: r.id, name: r.name, turretId: lead.id, partnerIds: chosen.map((t) => t.id) });
     game.addEffect('comboName', { x: lead.x, y: lead.y - 30, radius: 0, duration: 1800, data: { name: r.name } });
     if (target) lead.angle = Math.atan2(target.y - lead.y, target.x - lead.x);
 

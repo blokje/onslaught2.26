@@ -59,7 +59,9 @@ const g2 = Game.deserialize(save);      // restore a running game
                targetMode /*rules.TARGET_MODES*/, locked /*bool*/, targetId /*or null*/,
                directional: { mode: 'normal'|'wide'|'medium'|'small', angle },
                joinedTo /*Targeter: turret id or null*/, comboColor /*Combo-only: 'red'|'green'|'blue'|'yellow'*/,
-               modRange /*modifiers: current influence radius*/ } ],
+               modRange /*modifiers: current influence radius*/,
+               combosFired, combosAssisted,           // combos led / joined as partner (weapons and Combo-only)
+               comboLog: [ { id /*recipe id*/, time /*game ms*/, role: 'lead'|'partner' } ] /*newest first, max COMBO_LOG_MAX*/ } ],
 
   focusId,              // optional: attacker id under focus fire, or null (renderer draws a reticle on it)
   projectiles: [ { id, kind, x, y, angle, armed? } ],   // armed (mines only): false while travelling, true once placed
@@ -94,6 +96,9 @@ game.setDirectional(id, mode, angle) // or game.cycleDirectional(id)
 game.join(targeterId, turretId)      // toggles; turretId null unjoins
 game.setComboColor(id, color)        // Combo-only
 game.comboPartners(id)               // -> [turretId] within COMBO_RANGE (for the C overlay)
+game.comboPreview(id)                // read-only, no rng: { leads, partners: [{ id, kind, color, wait }],
+                                     //   recipes: [{ id, name, isNew, needs, missing, exactBlocked, wait }], next: { id, name, wait } | null }
+                                     //   wait = earliest ms until it could fire (Infinity = not possible), for the panel's Combos tab
 game.sendWave()                      // early wave, adds early bonus; refused while paused ('Game is paused')
 game.setSpeed(s); game.togglePause(); game.setPaused(bool)
 game.turretAt(x, y)                  // -> id | null (within TURRET_SIZE/2)
@@ -102,7 +107,7 @@ game.turretAt(x, y)                  // -> id | null (within TURRET_SIZE/2)
 ### 1.3 Events (`game.on(name, fn)`; payload object)
 
 `shot {kind, turretId}`, `hit {attackerId}`, `kill {attackerId, x, y, bounty}`, `leak {lives}`,
-`wave {wave}`, `blast {size, x, y}`, `combo {id, name, turretId}`, `build {id, kind}`, `sell {id, refund}`,
+`wave {wave}`, `blast {size, x, y}`, `combo {id, name, turretId, partnerIds}`, `build {id, kind}`, `sell {id, refund}`,
 `upgrade {id, stat}`, `unlock {kind}`, `freakout {id, stage}`, `message {text}`, `gameover {score, kills, wave}`,
 `error {reason}` (failed command, for UI feedback).
 

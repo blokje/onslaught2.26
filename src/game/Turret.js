@@ -38,6 +38,9 @@ export class Turret {
     this.targeterId = null;           // id of a Targeter joined to this turret (derived)
     this.ramp = 0;                    // Fusion: ticks on the current target
     this.rampTarget = null;           // Fusion: attacker id the ramp belongs to
+    this.combosFired = 0;             // combos this turret led
+    this.combosAssisted = 0;          // combos this turret joined as a partner
+    this.comboLog = [];               // [{ id, time, role: 'lead'|'partner' }], newest first, max COMBO_LOG_MAX
   }
 
   static fromJSON(o) {

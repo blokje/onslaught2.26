@@ -6,6 +6,9 @@
 // (damage multiplier from modifiers/freak-out). "+chain" means the partner Green's chain damage is added.
 // Blast radii: small 40, medium 60, large 80, huge 87.5, bfg 87.5, poison 110.
 
+// How many recent combos each turret remembers (comboLog, shown in the panel's Combos tab).
+export const COMBO_LOG_MAX = 5;
+
 export const BLAST_RADIUS = { small: 40, medium: 60, large: 80, huge: 87.5, bfg: 87.5, poison: 110 };
 
 export const COMBOS = {

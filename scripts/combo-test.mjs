@@ -2,7 +2,7 @@
 // For each of the 20 recipes: build lead + partners (sandbox cash), upgrade everything to max, run the sim and
 // check that the right combo fires, recharge is applied, damage is dealt and the specific behaviour happens.
 import { Game, STEP_MS } from '../src/game/Game.js';
-import { COMBOS, MINE } from '../src/data/combos.js';
+import { COMBOS, MINE, COMBO_LOG_MAX } from '../src/data/combos.js';
 
 let failures = 0;
 function check(name, cond, extra = '') {
@@ -491,6 +491,69 @@ for (const id of ['rocketBfg', 'bfg', 'tazerBfg']) {
   const inRange = atts.filter((a) => Math.hypot(a.x - p.x, a.y - p.y) <= fx.sparks.range).length;
   const want = Math.min(fx.sparks.qty, inRange);
   check(`(tazerBfg) one tick fires qty=${fx.sparks.qty} sparks at distinct attackers`, hit.length === want && (o.beams.spark || 0) - before === want && want > 1, `hit ${hit.length}, in range ${inRange}`);
+}
+
+// ------------------------------------------------------------------ combo counters, log and preview (panel Combos tab)
+{
+  const { g, lead, partners } = setup({ lead: 'red', partners: ['blue', 'blue'] });
+  const pv0 = g.comboPreview(lead.id);
+  const nuke0 = pv0.recipes.find((r) => r.id === 'nuke');
+  check('(preview) Red + 2 Blue: leads, 2 blue partners, Nuke has nothing missing and is next at wait 0',
+    pv0.leads && pv0.partners.length === 2 && pv0.partners.every((p) => p.color === 'blue') &&
+    nuke0 && !Object.keys(nuke0.missing).length && pv0.next && pv0.next.id === 'nuke' && pv0.next.wait === 0,
+    JSON.stringify(pv0.next));
+  check('(preview) lists every recipe of the lead colour, poisonGas missing a green',
+    pv0.recipes.length === COMBOS.red.length && pv0.recipes.find((r) => r.id === 'poisonGas').missing.green === 1);
+  const before = JSON.stringify(g.serialize());
+  g.comboPreview(lead.id); g.comboPreview(partners[0].id);
+  check('(preview) is read-only and draws no rng', JSON.stringify(g.serialize()) === before);
+
+  addAttackers(g, SPOT, 4);
+  const o = observe(g);
+  run(g, o, 30, () => (o.combos.length ? 'stop' : undefined));
+  const ev = o.combos[0];
+  check('(log) combo event carries partnerIds', ev && Array.isArray(ev.partnerIds) && ev.partnerIds.length === 2 &&
+    partners.every((p) => ev.partnerIds.includes(p.id)), ev && JSON.stringify(ev.partnerIds));
+  check('(log) lead: combosFired 1, comboLog [nuke lead]', lead.combosFired === 1 && lead.combosAssisted === 0 &&
+    lead.comboLog.length === 1 && lead.comboLog[0].id === 'nuke' && lead.comboLog[0].role === 'lead' && lead.comboLog[0].time === ev.time);
+  check('(log) partners: combosAssisted 1, comboLog [nuke partner]', partners.every((p) => p.combosAssisted === 1 && p.combosFired === 0 &&
+    p.comboLog[0].id === 'nuke' && p.comboLog[0].role === 'partner'));
+
+  const pv1 = g.comboPreview(lead.id);
+  const rech = COMBOS.red.find((r) => r.id === 'nuke').recharge;
+  check('(preview) right after firing, next Nuke waits about the recharge', pv1.next && pv1.next.id === 'nuke' &&
+    Math.abs(pv1.next.wait - rech) <= 2 * STEP_MS, pv1.next && String(pv1.next.wait));
+  const save = JSON.parse(JSON.stringify(g.serialize()));
+  const g2 = Game.deserialize(save);
+  const l2 = g2.turretMap.get(lead.id);
+  check('(save) counters and comboLog survive save/restore', l2.combosFired === 1 && l2.comboLog.length === 1 && l2.comboLog[0].id === 'nuke');
+
+  // the log is capped
+  for (let i = 0; i < COMBO_LOG_MAX + 3; i++) g.combos._log(lead, 'nuke', 'lead');
+  check('(log) comboLog capped at COMBO_LOG_MAX', lead.comboLog.length === COMBO_LOG_MAX && lead.combosFired === COMBO_LOG_MAX + 4);
+
+  // removing a partner makes Nuke miss a blue
+  g.sell(partners[1].id);
+  const pv2 = g.comboPreview(lead.id);
+  const nuke2 = pv2.recipes.find((r) => r.id === 'nuke');
+  check('(preview) after selling a blue, Nuke needs 1 blue and wait is Infinity', nuke2.missing.blue === 1 && nuke2.wait === Infinity && pv2.partners.length === 1);
+}
+{
+  const { g, lead } = setup({ lead: 'yellow', partners: ['yellow', 'yellow', 'green', 'green'] });
+  const bh = g.comboPreview(lead.id).recipes.find((r) => r.id === 'blackHole');
+  check('(preview) Black Hole with 2 greens is exactBlocked', bh.exactBlocked && bh.wait === Infinity);
+}
+{
+  const { g, lead, partners } = setup({ lead: 'red', partners: [{ kind: 'comboOnly', color: 'blue' }, 'blue'] });
+  const pv = g.comboPreview(partners[0].id);
+  check('(preview) Combo-only never leads, lists the recipes of leads in range that need its colour',
+    !pv.leads && pv.recipes.some((r) => r.id === 'nuke') && pv.recipes.every((r) => r.needs.blue), pv.recipes.map((r) => r.id).join(','));
+}
+{
+  const g3 = new Game({ mapId: MAP, mode: 'sandbox', seed: 5, waveInterval: 1e9 });
+  const id = g3.build('red', SPOT.x, SPOT.y).id;
+  const pv = g3.comboPreview(id);
+  check('(preview) weapon not at max damage: recipes listed, nothing possible', !pv.next && pv.recipes.length === COMBOS.red.length && pv.recipes.every((r) => r.wait === Infinity));
 }
 
 // ------------------------------------------------------------------ save / restore determinism with active combos

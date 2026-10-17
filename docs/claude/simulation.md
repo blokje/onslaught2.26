@@ -36,6 +36,7 @@ Pure logic, runs in Node and the browser. Contract: `ARCHITECTURE.md` section 1.
 ## Combos
 
 `game.combos` (`combos.js`) gets `tryFire(lead)` before every normal shot of a combo-capable turret. It is also called through `update(dt)`, `projectileUpdate(p, dt)`, `projectileImpact(p, x, y, target)` and `serialize()` / `deserialize()`.
+Every fired combo adds 1 to the lead's `combosFired` and each chosen partner's `combosAssisted`, and prepends `{ id, time, role }` to their `comboLog` (max `COMBO_LOG_MAX`). `game.comboPreview(id)` (`Combos.preview`) is a read-only, rng-free view for the UI: partners in range, the lead colour's recipes with missing partners, and the earliest wait per recipe (max of the lead's wait and the need-th soonest partner of each colour). It is "earliest possible": normal shots reset `cd`.
 Helper API on `Game` (documented at the top of `Game.js`): `comboPartners`, `spawnProjectile`, `addEffect`, `addBeam`, `damageAttacker`, `blast`, `attackersInRadius`, `roadPoints`, `chainLaserDamage`, `killAttacker`, `startRecharge`, `emit`, `rng`.
 
 ## Adding things
