@@ -203,7 +203,7 @@ export class Combos {
       x: lead.x, y: lead.y, angle: Math.atan2(spot.y - lead.y, spot.x - lead.x), speed: MINE.travelSpeed,
       mode: 'goto', destX: spot.x, destY: spot.y, stay: true, sourceId: lead.id, tag: 'mine',
       damage: fx.hit * mult, blast: { size: fx.blast.size, damage: fx.blast.damage * mult, poison: 0 },
-      data: { cid: r.id, mult, chain, armed: false },
+      data: { cid: r.id, mult, chain, armed: false }, armed: false,
     });
     return p;
   }
@@ -371,7 +371,7 @@ export class Combos {
     if (p.tag === 'mine') {
       if (p.age > MINE_LIFE) { p.dead = true; return; }
       if (!d.armed) {
-        if (Math.hypot(p.destX - p.x, p.destY - p.y) < 0.5) d.armed = true;
+        if (Math.hypot(p.destX - p.x, p.destY - p.y) < 0.5) { d.armed = true; p.armed = true; }
         return;
       }
       const a = this._nearestAttacker(p.x, p.y, MINE.triggerRadius, null);
@@ -399,12 +399,26 @@ export class Combos {
           const spark = !fx.laser && fx.sparks;
           d.tLaser += 60000 / (spark ? fx.sparks.rate : fx.laser.rate);
           const range = spark ? fx.sparks.range : fx.laser.range;
-          const a = this._randomAttacker(p.x, p.y, range);
-          if (a) {
-            if (spark) {
+          if (spark) {
+            // up to qty sparks per tick, each at a distinct random attacker in range
+            const buf = this._buf;
+            const n = game.grid.query(p.x, p.y, range, buf);
+            let m = 0;
+            for (let i = 0; i < n; i++) if (!buf[i].swallowed) buf[m++] = buf[i];
+            const picks = [];
+            const want = Math.min(fx.sparks.qty || 1, m);
+            for (let k = 0; k < want; k++) {
+              const j = k + this._rand(m - k);
+              const tmp = buf[k]; buf[k] = buf[j]; buf[j] = tmp;
+              picks.push(buf[k]);
+            }
+            for (const a of picks) {
               game.addBeam('spark', p.x, p.y, a.x, a.y, 120);
               game.damageAttacker(a, fx.sparks.damage * d.mult, src, fx.sparks.poison || 0);
-            } else {
+            }
+          } else {
+            const a = this._randomAttacker(p.x, p.y, range);
+            if (a) {
               game.addBeam('laser', p.x, p.y, a.x, a.y, 120);
               game.damageAttacker(a, fx.laser.damage * d.mult, src, 0);
             }

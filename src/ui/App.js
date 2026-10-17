@@ -433,7 +433,13 @@ export class App {
     window.addEventListener('keydown', unlockAudio, true);
     window.addEventListener('keydown', (e) => this.onKey(e));
     window.addEventListener('pointermove', (e) => this.onPointerMove(e), { passive: true });
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') this.autosave(); });
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'hidden') return;
+      this.autosave();
+      // auto-pause a running game while the tab is hidden; it stays paused on return (no auto-resume)
+      const g = this.game;
+      if (g && !g.state.over && !g.state.paused) { try { g.setPaused(true); } catch (e) { /* ignore */ } }
+    });
     window.addEventListener('pagehide', () => this.autosave());
     // UI click / hover sounds
     this.root.addEventListener('click', (e) => {

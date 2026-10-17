@@ -196,8 +196,9 @@ for (const { colour, r } of recipes) {
   }
   if (isMine) {
     // phase 1: travel and arm
-    let mine = null;
-    run(g, o, 120, () => { mine = g.state.projectiles.find((p) => p.kind === 'mine'); if (mine && mine.data.armed) return 'stop'; });
+    let mine = null, travelledUnarmed = false;
+    run(g, o, 120, () => { mine = g.state.projectiles.find((p) => p.kind === 'mine'); if (mine && !mine.data.armed && mine.armed === false) travelledUnarmed = true; if (mine && mine.data.armed) return 'stop'; });
+    check(`[${r.id}] mine state.armed false while travelling, true once placed`, !!mine && mine.armed === true && travelledUnarmed);
     check(`[${r.id}] mine spawned, travels and arms`, !!mine && mine.data.armed && Math.hypot(mine.x - mine.destX, mine.y - mine.destY) < 1);
     // mine point lies within the lead's maximum range
     const maxR = 350; // red max; blue max is 220, this is only a loose bound for the lead (blue)
@@ -275,7 +276,7 @@ for (const { colour, r } of recipes) {
     const rate = fx.laser ? fx.laser.rate : fx.sparks.rate;
     const want = Math.max(1, Math.floor(flightMs / (60000 / rate)) - 1);
     const got = fx.laser ? o.beams.laser || 0 : o.beams.spark || 0;
-    check(`[${r.id}] plasma ball (flight ${Math.round(flightMs)} ms) fires ${fx.laser ? 'lasers' : 'sparks'} at its rate`, got >= want && got <= want + 3, `got ${got}, want ~${want}`);
+    check(`[${r.id}] plasma ball (flight ${Math.round(flightMs)} ms) fires ${fx.laser ? 'lasers' : 'sparks'} at its rate`, got >= want && got <= (fx.sparks && !fx.laser ? (want + 3) * fx.sparks.qty : want + 3), `got ${got}, want ~${want}`);
     check(`[${r.id}] plasma ball is slow (speed ${fx.speed})`, flightMs > 300, `${Math.round(flightMs)} ms`);
     if (fx.rockets) {
       const wantR = Math.max(1, Math.floor(flightMs / (60000 / fx.rockets.rate)) - 1);
@@ -452,6 +453,44 @@ for (const id of ['rocketBfg', 'bfg', 'tazerBfg']) {
   g.advance(2);
   for (const a of sw) if (!a.dead && a.progress !== prog.get(a.id)) moved = true;
   check('(black hole) swallowed attackers are not moved along the road', !!h && sw.length > 0 && !moved, `swallowed ${sw.length}`);
+}
+
+
+// ------------------------------------------------------------------ homing vs black hole, tazer BFG spark volley
+{
+  const { g } = setup({ lead: 'blue', partners: [] });
+  const road = g.roadPoints();
+  const mk = (d) => { const a = g.spawnAttacker(1, HP); a.progress = d; g.path.place(a, d); a.blackholed = true; return a; };
+  const victim = mk(road[40].d), other = mk(road[60].d);
+  g.grid.rebuild(g.state.attackers);
+  victim.swallowed = true;
+  const origin = { x: victim.x - 60, y: victim.y };
+  const hp = g.spawnProjectile('rocket', { x: origin.x, y: origin.y, angle: 0, speed: 100, mode: 'homing', turnRate: 6, targetId: victim.id, retarget: true, impactRadius: 6, damage: 1, visualBlast: 'small', ttl: 5000 });
+  g.advance(2);
+  check('(homing) retargets away from a swallowed attacker', hp.targetId === other.id, String(hp.targetId));
+  other.swallowed = true;
+  const sh = g.spawnProjectile('shell', { x: origin.x, y: origin.y, angle: 0, speed: 100, mode: 'homing', turnRate: 6, targetId: victim.id, impactRadius: 6, damage: 1, ttl: 5000 });
+  const x0 = sh.x;
+  g.advance(10);
+  check('(homing) with no valid attacker it flies on straight (not dead, not chasing)', !sh.dead && sh.x > x0 && Math.abs(sh.angle) < 1e-9, `angle ${sh.angle}`);
+}
+{
+  const r = COMBOS.red.concat(COMBOS.blue, COMBOS.green, COMBOS.yellow).find((x) => x.id === 'tazerBfg');
+  const fx = r.fx, colour = Object.keys(COMBOS).find((c) => COMBOS[c].includes(r));
+  const sc = setup({ lead: colour, partners: partnersFor(r), seed: 4 });
+  const { g } = sc;
+  const atts = addAttackers(g, sc.spot, 10, true);
+  const p = g.spawnProjectile('bfg', { x: sc.spot.x, y: sc.spot.y, angle: 0, speed: 0, mode: 'straight', ttl: 1e9, tag: 'bfg',
+    data: { cid: r.id, mult: 1, chain: 0, tLaser: 1, tRocket: 0 } });
+  const o = observe(g);
+  // one spark tick
+  const before = (o.beams.spark || 0);
+  g.combos.projectileUpdate(p, 5);
+  o.tick();
+  const hit = atts.filter((a) => a.hp < a.maxHp);
+  const inRange = atts.filter((a) => Math.hypot(a.x - p.x, a.y - p.y) <= fx.sparks.range).length;
+  const want = Math.min(fx.sparks.qty, inRange);
+  check(`(tazerBfg) one tick fires qty=${fx.sparks.qty} sparks at distinct attackers`, hit.length === want && (o.beams.spark || 0) - before === want && want > 1, `hit ${hit.length}, in range ${inRange}`);
 }
 
 // ------------------------------------------------------------------ save / restore determinism with active combos

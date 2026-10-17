@@ -83,7 +83,7 @@ export class Game {
     this.nextId = 1;
     this.acc = 0;
     this.stepCount = 0;
-    this.focusId = null;
+    this._focusId = null;
     this.spawners = [];
     this.hpGrowth = diff.hpGrowth;
     this.waveInterval = o.waveInterval ?? diff.waveInterval;
@@ -112,10 +112,15 @@ export class Game {
         roadWidth: FIELD.roadWidth, length: this.path.length,
       },
       attackers: [], turrets: [], projectiles: [], beams: [], effects: [],
+      focusId: null,
     };
     this._nextUnlock = this._computeNextUnlock();
     this.combos = new Combos(this);
   }
+
+  /** Focus-fire target; mirrored to state.focusId for the renderer. */
+  get focusId() { return this._focusId; }
+  set focusId(v) { this._focusId = v; if (this.state) this.state.focusId = v; }
 
   // ------------------------------------------------------------------ events
   on(name, fn) { return this.events.on(name, fn); }

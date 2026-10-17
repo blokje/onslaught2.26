@@ -64,13 +64,15 @@ export function drawTurrets(R, f) {
       const fl = 0.8 + 0.2 * Math.random();
       b.tGlow.add(x, y, 0, 92, 92, c.fx.glow, 1, 0.45, 0.1, 0.42 * fl);
       for (let k = 0; k < 2; k++) {
-        b.tWeapAdd.add(x + (Math.random() - 0.5) * 3, y + (Math.random() - 0.5) * 3 - 1, rot, 64, 64, c.tw[idx], 1, 0.5, 0.15, 0.22);
+        b.tWeapAdd.add(x + (Math.random() - 0.5) * 3, y + (Math.random() - 0.5) * 3 - 1, rot, isMod ? 50 : 64, isMod ? 50 : 64, c.tw[idx], 1, 0.5, 0.15, 0.22);
       }
       if (f.dtMs > 0 && Math.random() < f.dtMs * 0.012) {
         R.particles.spawn(1, x + (Math.random() - 0.5) * 24, y + (Math.random() - 0.5) * 10, (Math.random() - 0.5) * 8, -26 - Math.random() * 18, 700, 5, 1, 1, 0.55, 0.15, 0.55, 0);
       }
     }
-    b.tWeap.add(x + jx, y + jy, rot, 64, 64, c.tw[idx], wr, wg, wb, 1);
+    const ws = isMod ? 50 : 64; // modifier dishes are drawn smaller so the icon on top stays readable
+    b.tWeap.add(x + jx, y + jy, rot, ws, ws, c.tw[idx], wr, wg, wb, 1);
+    if (isMod && c.ti[t.kind]) b.tIcon.add(x, y, 0, 32, 32, c.ti[t.kind], wr, wg, wb, 1);
 
     // freak indicators
     if (t.freak === 'available') {
@@ -229,8 +231,10 @@ export function drawProjectiles(R, f) {
         break;
       case 'mine': {
         b.proj.add(x, y, ang, 15, 15, c.fx.mine, 1, 1, 1, 1);
-        const on = Math.sin(t * 7 + p.id * 1.7) > 0.55;
-        b.projAdd.add(x, y, 0, 11, 11, c.fx.glow, 1, 0.15, 0.1, on ? 0.95 : 0.2);
+        // travelling: steady dim disc; armed (placed): blinking light
+        const armed = p.armed === true;
+        const on = armed && Math.sin(t * 7 + p.id * 1.7) > 0.55;
+        b.projAdd.add(x, y, 0, 11, 11, c.fx.glow, 1, 0.15, 0.1, armed ? (on ? 0.95 : 0.2) : 0.3);
         break; }
       case 'sniper':
         b.projAdd.add(x - cs * 8, y - sn * 8, ang, 26, 2.2, c.fx.beam, 0.85, 0.93, 1, 0.95);

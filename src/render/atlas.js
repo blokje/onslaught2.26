@@ -50,11 +50,11 @@ function glowDot(ctx, x, y, r, color, blur = 8) {
 }
 
 /** Begin drawing in cell i: origin at cell centre, scaled to `unitsPerCell`, clipped to the cell. */
-function beginCell(ctx, i, unitsPerCell) {
+function beginCell(ctx, i, unitsPerCell, cell = CELL) {
   ctx.save();
-  ctx.translate((i % COLS) * CELL + CELL / 2, Math.floor(i / COLS) * CELL + CELL / 2);
-  ctx.beginPath(); ctx.rect(-CELL / 2, -CELL / 2, CELL, CELL); ctx.clip();
-  const s = CELL / unitsPerCell;
+  ctx.translate((i % COLS) * cell + cell / 2, Math.floor(i / COLS) * cell + cell / 2);
+  ctx.beginPath(); ctx.rect(-cell / 2, -cell / 2, cell, cell); ctx.clip();
+  const s = cell / unitsPerCell;
   ctx.scale(s, s);
 }
 export function cellUV(i, inset = 0) {
@@ -327,7 +327,7 @@ export function buildUnitAtlas() {
 }
 
 // =====================================================================================
-// Turrets: base plates + weapons. cell = 64 world units (4 px / unit)
+// Turrets: base plates + weapons. cell = 64 world units (8 px / unit, 2048 px atlases) + a small non-rotating modifier icon atlas
 // =====================================================================================
 export const WEAPON_COLOR = { blue: '#3b82f6', green: '#3ddc6a', red: '#ef4444', yellow: '#facc15' };
 export const MOD_TINT = {
@@ -399,7 +399,6 @@ function drawBase(ctx, kind) {
   circle(ctx, 0, 0, 15.2); fillStroke(ctx, rad(ctx, -4, -5, 1, 0, 0, 15, [[0, '#5a626b'], [1, '#2d3238']]), 0.6, 'rgba(0,0,0,0.6)');
   // bolts
   for (let i = 0; i < 8; i++) { const a = i * TAU / 8 + Math.PI / 8; circle(ctx, Math.cos(a) * 17.6, Math.sin(a) * 17.6, 0.85); ctx.fillStyle = '#c8cdd2'; ctx.fill(); ctx.lineWidth = 0.25; ctx.strokeStyle = '#1a1d22'; ctx.stroke(); }
-  if (isMod) drawModIcon(ctx, kind, accent);
   if (kind === 'comboOnly') { circle(ctx, 0, 0, 12); ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fill(); }
 }
 
@@ -533,17 +532,38 @@ const WEAPON_DRAW = {
   },
 };
 
+export const T_PX = 8;                       // atlas pixels per world unit for turrets
+const T_CELL = 64 * T_PX, T_SIZE = T_CELL * COLS; // 512 px cells, 2048 px atlases
+export const MOD_KINDS = BUILD_ORDER.filter((k) => !!MOD_TINT[k]);
+export const MOD_ICON_UNITS = 32;            // icon cell = 32 world units at 8 px / unit (256 px), grid 4 x 2
+const ICON_W = 1024, ICON_H = 512;
+/** UV of the (non-rotating) modifier icon for a kind, or null for non-modifiers. */
+export function modIconUV(kind) {
+  const i = MOD_KINDS.indexOf(kind);
+  if (i < 0) return null;
+  const x = (i % COLS) * 256, y = Math.floor(i / COLS) * 256;
+  return { u0: x / ICON_W, v0: y / ICON_H, u1: (x + 256) / ICON_W, v1: (y + 256) / ICON_H };
+}
+
 export function buildTurretAtlases() {
-  const cb = newCanvas(SIZE, SIZE), cw = newCanvas(SIZE, SIZE);
-  const xb = cb.getContext('2d'), xw = cw.getContext('2d');
+  const cb = newCanvas(T_SIZE, T_SIZE), cw = newCanvas(T_SIZE, T_SIZE), ci = newCanvas(ICON_W, ICON_H);
+  const xb = cb.getContext('2d'), xw = cw.getContext('2d'), xi = ci.getContext('2d');
   BUILD_ORDER.forEach((kind, i) => {
-    beginCell(xb, i, 64); drawBase(xb, kind); xb.restore();
-    beginCell(xw, i, 64);
+    beginCell(xb, i, 64, T_CELL); drawBase(xb, kind); xb.restore();
+    beginCell(xw, i, 64, T_CELL);
     if (WEAPON_DRAW[kind]) WEAPON_DRAW[kind](xw);
     else if (MOD_TINT[kind]) drawModWeapon(xw, kind, MOD_TINT[kind]);
     xw.restore();
   });
-  return { base: toTexture(cb), weapon: toTexture(cw) };
+  MOD_KINDS.forEach((kind, i) => {
+    beginCell(xi, i, MOD_ICON_UNITS, 256);
+    // dark backing so the glyph reads on top of the spinning dish
+    circle(xi, 0, 0, 10.6); xi.fillStyle = 'rgba(14,17,24,0.72)'; xi.fill();
+    circle(xi, 0, 0, 10.6); xi.lineWidth = 0.8; xi.strokeStyle = MOD_TINT[kind]; xi.globalAlpha = 0.85; xi.stroke(); xi.globalAlpha = 1;
+    drawModIcon(xi, kind, MOD_TINT[kind]);
+    xi.restore();
+  });
+  return { base: toTexture(cb), weapon: toTexture(cw), icon: toTexture(ci) };
 }
 
 // =====================================================================================

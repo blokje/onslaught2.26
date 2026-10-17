@@ -216,6 +216,24 @@ export function drawOverlay(R, f) {
     }
   }
 
+  // focus fire: pulsing red reticle that follows the focused attacker (screen-constant size)
+  if (st.focusId != null) {
+    let fa = null;
+    for (const a of st.attackers) if (a.id === st.focusId) { fa = a; break; }
+    if (fa && !fa.dead) {
+      const pulse = 0.5 + 0.5 * Math.sin(t * 7);
+      const R0 = px(15 + 3 * pulse), spin = t * 1.2;
+      b.ringTop.add(fa.x, fa.y, R0, px(2), 0, 0.15, 0, 1, 0.12, 0.1, 0.95);
+      b.ringTop.add(fa.x, fa.y, px(8), px(1.2), 0, 0.1, 0, 1, 0.3, 0.2, 0.6 + 0.3 * pulse);
+      for (let k = 0; k < 4; k++) { // four crosshair ticks, slowly rotating
+        const an = spin + k * Math.PI / 2, ca = Math.cos(an), sa = Math.sin(an);
+        const r1 = px(10), r2 = px(24 + 2 * pulse);
+        b.ovAdd.line(fa.x + ca * r1, fa.y + sa * r1, fa.x + ca * r2, fa.y + sa * r2, px(2.4), c.fx.beam, 1, 0.15, 0.1, 0.95);
+      }
+      b.ovAdd.add(fa.x, fa.y, 0, px(46), px(46), c.fx.glow, 1, 0.1, 0.05, 0.28 + 0.18 * pulse);
+    }
+  }
+
   // joined Targeters and the selected turret's Green links
   for (const tr of st.turrets) {
     if (tr.joinedTo != null) {
@@ -289,7 +307,9 @@ export function drawOverlay(R, f) {
     b.ghostBase.add(gh.x, gh.y, 0, 64, 64, c.tb[idx], tint[0], tint[1], tint[2], 0.78);
     let rot = gh.angle || 0;
     if (isMod) rot = t * 0.8;
-    b.ghostWeap.add(gh.x, gh.y, rot, 64, 64, c.tw[idx], tint[0], tint[1], tint[2], 0.78);
+    const gws = isMod ? 50 : 64;
+    b.ghostWeap.add(gh.x, gh.y, rot, gws, gws, c.tw[idx], tint[0], tint[1], tint[2], 0.78);
+    if (isMod && c.ti[gh.kind]) b.ghostIcon.add(gh.x, gh.y, 0, 32, 32, c.ti[gh.kind], tint[0], tint[1], tint[2], 0.9);
     b.ringTop.add(gh.x, gh.y, 22, px(2.4), 0, 0.15, 14, col[0], col[1], col[2], 0.95);
   }
   void KIND_TINT;

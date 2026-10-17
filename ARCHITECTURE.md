@@ -61,7 +61,8 @@ const g2 = Game.deserialize(save);      // restore a running game
                joinedTo /*Targeter: turret id or null*/, comboColor /*Combo-only: 'red'|'green'|'blue'|'yellow'*/,
                modRange /*modifiers: current influence radius*/ } ],
 
-  projectiles: [ { id, kind, x, y, angle } ],
+  focusId,              // optional: attacker id under focus fire, or null (renderer draws a reticle on it)
+  projectiles: [ { id, kind, x, y, angle, armed? } ],   // armed (mines only): false while travelling, true once placed
     // kind: 'shell' | 'rocket' | 'nuke' | 'poisonRocket' | 'laserRocket' | 'napalmRocket' | 'tazerRocket'
     //       | 'bfg' | 'clusterBomb' | 'cluster' | 'mine' | 'sniper' | 'rail'
 

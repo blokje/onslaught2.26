@@ -11,7 +11,7 @@
 import * as THREE from 'three';
 import { FIELD } from '../data/rules.js';
 import { SpriteBatch, RingBatch } from './batches.js';
-import { buildFxAtlas, buildUnitAtlas, buildTurretAtlases, TextAtlas, cellUV, FX, KIND_INDEX } from './atlas.js';
+import { buildFxAtlas, buildUnitAtlas, buildTurretAtlases, TextAtlas, cellUV, modIconUV, MOD_KINDS, FX, KIND_INDEX } from './atlas.js';
 import { Terrain } from './terrain.js';
 import { CameraController } from './camera.js';
 import { Particles } from './particles.js';
@@ -64,6 +64,7 @@ export class Renderer {
         att: Array.from({ length: 9 }, (_, i) => cellUV(i)),
         tb: Array.from({ length: nKinds }, (_, i) => cellUV(i)),
         tw: Array.from({ length: nKinds }, (_, i) => cellUV(i)),
+        ti: Object.fromEntries(MOD_KINDS.map((k) => [k, modIconUV(k)])),
       },
       b: {},
       particles: new Particles(2600),
@@ -76,13 +77,14 @@ export class Renderer {
     };
     const b = this.res.b;
     const mk = (name, batch) => { b[name] = batch; this.scene.add(batch.mesh); return batch; };
-    const FXT = fxA.texture, UT = unitA.texture, TB = turA.base, TW = turA.weapon, TT = this.text.texture;
+    const FXT = fxA.texture, UT = unitA.texture, TB = turA.base, TW = turA.weapon, TI = turA.icon, TT = this.text.texture;
     this.terrain = new Terrain(this.scene, FXT);
     mk('ringUnder', new RingBatch(600, { order: 3 }));
     mk('tGlow', new SpriteBatch(FXT, 600, { additive: true, order: 3.5 }));
     mk('tBase', new SpriteBatch(TB, 400, { order: 4 }));
     mk('tWeap', new SpriteBatch(TW, 400, { order: 5 }));
     mk('tWeapAdd', new SpriteBatch(TW, 800, { additive: true, order: 5.1 }));
+    mk('tIcon', new SpriteBatch(TI, 100, { order: 5.2 }));
     mk('tTop', new SpriteBatch(FXT, 1400, { order: 5.5 }));
     mk('groundRing', new RingBatch(200, { order: 6 }));
     mk('groundFx', new SpriteBatch(FXT, 1200, { order: 6.2 }));
@@ -100,9 +102,10 @@ export class Renderer {
     mk('text', new SpriteBatch(TT, 400, { order: 11 }));
     mk('ghostBase', new SpriteBatch(TB, 4, { order: 12 }));
     mk('ghostWeap', new SpriteBatch(TW, 4, { order: 12.1 }));
+    mk('ghostIcon', new SpriteBatch(TI, 4, { order: 12.2 }));
     mk('ringTop', new RingBatch(500, { order: 12.5 }));
     mk('ovAdd', new SpriteBatch(FXT, 800, { additive: true, order: 12.6 }));
-    this.sprites = ['tGlow', 'tBase', 'tWeap', 'tWeapAdd', 'tTop', 'groundFx', 'groundFxAdd', 'attSh', 'attGlow', 'att', 'attTop', 'smoke', 'proj', 'projAdd', 'beams', 'blastAdd', 'text', 'ghostBase', 'ghostWeap', 'ovAdd'].map((n) => b[n]);
+    this.sprites = ['tGlow', 'tBase', 'tWeap', 'tWeapAdd', 'tIcon', 'tTop', 'groundFx', 'groundFxAdd', 'attSh', 'attGlow', 'att', 'attTop', 'smoke', 'proj', 'projAdd', 'beams', 'blastAdd', 'text', 'ghostBase', 'ghostWeap', 'ghostIcon', 'ovAdd'].map((n) => b[n]);
     this.rings = ['ringUnder', 'groundRing', 'ringAdd', 'ringTop'].map((n) => b[n]);
 
     // --- camera + input

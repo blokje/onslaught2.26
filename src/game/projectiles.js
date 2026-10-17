@@ -25,7 +25,7 @@ function nearestAttacker(game, x, y) {
   const list = game.state.attackers;
   for (let i = 0; i < list.length; i++) {
     const a = list[i];
-    if (a.dead) continue;
+    if (a.dead || a.swallowed) continue;
     const d = (a.x - x) * (a.x - x) + (a.y - y) * (a.y - y);
     if (d < bd) { bd = d; best = a; }
   }
@@ -89,11 +89,12 @@ export function updateProjectiles(game, dt) {
 
     if (p.mode === 'homing') {
       let target = p.targetId != null ? game.attackerMap.get(p.targetId) : null;
-      if (target && target.dead) target = null;
+      let swallowed = false;
+      if (target && (target.dead || target.swallowed)) { swallowed = !!target.swallowed && !target.dead; target = null; } // black hole victims are not chased
       if (!target) {
-        if (p.retarget) {
+        if (p.retarget || swallowed) {
           target = nearestAttacker(game, p.x, p.y);
-          p.targetId = target ? target.id : null;
+          if (target || !swallowed) p.targetId = target ? target.id : null; // none valid: fly on straight
         } else if (p.damage > 0 && !p.blast) {
           p.dead = true; continue; // shell lost its target
         }
