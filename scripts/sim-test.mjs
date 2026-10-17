@@ -1,6 +1,9 @@
 // Headless simulation tests for src/game. Run: node scripts/sim-test.mjs
 import { Game, STEP_MS } from '../src/game/Game.js';
 import { TURRETS } from '../src/data/turrets.js';
+import { MAPS } from '../src/data/maps.js';
+import { WEAVE } from '../src/data/rules.js';
+import { laneOffset } from '../src/game/Attacker.js';
 
 let failures = 0;
 function check(name, cond, extra = '') {
@@ -291,6 +294,38 @@ function makePlayer(game, spots) {
   check('(mech) on stage: damage x4, rate x5 (added multipliers)', t.freak === 'on' && near(t.stats.damage, base.damage * 4) && near(t.stats.rate, base.rate * 5), JSON.stringify(t.stats));
   g.advance(60 * 5 + 2);
   check('(mech) freak ends, stats back, next scheduled 40-80 s minus rate bonus', t.freak === 'available' && near(t.stats.damage, base.damage) && t.freakAt - g.state.time >= 40000 - 7 * 4000 - 1000 && ev.join() === 'warn,on,off', `${ev}`);
+}
+
+// ------------------------------------------------------------------ (w) attackers weave across the road
+{
+  let maxDist = 0, maxJump = 0, minLane = Infinity, maxLane = -Infinity, maps = 0, waveSpread = Infinity;
+  const stepMax = 2 * 60 * (STEP_MS / 1000); // never more than twice the straight-line step, even in corners
+  for (const m of MAPS) {
+    const g = new Game({ mapId: m.id, difficulty: 'medium', seed: 11 });
+    g.setSpeed(8);
+    const prev = new Map();
+    let steps = 0;
+    while (!g.state.over && steps < 60 * 120) {
+      g.advance(1);
+      steps++;
+      const lanes = [];
+      for (const a of g.state.attackers) {
+        if (a.dead) continue;
+        maxDist = Math.max(maxDist, g.path.distanceTo(a.x, a.y));
+        const l = laneOffset(a);
+        lanes.push(l); minLane = Math.min(minLane, l); maxLane = Math.max(maxLane, l);
+        const p = prev.get(a.id);
+        if (p) maxJump = Math.max(maxJump, Math.hypot(a.x - p[0], a.y - p[1]));
+        prev.set(a.id, [a.x, a.y]);
+      }
+      if (lanes.length >= 8) waveSpread = Math.min(waveSpread, Math.max(...lanes) - Math.min(...lanes));
+    }
+    maps++;
+  }
+  check('(w) attackers stay within the weave amplitude of the centreline', maxDist <= WEAVE.amplitude + 0.01, `max ${maxDist.toFixed(2)} over ${maps} maps`);
+  check('(w) attackers use both sides of the road', minLane < -WEAVE.amplitude * 0.6 && maxLane > WEAVE.amplitude * 0.6, `${minLane.toFixed(2)}..${maxLane.toFixed(2)}`);
+  check('(w) a wave on the road is spread out, not single file', waveSpread > 3, `min spread ${waveSpread.toFixed(2)}`);
+  check('(w) smooth movement, no jumps at corners', maxJump < stepMax, `max step ${maxJump.toFixed(2)} (limit ${stepMax.toFixed(2)})`);
 }
 
 // ------------------------------------------------------------------ (e) serialize round trip

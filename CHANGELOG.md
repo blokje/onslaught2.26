@@ -6,6 +6,12 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
 ## Unreleased
 
 ### Changed
+- Attackers no longer walk single file on the road centreline: each one weaves gently from side to side, up to 8 units
+  off centre (`WEAVE` in `src/data/rules.js`), like in the original where they were spread over the road. The offset is
+  a pure function of progress with per-attacker phases from `game.rng` (new optional attacker field `weave`), so saves and
+  Shockwave knockback stay consistent; `Path.place` takes an optional sideways offset and turns it smoothly through
+  corners. Turrets aim at the offset position. Docs: `SPEC.md` section 3, `ARCHITECTURE.md`, `docs/claude/simulation.md`,
+  `docs/claude/testing.md`.
 - Mines and two combo recipes now match the original game (checked against its bytecode): mines have no limit and no
   lifetime (removed our 12 per turret cap and 60 s expiry), land with a -5..+4 offset and check for attackers every 150 ms,
   so the road fills with mines over a long game. Sparky Landmine needs only Blue + Yellow (a ready Red is also used);

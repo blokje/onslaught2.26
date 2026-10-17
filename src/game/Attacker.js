@@ -1,5 +1,5 @@
 // Attacker creation, movement along the path, poison/slow.
-import { WAVES } from '../data/rules.js';
+import { WAVES, WEAVE } from '../data/rules.js';
 import { POISON } from '../data/turrets.js';
 
 /** HP of an attacker in wave n: baseEnergy * hpGrowth^n (plain doubles, trillions are fine). */
@@ -18,8 +18,23 @@ export function createAttacker(game, wave, hpOverride) {
     // additions
     wave, bounty: wave, dead: false, _seg: 0,
   };
-  game.path.place(a, 0);
+  // sideways weave: two random phases and wavenumbers, drawn once (laneOffset is a pure function of progress)
+  const [w0, w1] = WEAVE.wavelength;
+  const rng = game.rng;
+  a.weave = [
+    rng.next() * Math.PI * 2, rng.next() * Math.PI * 2,
+    (Math.PI * 2) / (w0 + rng.next() * (w1 - w0)), (Math.PI * 2) / (w0 + rng.next() * (w1 - w0)),
+  ];
+  game.path.place(a, 0, laneOffset(a));
   return a;
+}
+
+/** Sideways offset from the road centreline at the attacker's current progress (|offset| <= WEAVE.amplitude). */
+export function laneOffset(a) {
+  const w = a.weave;
+  if (!w) return 0;
+  const p = a.progress;
+  return WEAVE.amplitude * (0.6 * Math.sin(p * w[2] + w[0]) + 0.4 * Math.sin(p * w[3] + w[1]));
 }
 
 /** Slow an attacker: speed = baseSpeed / strength (floor 5). Strength <= 1 does nothing. */
@@ -50,6 +65,6 @@ export function moveAttackers(game, dt) {
       if (game.state.over) return;
       continue;
     }
-    path.place(a, a.progress);
+    path.place(a, a.progress, laneOffset(a));
   }
 }

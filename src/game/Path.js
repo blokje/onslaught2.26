@@ -1,5 +1,8 @@
 // Polyline road: length, position/angle at a distance, distance to the road, road sample points.
 
+const CORNER_BLEND = 20; // a sideways offset turns with the road over this distance either side of a waypoint
+                         // (at most half of each neighbouring segment)
+
 function distToSegmentSq(px, py, ax, ay, bx, by) {
   const dx = bx - ax, dy = by - ay;
   const l2 = dx * dx + dy * dy;
@@ -7,6 +10,14 @@ function distToSegmentSq(px, py, ax, ay, bx, by) {
   t = t < 0 ? 0 : t > 1 ? 1 : t;
   const cx = ax + dx * t - px, cy = ay + dy * t - py;
   return cx * cx + cy * cy;
+}
+
+/** Angle from a to b at fraction t, along the shortest arc. */
+function blendAngle(a, b, t) {
+  let diff = b - a;
+  while (diff > Math.PI) diff -= 2 * Math.PI;
+  while (diff < -Math.PI) diff += 2 * Math.PI;
+  return a + diff * t;
 }
 
 export class Path {
@@ -25,14 +36,18 @@ export class Path {
       this.cum.push(this.cum[i] + l);
     }
     this.length = this.cum[this.cum.length - 1];
+    // blend[v]: corner blend distance at waypoint v (0 at the two ends)
+    this.blend = this.points.map((_, v) => (v === 0 || v === this.points.length - 1) ? 0
+      : Math.min(CORNER_BLEND, this.segLen[v - 1] / 2, this.segLen[v] / 2));
     this._samples = null;
   }
 
   /**
    * Writes x, y, angle for distance d along the path onto object o.
    * o._seg is used as a cursor so repeated calls for a moving object are O(1).
+   * `lateral` shifts the point that far to the left of the travel direction (negative = right).
    */
-  place(o, d) {
+  place(o, d, lateral = 0) {
     const last = this.segLen.length - 1;
     let i = o._seg | 0;
     if (i > last) i = last;
@@ -46,6 +61,19 @@ export class Path {
     o.x = a[0] + (b[0] - a[0]) * f;
     o.y = a[1] + (b[1] - a[1]) * f;
     o.angle = this.segAngle[i];
+    if (lateral !== 0) {
+      // normal angle: this segment's, blended with the neighbour's near a waypoint (bisector at the waypoint)
+      let ang = this.segAngle[i];
+      const into = d - this.cum[i], left = this.cum[i + 1] - d;
+      const b0 = this.blend[i], b1 = this.blend[i + 1];
+      if (into < b0) {
+        ang = blendAngle(this.segAngle[i - 1], ang, 0.5 + 0.5 * Math.max(0, into) / b0);
+      } else if (left < b1) {
+        ang = blendAngle(ang, this.segAngle[i + 1], 0.5 - 0.5 * Math.max(0, left) / b1);
+      }
+      o.x += Math.sin(ang) * lateral;
+      o.y -= Math.cos(ang) * lateral;
+    }
     return o;
   }
 

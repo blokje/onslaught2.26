@@ -46,7 +46,8 @@ const g2 = Game.deserialize(save);      // restore a running game
   map: { id, name, path: [[x,y],...], base: { x, y, w, h }, roadWidth, length },
 
   attackers: [ { id, type /*0..8*/, x, y, angle, hp, maxHp, speed, baseSpeed,
-                 poisoned /*bool*/, blackholed /*bool*/, progress /*distance along path*/ } ],
+                 poisoned /*bool*/, blackholed /*bool*/, progress /*distance along path*/,
+                 weave /*optional [ph1, ph2, k1, k2]: sideways weave, see laneOffset() in Attacker.js*/ } ],
 
   turrets: [ { id, kind /*key of TURRETS*/, x, y, angle /*weapon aim*/,
                levels: { damage, range, rate }, maxLevels: { damage, range, rate },
