@@ -17,6 +17,8 @@ const COLORS = ['red', 'green', 'blue', 'yellow'];
 const COMBO_NAMES = {};
 const COMBO_EXACT = {};
 for (const list of Object.values(COMBOS)) for (const r of list) { COMBO_NAMES[r.id] = r.name; if (r.exact) COMBO_EXACT[r.id] = r.exact; }
+// Freak-out adds these to the multiplier sums (src/game/modifiers.js), so without modifiers it is x4 damage, x5 rate.
+const FREAK_BONUS = '+' + FREAKOUT.damageMult * 100 + '% dmg +' + FREAKOUT.rateMult * 100 + '% rate';
 const TAB_ORDER = ['general', 'upgrades', 'combos', 'freak'];
 const TAB_NAMES = { general: 'General', upgrades: 'Upgrades', combos: 'Combos', freak: 'Freakout' };
 
@@ -329,7 +331,9 @@ export class Hud {
       const fp = pane();
       refs.freak = h('span', { class: 'os-chip' });
       fp.append(h('div', { class: 'os-chips' }, refs.freak),
-        h('div', { class: 'os-hint' }, 'Reach the damage and rate levels to make it eligible. It then freaks out every now and then: a short burst of extra damage and fire rate, announced a few seconds ahead.'));
+        h('div', { class: 'os-hint' }, 'Reach the damage and rate levels to make it eligible. It then freaks out every ' +
+          FREAKOUT.space / 2000 + ' to ' + FREAKOUT.space / 1000 + ' s (less with more rate upgrades): a ' + FREAKOUT.warn / 1000 +
+          ' s warning, then ' + FREAKOUT.length / 1000 + ' s of ' + FREAK_BONUS + ' (added to the modifier bonuses).'));
       refs.panes.freak = fp;
     }
 
@@ -460,7 +464,7 @@ export class Hud {
       const d = Math.min(lv.damage || 0, fo.damage), ra = Math.min(lv.rate || 0, fo.rate);
       txt = 'Freak-out at ' + fo.damage + ' dmg + ' + fo.rate + ' rate (' + d + '/' + fo.damage + ', ' + ra + '/' + fo.rate + ')';
     } else if (fr === 'warn') txt = 'Freak-out incoming!';
-    else if (fr === 'on') txt = 'FREAKING OUT x' + FREAKOUT.damageMult + ' dmg x' + FREAKOUT.rateMult + ' rate';
+    else if (fr === 'on') txt = 'FREAKING OUT ' + FREAK_BONUS;
     else txt = 'Freak-out ready';
     setText(el, txt);
   }

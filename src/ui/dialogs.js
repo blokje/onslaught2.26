@@ -3,6 +3,7 @@ import { h } from './dom.js';
 import { MAPS } from '../data/maps.js';
 import { DIFFICULTIES, MODES } from '../data/rules.js';
 import { formatNum } from './format.js';
+import { TURRETS, FREAKOUT } from '../data/turrets.js';
 import * as storage from './storage.js';
 
 const kbd = (t) => h('span', { class: 'os-kbd' }, t);
@@ -86,7 +87,9 @@ export function buildHelp() {
       h('li', null, 'Laser (green): instant beam. Lasers near each other link up and pass beams along, each link adding extra damage.'),
       h('li', null, 'Rocket (red): homing rockets with the longest reach. Upgraded ones can keep rockets circling overhead.'),
       h('li', null, 'Tazer (yellow): its sparks slow attackers down. Great for buying other turrets more time.'),
-      h('li', null, 'Fully upgraded Cannons and Tazers sometimes freak out: a short warning, then a few seconds of extra damage and speed.')),
+      h('li', null, 'Cannons and Tazers with ' + TURRETS.blue.freakout.damage + ' damage and ' + TURRETS.blue.freakout.rate +
+        ' rate upgrades sometimes freak out: a ' + FREAKOUT.warn / 1000 + ' s warning, then ' + FREAKOUT.length / 1000 + ' s of x' +
+        (1 + FREAKOUT.damageMult) + ' damage and x' + (1 + FREAKOUT.rateMult) + ' fire rate.')),
     h('h3', null, 'Upgrades and modifiers'),
     h('p', null, 'Each turret has three upgrade ladders: damage, range and rate. Later steps cost a lot but pay off. Modifier turrets (Ranger, Boom, SpeedEx, RangerEx, Speed, BigBang, BigBangEx) do not shoot. They boost every turret whose centre lies inside their influence circle, and their effects stack. Some trade one stat for another.'),
     h('h3', null, 'Unlocks'),

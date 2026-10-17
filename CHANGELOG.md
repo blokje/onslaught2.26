@@ -31,6 +31,10 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
 - Layered agent docs: `CLAUDE.md` (hard rules and pointers), `docs/claude/` area guides, 7 runbook skills in `.claude/skills/`.
 
 ### Fixed
+- Freak-out text matched neither the code nor the tests: the panel said "x3 dmg x4 rate", but the bonuses are added to the
+  multiplier sum (x4 damage, x5 rate without modifiers). The panel now shows "+300% dmg +400% rate", and the Freakout tab hint
+  and the How to Play text use the real numbers from `FREAKOUT`. How to Play also no longer says it needs full upgrades
+  (it needs 4 damage + 4 rate). The SPEC wording is clarified; the numbers are unchanged.
 - After switching tabs the game stayed paused, so the countdown stopped, and Send wave still paid the early bonus without spawning anything (repeatable for free cash). Send wave is now refused and disabled while paused.
 - HUD indicators (PAUSED, focus fire badge, mode hint) never appeared: `show()` cleared the inline display, which fell back to the CSS `display: none`. They now pass an explicit display.
 - Focus fire shows a reticle on the target (`state.focusId`).

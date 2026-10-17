@@ -82,7 +82,8 @@ Build cost, base stats and the upgrade ladders (cost → new value per level).
 - **Holding pattern (Red)**: after **3 range + 3 rate** upgrades, the Red keeps up to **4** rockets circling
   in the air that dive at the next target. Selling the turret sends the circling rockets at the weakest attacker within 720.
 - **Freak-out (Blue, Yellow)**: after **4 damage + 4 rate** upgrades. About every 40 to 80 s (sooner with more rate
-  upgrades) a 3 s warning appears, then for **5 s** the turret gets damage ×3 and rate ×4 (added as multiplier bonuses).
+  upgrades) a 3 s warning appears, then for **5 s** the turret gets +300% damage and +400% rate, added to the multiplier
+  bonus sum (so x4 damage and x5 rate without modifiers; `FREAKOUT.damageMult: 3`, `rateMult: 4`).
 - **Poison (Yellow)**: poison strength = 1 + 9 × (damage-upgrade progress); see the slow rule in §3.
 
 > **Decided:** use the original ladders above (5 to 10 levels per stat).
