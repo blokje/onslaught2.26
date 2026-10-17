@@ -3,6 +3,7 @@
 import { MAPS } from '../data/maps.js';
 import { TURRETS, BUILD_ORDER, MODIFIER_RANGE, SELL_REFUND, MOVE_COST, TURRET_SIZE, COMBO_RANGE } from '../data/turrets.js';
 import { DIFFICULTIES, MODES, WAVES, TARGET_MODES, DIRECTIONAL } from '../data/rules.js';
+import { waveHp, waveBounty } from '../game/Attacker.js';
 
 const STATS = ['damage', 'range', 'rate'];
 const DIR_MODES = Object.keys(DIRECTIONAL);
@@ -151,8 +152,8 @@ class MockGame {
     const s = this.state;
     const diff = DIFFICULTIES[s.difficulty] || DIFFICULTIES.medium;
     s.wave++;
-    const hp = WAVES.baseEnergy * Math.pow(diff.hpGrowth, s.wave);
-    for (let i = 0; i < WAVES.size; i++) this.queue.push({ type: (s.wave - 1) % 9, hp, bounty: s.wave });
+    const hp = waveHp(s.wave, diff.hpGrowth);
+    for (let i = 0; i < WAVES.size; i++) this.queue.push({ type: (s.wave - 1) % 9, hp, bounty: waveBounty(s.wave) });
     this.spawnClock = 0;
     s.nextWaveIn = this.opts.waveInterval || diff.waveInterval;
     this.emit('wave', { wave: s.wave });

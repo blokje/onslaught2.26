@@ -1,6 +1,8 @@
 // Headless simulation tests for src/game. Run: node scripts/sim-test.mjs
 import { Game, STEP_MS } from '../src/game/Game.js';
 import { TURRETS } from '../src/data/turrets.js';
+import { DIFFICULTIES, WAVES } from '../src/data/rules.js';
+import { waveHp, waveBounty } from '../src/game/Attacker.js';
 
 let failures = 0;
 function check(name, cond, extra = '') {
@@ -291,6 +293,38 @@ function makePlayer(game, spots) {
   check('(mech) on stage: damage x4, rate x5 (added multipliers)', t.freak === 'on' && near(t.stats.damage, base.damage * 4) && near(t.stats.rate, base.rate * 5), JSON.stringify(t.stats));
   g.advance(60 * 5 + 2);
   check('(mech) freak ends, stats back, next scheduled 40-80 s minus rate bonus', t.freak === 'available' && near(t.stats.damage, base.damage) && t.freakAt - g.state.time >= 40000 - 7 * 4000 - 1000 && ev.join() === 'warn,on,off', `${ev}`);
+}
+
+// ------------------------------------------------------------------ (w) late-game wave curve (SPEC.md section 3)
+{
+  let orig = true;
+  for (const d of Object.values(DIFFICULTIES)) for (let n = 1; n <= WAVES.lateWave; n++) {
+    if (!near(waveHp(n, d.hpGrowth), 10 * d.hpGrowth ** n) || waveBounty(n) !== n) orig = false;
+  }
+  check('(w) waves 1 to 100: HP 10 x growth^n and bounty $n (original)', orig);
+  const g = 1.125, late = 1 + (g - 1) * WAVES.lateGrowthFactor;
+  check('(w) Medium after 100: growth x1.05 per wave', near(waveHp(150, g) / waveHp(149, g), late) && near(late, 1.05),
+    `${(waveHp(150, g) / waveHp(149, g)).toFixed(4)}`);
+  check('(w) wave 101 continues from wave 100', near(waveHp(101, g), 10 * g ** 100 * late));
+  check('(w) bounty after 100: round(n x 1.03^(n-100)), integer, growing',
+    waveBounty(101) === Math.round(101 * 1.03) && waveBounty(150) === Math.round(150 * 1.03 ** 50)
+    && Number.isInteger(waveBounty(173)) && waveBounty(120) > waveBounty(119), `150 -> $${waveBounty(150)}`);
+  let order = true;
+  for (let n = 101; n <= 250; n += 7) {
+    const h = ['easy', 'medium', 'hard', 'extreme'].map((k) => waveHp(n, DIFFICULTIES[k].hpGrowth));
+    if (!(h[0] < h[1] && h[1] < h[2] && h[2] < h[3])) order = false;
+  }
+  check('(w) difficulties keep their HP order after wave 100', order);
+  const gm = new Game({ mapId: 'map1', difficulty: 'medium', seed: 3 });
+  gm.state.wave = 129;
+  let paid = null;
+  gm.on('kill', (e) => { paid = e.bounty; });
+  gm.sendWave();
+  gm.advance(2);
+  const a = gm.state.attackers[0];
+  check('(w) spawned wave-130 attacker uses the late curve', a && a.wave === 130 && near(a.maxHp, waveHp(130, 1.125)) && a.bounty === waveBounty(130),
+    a ? `${a.maxHp.toExponential(2)} HP, $${a.bounty}` : 'no attacker');
+  if (a) { const c = gm.state.cash; gm.damageAttacker(a, a.hp + 1, null); check('(w) kill pays the late bounty', gm.state.cash - c === waveBounty(130) && paid === waveBounty(130)); }
 }
 
 // ------------------------------------------------------------------ (e) serialize round trip

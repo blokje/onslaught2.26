@@ -5,6 +5,7 @@
 //   node scripts/balance.mjs combos       damage of all 20 combos (one shot per recharge, and a marching stream)
 //   node scripts/balance.mjs difficulty   greedy bot on maps 1, 4, 9 at every difficulty (wave reached)
 //   node scripts/balance.mjs unlock       wave at which a medium game reaches each unlock threshold
+//   node scripts/balance.mjs late         combo bot (Green+Red+Blue clusters, strongest bot) per difficulty: late-game wall
 //   node scripts/balance.mjs all
 //
 // Method notes (kept in the code so results are reproducible):
@@ -485,6 +486,31 @@ function unlockReport(maps = ['map1', 'map4', 'map9'], seed = 11) {
   }
 }
 
+// ------------------------------------------------------------------ late game
+/** Strongest bot we have (Green+Red+Blue combo clusters, damage first): where the late-game wall is per difficulty. */
+function lateReport(maps = ['map1', 'map4', 'map9'], seeds = [11, 12, 13]) {
+  console.log('\n=== Combo bot (green+red+blue clusters): wave reached at game over (mean of seeds ' + seeds.join(',') + ')');
+  const diffs = Object.keys(DIFFICULTIES);
+  console.log(pad('map', 8) + diffs.map((d) => rpad(d, 10)).join(''));
+  const tot = Object.fromEntries(diffs.map((d) => [d, 0]));
+  for (const m of maps) {
+    const row = {};
+    for (const d of diffs) {
+      const w = seeds.map((seed) => {
+        const g = new Game({ mapId: m, difficulty: d, seed });
+        const act = makeComboBot(g, m, ['green', 'red', 'blue']);
+        let n = 0;
+        while (!g.state.over && g.state.wave < 400 && n < 1500000) { g.advance(10); act(); n++; }
+        return g.state.wave;
+      });
+      row[d] = w.reduce((a, b) => a + b, 0) / w.length;
+      tot[d] += row[d];
+    }
+    console.log(pad(m, 8) + diffs.map((d) => rpad(row[d].toFixed(1), 10)).join(''));
+  }
+  console.log(pad('mean', 8) + diffs.map((d) => rpad((tot[d] / maps.length).toFixed(1), 10)).join(''));
+}
+
 // ------------------------------------------------------------------ main
 export { bestBuild, planDps, maxCost, cum, val, dpsOf, measure, freakFactor, comboSpot, comboOneShot, playGame, bestSpots, makePlayer };
 const isMain = process.argv[1] && import.meta.url === new URL('file://' + process.argv[1]).href;
@@ -494,4 +520,5 @@ if (isMain) {
   if (mode === 'combos' || mode === 'all') combosReport();
   if (mode === 'difficulty' || mode === 'all') difficultyReport();
   if (mode === 'unlock' || mode === 'all') unlockReport();
+  if (mode === 'late' || mode === 'all') lateReport();
 }
