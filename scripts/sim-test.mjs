@@ -317,6 +317,23 @@ function makePlayer(game, spots) {
   check('(e) identical via update() at speed 4', JSON.stringify(g1.serialize()) === JSON.stringify(g2.serialize()));
 }
 
+// ------------------------------------------------------------------ (e2) no early wave while paused
+{
+  const g = new Game({ mapId: 'map1', difficulty: 'medium', seed: 5 });
+  g.advance(60); // 1 s in, about 19 s until the first wave
+  g.setPaused(true);
+  const cash = g.state.cash, wave = g.state.wave, next = g.state.nextWaveIn;
+  const r1 = g.sendWave(), r2 = g.sendWave();
+  check('(e2) sendWave refused while paused', !r1.ok && !r2.ok && r1.reason === 'Game is paused', JSON.stringify(r1));
+  check('(e2) paused sendWave changes nothing', g.state.cash === cash && g.state.wave === wave && g.state.nextWaveIn === next && g.spawners.length === 0,
+    `cash ${g.state.cash}/${cash}, wave ${g.state.wave}, spawners ${g.spawners.length}`);
+  g.setPaused(false);
+  const r3 = g.sendWave();
+  check('(e2) unpaused sendWave pays bonus and starts the wave', r3.ok && r3.bonus > 0 && g.state.cash === cash + r3.bonus && g.state.wave === wave + 1, JSON.stringify(r3));
+  g.advance(60);
+  check('(e2) attackers spawn after an unpaused sendWave', g.state.attackers.length > 0, `${g.state.attackers.length}`);
+}
+
 // ------------------------------------------------------------------ (f) benchmark
 {
   const g = new Game({ mapId: 'map9', mode: 'sandbox', seed: 21, difficulty: 'easy' });

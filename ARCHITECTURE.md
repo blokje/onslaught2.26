@@ -94,7 +94,7 @@ game.setDirectional(id, mode, angle) // or game.cycleDirectional(id)
 game.join(targeterId, turretId)      // toggles; turretId null unjoins
 game.setComboColor(id, color)        // Combo-only
 game.comboPartners(id)               // -> [turretId] within COMBO_RANGE (for the C overlay)
-game.sendWave()                      // early wave, adds early bonus
+game.sendWave()                      // early wave, adds early bonus; refused while paused ('Game is paused')
 game.setSpeed(s); game.togglePause(); game.setPaused(bool)
 game.turretAt(x, y)                  // -> id | null (within TURRET_SIZE/2)
 ```

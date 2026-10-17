@@ -58,6 +58,7 @@ export class App {
     this.canvas = null;
     this._overShown = false;
     this._pausedByMenu = false;
+    this._autoPaused = false; // paused by hiding the tab; resumes when the tab is visible again
     this.lastSel = null;
 
     // DOM
@@ -126,6 +127,7 @@ export class App {
 
   openGameMenu() {
     if (!this.game || this.modals.some((m) => m.kind === 'gamemenu')) return;
+    this._autoPaused = false;
     const wasPaused = this.game.state.paused;
     if (!wasPaused) { this.game.setPaused(true); this._pausedByMenu = true; }
     let restartStep = 0;
@@ -227,6 +229,7 @@ export class App {
     this.resetInput();
     this._overShown = false;
     this._pausedByMenu = false;
+    this._autoPaused = false;
     this.audio.setSpeed(game.state.speed);
     this.menu.hide();
     this.hud.setVisible(true);
@@ -434,11 +437,18 @@ export class App {
     window.addEventListener('keydown', (e) => this.onKey(e));
     window.addEventListener('pointermove', (e) => this.onPointerMove(e), { passive: true });
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState !== 'hidden') return;
-      this.autosave();
-      // auto-pause a running game while the tab is hidden; it stays paused on return (no auto-resume)
       const g = this.game;
-      if (g && !g.state.over && !g.state.paused) { try { g.setPaused(true); } catch (e) { /* ignore */ } }
+      if (document.visibilityState === 'hidden') {
+        this.autosave();
+        // auto-pause a running game while the tab is hidden (setting); a manual pause is left alone
+        if (this.settings.autoPause && g && !g.state.over && !g.state.paused) {
+          try { g.setPaused(true); this._autoPaused = true; } catch (e) { /* ignore */ }
+        }
+        return;
+      }
+      // back on the tab: resume only what the auto-pause paused
+      if (this._autoPaused && g && !g.state.over && g.state.paused) { try { g.setPaused(false); } catch (e) { /* ignore */ } }
+      this._autoPaused = false;
     });
     window.addEventListener('pagehide', () => this.autosave());
     // UI click / hover sounds
@@ -754,7 +764,7 @@ export class App {
 
   sendWave() { if (this.game) this.run(() => this.game.sendWave()); }
   setSpeed(s) { if (this.game) { this.run(() => this.game.setSpeed(s)); this.audio.setSpeed(s); } }
-  togglePause() { if (this.game) this.run(() => this.game.togglePause()); }
+  togglePause() { this._autoPaused = false; if (this.game) this.run(() => this.game.togglePause()); }
 
   toggleRanges() { this.showRanges = this.showRanges === 'all' ? 'selected' : 'all'; this.overlayDirty = true; }
   toggleCombo() { this.showCombo = !this.showCombo; this.overlayDirty = true; }

@@ -29,6 +29,7 @@ export const DEFAULT_SETTINGS = {
   snap: false,
   unlockAll: false,
   showFps: false,
+  autoPause: true,      // pause while the tab is hidden, resume on return
   infoCollapsed: false,
   lastMap: 'map1',
   lastDifficulty: 'medium',
