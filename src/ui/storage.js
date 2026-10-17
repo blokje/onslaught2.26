@@ -31,6 +31,7 @@ export const DEFAULT_SETTINGS = {
   showFps: false,
   autoPause: true,      // pause while the tab is hidden, resume on return
   infoCollapsed: false,
+  panelPos: null,       // turret panel { x, y } in px from the HUD's top-left, null = default dock
   lastMap: 'map1',
   lastDifficulty: 'medium',
   lastMode: 'normal',

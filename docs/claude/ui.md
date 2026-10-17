@@ -32,6 +32,15 @@ A horizontal tab strip under the header; only the active pane is shown, so the p
 - Only the active pane is refreshed. The Combos pane reads `game.comboPreview(id)` and rebuilds its lists only when they change.
 - Hotkeys (upgrades, sell, move, ...) are app-level and work whatever tab is open.
 
+## Moving the turret panel
+
+The panel is docked top right by CSS, which can cover the road on some maps, so the player can move it.
+
+- Drag the header (icon and title, not its buttons) with mouse or touch (`Hud.initPanelDrag`). Pointer capture keeps the drag going outside the panel; `touch-action: none` on the header stops the browser from scrolling or zooming.
+- `Hud.placePanel` clamps the position: the whole width stays on screen and the header stays between the top bar and the build rack (the rack is drawn above the panel, so a header under it could not be grabbed again). A moved panel gets an inline `max-height` down to the rack so its body scrolls instead of running off screen. `applyPanelPos` clamps again when the panel opens and on window resize.
+- Saved in settings as `panelPos` (`{ x, y }` in CSS px from the HUD's top-left, `null` = the default dock), written once when the drag ends.
+- A second press on the header within 350 ms (double-click or double-tap) puts the panel back in the default dock. This is detected in `pointerdown`, because pointer capture retargets a `dblclick` event to the panel itself.
+
 ## Input
 
 - Left button and single touch: handled by `App` on the canvas (build, select, move, join, focus fire). Right/middle/two-finger: renderer (pan, zoom). Right click also cancels the current mode.

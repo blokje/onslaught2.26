@@ -76,6 +76,7 @@ export function buildHelp() {
     row('R / C', 'Range rings / combo partners display'),
     row('Space', 'Send the next wave early (earns a bonus)'),
     row('P / I / G', 'Pause / info panel / settings'),
+    row('Drag panel header', 'Move the turret panel, double-click or double-tap to put it back'),
     row('Left, Right', 'Walk along the build rack, B or Enter builds at the cursor'),
     row('Wheel, drag', 'Zoom, and pan with the right or middle button'));
   return h('div', { class: 'os-help' },

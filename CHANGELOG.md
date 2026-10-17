@@ -18,6 +18,9 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
   (waves reached about 1.45 : 1 : 0.71 : 0.39 for Easy : Medium : Hard : Extreme). Details in `docs/claude/data-and-balance.md`.
 
 ### Added
+- The selected-turret panel can be moved: drag its header (mouse or touch) so it no longer covers the road, double-click
+  or double-tap the header to dock it top right again. The position is kept on screen between the top bar and the build
+  rack and saved in the new setting `panelPos`. Docs: `docs/claude/ui.md`, `SPEC.md` §8, How to play.
 - Tabbed selected-turret panel (General, Upgrades, Combos, Freakout), modelled on the original game's panel so it stays
   short. New Combos tab: combos fired and assisted, partners in range, time until the next combo, the recipes with the
   partners still missing, and the last 5 combos. Backed by new turret fields `combosFired`, `combosAssisted` and `comboLog`
