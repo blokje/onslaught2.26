@@ -42,6 +42,10 @@ Status per item: **[ORIG]** taken from the original, **[SITE]** from the help pa
 - **9 attacker types** cycle by wave: type = (wave − 1) mod 9. In this build they differ only in look
   (types 0, 2 and 6 don't rotate along the path). [NEW] proposal: keep identical stats, give each type an original look.
 - Slow (poison): speed is divided by the poison value (floor 5 units/s); it recovers +2 units/s every second.
+- [NEW] Road spread: attackers do not walk single file on the centreline. Each one weaves gently from side to side,
+  at most **8 units** from the centre (road width 28), following its own pattern (two sines over the distance travelled,
+  wavelengths 250 to 450 units, random phases drawn from `game.rng` at spawn). Matches the look of the original, where
+  attackers were spread over the road; the exact original numbers are not known. Turrets aim at the offset position.
 
 ## 4. Turrets
 

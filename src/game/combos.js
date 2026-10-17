@@ -12,7 +12,7 @@ import { COMBOS, MINE, COMBO_LOG_MAX } from '../data/combos.js';
 import { COMBO_RANGE } from '../data/turrets.js';
 import { ladderValue } from './modifiers.js';
 import { impact } from './projectiles.js';
-import { applyPoison } from './Attacker.js';
+import { applyPoison, laneOffset } from './Attacker.js';
 
 const COLORS = ['red', 'green', 'blue', 'yellow'];
 const RECIPES = {};
@@ -364,7 +364,7 @@ export class Combos {
         if (game.damageAttacker(a, w.damage, src, w.poison)) continue;
         if (!a.blackholed) {
           a.progress = Math.max(0, a.progress - w.knock);
-          game.path.place(a, a.progress);
+          game.path.place(a, a.progress, laneOffset(a));
         }
       }
       if (w.r >= w.max) this.waves.splice(i, 1);

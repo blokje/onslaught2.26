@@ -11,6 +11,10 @@ export const WAVES = {
   earlyBonusPerSec: 1,  // NEW: cash per second skipped when sending a wave early (Space)
 };
 
+// NEW: attackers weave across the road instead of walking single file on the centreline.
+// lane = amplitude * (0.6 sin(p k1 + ph1) + 0.4 sin(p k2 + ph2)), p = distance travelled, k = 2 pi / wavelength.
+export const WEAVE = { amplitude: 8, wavelength: [250, 450] };
+
 export const DIFFICULTIES = {
   easy:    { name: 'Easy',    hpGrowth: 1.10,  startCash: 60, lives: 20, waveInterval: 25000 },
   medium:  { name: 'Medium',  hpGrowth: 1.125, startCash: 30, lives: 10, waveInterval: 20000 },

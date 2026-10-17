@@ -2,6 +2,7 @@
 // For each of the 20 recipes: build lead + partners (sandbox cash), upgrade everything to max, run the sim and
 // check that the right combo fires, recharge is applied, damage is dealt and the specific behaviour happens.
 import { Game, STEP_MS } from '../src/game/Game.js';
+import { laneOffset } from '../src/game/Attacker.js';
 import { COMBOS, MINE, COMBO_LOG_MAX } from '../src/data/combos.js';
 
 let failures = 0;
@@ -509,7 +510,7 @@ for (const id of ['rocketBfg', 'bfg', 'tazerBfg']) {
   g.grid.rebuild(g.state.attackers);
   g.combos._shockwave({ x: a.x, y: a.y, id: null }, COMBOS.yellow.find((r) => r.id === 'shockwave').fx.shockwave, 1);
   g.advance(3);
-  check('(shockwave) knockback clamps at progress 0 and keeps x/y consistent', a.progress >= 0 && a.progress < 5 && Math.hypot(a.x - g.path.points[0][0], a.y - g.path.points[0][1]) < 6,
+  check('(shockwave) knockback clamps at progress 0 and keeps x/y consistent', a.progress >= 0 && a.progress < 5 && (() => { const e = g.path.place({ _seg: 0 }, a.progress, laneOffset(a)); return Math.hypot(a.x - e.x, a.y - e.y) < 0.01; })(),
     `progress ${a.progress.toFixed(2)}`);
 }
 {
