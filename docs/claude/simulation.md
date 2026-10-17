@@ -36,6 +36,9 @@ Pure logic, runs in Node and the browser. Contract: `ARCHITECTURE.md` section 1.
 ## Combos
 
 `game.combos` (`combos.js`) gets `tryFire(lead)` before every normal shot of a combo-capable turret. It is also called through `update(dt)`, `projectileUpdate(p, dt)`, `projectileImpact(p, x, y, target)` and `serialize()` / `deserialize()`.
+Every fired combo adds 1 to the lead's `combosFired` and each chosen partner's `combosAssisted`, and prepends `{ id, time, role }` to their `comboLog` (max `COMBO_LOG_MAX`). `game.comboPreview(id)` (`Combos.preview`) is a read-only, rng-free view for the UI: partners in range, the lead colour's recipes with missing partners, and the earliest wait per recipe (max of the lead's wait and the need-th soonest partner of each colour). It is "earliest possible": normal shots reset `cd`.
+A recipe matches when the ready partners meet `needs` (and `exact`). The partners actually used and put on recharge come from `takes` when a recipe has it (up to that many per colour, only as many as are ready), else from `needs`. This reproduces two original quirks: Sparky Landmine needs Blue + Yellow but also takes a ready Red, Rocket BFG needs 2 Red but takes 1.
+Mines (faithful to the original): no limit, no lifetime. A mine lands on a random road point within the lead's max range plus a -5..+4 offset (`MINE.jitter`), arms on arrival and checks for an attacker within `MINE.triggerRadius` every `MINE.checkInterval` ms (countdown in `p.data.check`, so it is saved).
 Helper API on `Game` (documented at the top of `Game.js`): `comboPartners`, `spawnProjectile`, `addEffect`, `addBeam`, `damageAttacker`, `blast`, `attackersInRadius`, `roadPoints`, `chainLaserDamage`, `killAttacker`, `startRecharge`, `emit`, `rng`.
 
 ## Adding things

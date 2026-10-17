@@ -4,6 +4,7 @@ import { MAPS } from '../data/maps.js';
 import { TURRETS, BUILD_ORDER, MODIFIER_RANGE, SELL_REFUND, MOVE_COST, TURRET_SIZE, COMBO_RANGE } from '../data/turrets.js';
 import { DIFFICULTIES, MODES, WAVES, TARGET_MODES, DIRECTIONAL } from '../data/rules.js';
 import { waveHp, waveBounty } from '../game/Attacker.js';
+import { COMBOS, COMBO_LOG_MAX } from '../data/combos.js';
 
 const STATS = ['damage', 'range', 'rate'];
 const DIR_MODES = Object.keys(DIRECTIONAL);
@@ -140,7 +141,13 @@ class MockGame {
     if (this.comboClock > 20000) {
       this.comboClock = 0;
       const t = s.turrets.find((x) => x.comboCapable);
-      if (t) { this.emit('combo', { id: 'nuke', name: 'Nuke', turretId: t.id }); this.emit('blast', { size: 'huge', x: t.x, y: t.y }); }
+      if (t) {
+        t.combosFired++;
+        t.comboLog.unshift({ id: 'nuke', time: s.time, role: 'lead' });
+        t.comboLog.length = Math.min(t.comboLog.length, COMBO_LOG_MAX);
+        this.emit('combo', { id: 'nuke', name: 'Nuke', turretId: t.id, partnerIds: [] });
+        this.emit('blast', { size: 'huge', x: t.x, y: t.y });
+      }
     }
     for (const k of BUILD_ORDER) {
       const def = TURRETS[k];
@@ -236,7 +243,7 @@ class MockGame {
       id: this.nid++, kind, x, y, angle: 0, levels: { damage: 0, range: 0, rate: 0 }, maxLevels: {}, stats: { damage: 0, range: 0, rate: 0 },
       cashValue: def.cost, comboCapable: false, comboReady: false, freak: 'off', holding: false, links: [],
       targetMode: def.target || 'near', locked: false, targetId: null, directional: { mode: 'normal', angle: 0 },
-      joinedTo: null, comboColor: 'red', modRange: 0, kills: 0,
+      joinedTo: null, comboColor: 'red', modRange: 0, kills: 0, combosFired: 0, combosAssisted: 0, comboLog: [],
     };
     this.recompute(t);
     s.cash -= def.cost; s.spent += def.cost; s.score = s.kills * s.spent;
@@ -315,6 +322,25 @@ class MockGame {
     const t = this.find(id);
     if (!t) return [];
     return this.state.turrets.filter((o) => o.id !== id && o.comboCapable && Math.hypot(o.x - t.x, o.y - t.y) <= COMBO_RANGE).map((o) => o.id);
+  }
+  /** Rough stand-in for Game.comboPreview: missing partners only, waits follow the fake 20 s combo clock. */
+  comboPreview(id) {
+    const t = this.find(id);
+    if (!t) return null;
+    const col = (o) => (o.kind === 'comboOnly' ? o.comboColor : TURRETS[o.kind].color);
+    const wait = Math.max(0, 20000 - this.comboClock);
+    const partners = this.comboPartners(id).map((pid) => { const o = this.find(pid); return { id: o.id, kind: o.kind, color: col(o), wait: 0 }; });
+    const have = {};
+    for (const p of partners) have[p.color] = (have[p.color] || 0) + 1;
+    const leads = t.kind !== 'comboOnly' && !!COMBOS[col(t)];
+    const recipes = (leads ? COMBOS[col(t)] : []).map((r) => {
+      const missing = {};
+      for (const [c, n] of Object.entries(r.needs)) if ((have[c] || 0) < n) missing[c] = n - (have[c] || 0);
+      const ok = t.comboCapable && !Object.keys(missing).length;
+      return { id: r.id, name: r.name, isNew: !!r.isNew, needs: r.needs, missing, exactBlocked: false, wait: ok ? wait : Infinity };
+    });
+    const first = recipes.find((r) => r.wait !== Infinity);
+    return { leads, partners, recipes, next: first ? { id: first.id, name: first.name, wait: first.wait } : null };
   }
   sendWave() {
     const s = this.state;

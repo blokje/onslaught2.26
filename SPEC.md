@@ -88,7 +88,8 @@ Build cost, base stats and the upgrade ladders (cost → new value per level).
 - **Holding pattern (Red)**: after **3 range + 3 rate** upgrades, the Red keeps up to **4** rockets circling
   in the air that dive at the next target. Selling the turret sends the circling rockets at the weakest attacker within 720.
 - **Freak-out (Blue, Yellow)**: after **4 damage + 4 rate** upgrades. About every 40 to 80 s (sooner with more rate
-  upgrades) a 3 s warning appears, then for **5 s** the turret gets damage ×3 and rate ×4 (added as multiplier bonuses).
+  upgrades) a 3 s warning appears, then for **5 s** the turret gets +300% damage and +400% rate, added to the multiplier
+  bonus sum (so x4 damage and x5 rate without modifiers; `FREAKOUT.damageMult: 3`, `rateMult: 4`).
 - **Poison (Yellow)**: poison strength = 1 + 9 × (damage-upgrade progress); see the slow rule in §3.
 
 > **Decided:** use the original ladders above (5 to 10 levels per stat).
@@ -139,13 +140,13 @@ then scaled by the lead's damage modifiers. Laser terms add the partner Green's 
 | Red | **Nuke** | 2 Blue | 7.4 s | rocket, 9 M hit + 60 M huge blast |
 | Red | Poison Gas Rocket | 1 Green + 1 Blue | 5 s | rocket, poison cloud (slow ÷2) |
 | Red | Laser Rocket | 1 Green | 3 s | rocket that lasers nearby attackers (2 M + chain), 6 × 1 M laser burst on impact |
-| Green | Rocket BFG | 2 Red + 1 Blue | 9 s | slow plasma ball: 6.5 M hit, 7.5 M blast, lasers (4.5 M) and rockets (2 M) on the way |
+| Green | Rocket BFG | 2 Red + 1 Blue in range (only 1 Red + 1 Blue are used and recharged) | 9 s | slow plasma ball: 6.5 M hit, 7.5 M blast, lasers (4.5 M) and rockets (2 M) on the way |
 | Green | BFG | 1 Red + 1 Blue | 9 s | slow plasma ball: 5.8 M hit, 7.5 M blast, laser arcs 4.2 M (range 250) |
 | Blue | Big Laser Cluster Landmine | 2 Red + 1 Green + 1 Blue | 10.8 s | mine on the road: 10 laser clusters |
 | Blue | Big Cluster Landmine | 2 Red + 1 Blue | 8 s | mine: 15 M large blast + 10 × 4.5 M clusters |
 | Blue | Big Laser Cluster Bomb | 2 Red + 1 Green | 11.4 s | bomb: 8 laser clusters, 6 M large blast |
 | Blue | Big Cluster Bomb | 2 Red | 6.2 s | bomb: 10 × 4.5 M clusters, 8 M large blast |
-| Blue | Sparky Landmine | 1 Red + 1 Blue + 1 Yellow | 7 s | mine: 15 M blast + 8 spark clusters (poison) |
+| Blue | Sparky Landmine | 1 Blue + 1 Yellow (plus 1 Red if one is ready; Red is not required) | 7 s | mine: 15 M blast + 8 spark clusters (poison) |
 | Blue | Sparky Cluster Bomb | 1 Red + 1 Yellow | 5 s | bomb: 8 spark clusters, 7 M blast |
 | Blue | Laser Cluster Bomb | 1 Red + 1 Green | 10 s | bomb: 5 laser clusters, 4 M blast |
 | Blue | Big Landmine | 1 Red + 1 Blue | 7 s | mine: 15 M large blast |
@@ -153,7 +154,10 @@ then scaled by the lead's damage modifiers. Laser terms add the partner Green's 
 | Blue | Landmine | 1 Blue | 7 s | mine on the road within max range: 10 M + 9 M blast |
 | Yellow | **Black Hole** | 2 Yellow + exactly 1 Green | 18 s | opens on the road within 90 units; for 3 s it swallows every attacker within 120 (pulled in at 800 units/s, no bounty) |
 
-Mines are placed on points sampled every 4 units along the road, within the lead's maximum range.
+Mines are placed on points sampled every 4 units along the road, within the lead's maximum range, offset by a random
+whole number from -5 to +4 units on x and y. There is **no limit** on the number of mines and they never expire: a mine
+stays on the road until an attacker comes within 20 units (checked every 150 ms), so the field fills up with mines
+over a long game [ORIG]. The two partner quirks above (Sparky Landmine, Rocket BFG) are the original's [ORIG].
 Blast radii, measured from the original blast shapes: small 40, medium 60, large 80, huge (nuke) 87.5, BFG 87.5,
 poison cloud 110 units [ORIG]. Sizes for placement: turret footprint ≈ 44 × 44, attackers ≈ 17 to 24, base 126 × 82 [ORIG].
 
@@ -193,6 +197,7 @@ The exact waypoint lists have been recovered and will go into the map data file 
 | Space | send the next wave now |
 | P | pause |
 | I | info panel |
+| Drag panel header | move the info panel, double-click to dock it again [CHOICE] |
 | G | settings |
 | Esc | cancel build/move |
 | Mouse wheel / drag | zoom / pan [CHOICE] |

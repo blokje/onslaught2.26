@@ -11,6 +11,11 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
   Before, even unlimited money stopped at about wave 143 and a strong combo player at about 125; now the strongest bot
   reaches about 180 on Medium. New `waveBounty()` in `Attacker.js`, `WAVES.lateWave` / `lateGrowthFactor` / `lateBountyGrowth`,
   `node scripts/balance.mjs late`, sim-test checks (w). Docs: `SPEC.md` sections 3 and 9, `docs/claude/data-and-balance.md`.
+- Mines and two combo recipes now match the original game (checked against its bytecode): mines have no limit and no
+  lifetime (removed our 12 per turret cap and 60 s expiry), land with a -5..+4 offset and check for attackers every 150 ms,
+  so the road fills with mines over a long game. Sparky Landmine needs only Blue + Yellow (a ready Red is also used);
+  Rocket BFG needs 2 Red but uses and recharges only 1. New optional recipe field `takes`. Docs: `SPEC.md` §6,
+  `docs/claude/simulation.md`, `docs/claude/data-and-balance.md`, `docs/claude/gotchas.md`, `docs/claude/testing.md`.
 - Balance pass on new content only (originals untouched), measured with the new `scripts/balance.mjs`:
   Sniper, Fusion and Railgun ladders rebuilt so they are reachable with real income (about $72K by wave 120) and land at
   0.7x to 1.3x of the best original in their niche; Targeter cheaper; Combo-only $3,000; new weapons unlock at
@@ -18,9 +23,16 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
   (waves reached about 1.45 : 1 : 0.71 : 0.39 for Easy : Medium : Hard : Extreme). Details in `docs/claude/data-and-balance.md`.
 
 ### Added
+- The selected-turret panel can be moved: drag its header (mouse or touch) so it no longer covers the road, double-click
+  or double-tap the header to dock it top right again. The position is kept on screen between the top bar and the build
+  rack and saved in the new setting `panelPos`. Docs: `docs/claude/ui.md`, `SPEC.md` §8, How to play.
+- Tabbed selected-turret panel (General, Upgrades, Combos, Freakout), modelled on the original game's panel so it stays
+  short. New Combos tab: combos fired and assisted, partners in range, time until the next combo, the recipes with the
+  partners still missing, and the last 5 combos. Backed by new turret fields `combosFired`, `combosAssisted` and `comboLog`
+  (saved), the read-only `game.comboPreview(id)`, and `partnerIds` on the `combo` event.
 - README section "About this project": a from-scratch, AI-assisted reimplementation of Onslaught 2, why it was made,
   and the reference material used (screenshots and the game on the Internet Archive).
-- Selected-turret panel always shows a freak-out chip for Cannon and Tazer, with upgrade progress toward the
+- Selected-turret panel always shows freak-out status for Cannon and Tazer (now in the Freakout tab), with upgrade progress toward the
   requirement ("Freak-out at 4 dmg + 4 rate (2/4, 1/4)") before they become eligible, so it is visible that they support it.
 - `scripts/balance.mjs` (`dps`, `combos`, `difficulty`, `unlock`, `all`).
 - Docs-first policy: `docs/claude/documentation.md` (which doc to update per change, writing style), rule 0 in `CLAUDE.md`,
@@ -32,6 +44,10 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
 - Layered agent docs: `CLAUDE.md` (hard rules and pointers), `docs/claude/` area guides, 7 runbook skills in `.claude/skills/`.
 
 ### Fixed
+- Freak-out text matched neither the code nor the tests: the panel said "x3 dmg x4 rate", but the bonuses are added to the
+  multiplier sum (x4 damage, x5 rate without modifiers). The panel now shows "+300% dmg +400% rate", and the Freakout tab hint
+  and the How to Play text use the real numbers from `FREAKOUT`. How to Play also no longer says it needs full upgrades
+  (it needs 4 damage + 4 rate). The SPEC wording is clarified; the numbers are unchanged.
 - After switching tabs the game stayed paused, so the countdown stopped, and Send wave still paid the early bonus without spawning anything (repeatable for free cash). Send wave is now refused and disabled while paused.
 - HUD indicators (PAUSED, focus fire badge, mode hint) never appeared: `show()` cleared the inline display, which fell back to the CSS `display: none`. They now pass an explicit display.
 - Focus fire shows a reticle on the target (`state.focusId`).

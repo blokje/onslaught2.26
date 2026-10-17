@@ -22,6 +22,7 @@
 //
 // Helpers on Game (all safe to call from combos):
 //   game.comboPartners(id)            -> [turretId]  weapon/Combo-only turrets within COMBO_RANGE (70), excluding self
+//   game.comboPreview(id)             -> read-only combo outlook for the UI (Combos.preview), no rng
 //   game.spawnProjectile(kind, props) -> projectile  appended to state.projectiles; see projectiles.js for props
 //                                        (modes: straight | homing | orbit | goto; blast, poison, tag, ttl, stay...)
 //   game.addEffect(kind, props)       -> effect      {x, y, radius, duration, data}; aged in game ms
@@ -589,6 +590,12 @@ export class Game {
       if (Math.hypot(o.x - t.x, o.y - t.y) <= COMBO_RANGE) out.push(o.id);
     }
     return out;
+  }
+
+  /** Read-only combo outlook for the panel (no rng): see Combos.preview. */
+  comboPreview(id) {
+    const t = this.turretMap.get(id);
+    return t && this.combos ? this.combos.preview(t) : null;
   }
 
   // ------------------------------------------------------------------ derived turret state

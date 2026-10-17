@@ -2,7 +2,7 @@
 // For each of the 20 recipes: build lead + partners (sandbox cash), upgrade everything to max, run the sim and
 // check that the right combo fires, recharge is applied, damage is dealt and the specific behaviour happens.
 import { Game, STEP_MS } from '../src/game/Game.js';
-import { COMBOS, MINE } from '../src/data/combos.js';
+import { COMBOS, MINE, COMBO_LOG_MAX } from '../src/data/combos.js';
 
 let failures = 0;
 function check(name, cond, extra = '') {
@@ -103,13 +103,13 @@ function addAttackers(g, spot, n, frozen = true, hp = HP) {
 
 // ------------------------------------------------------------------ observer
 function observe(g) {
-  const o = { combos: [], blasts: [], kills: [], beams: {}, projKinds: {}, effects: {}, _b: new WeakSet(), _p: new WeakSet(), _e: new WeakSet() };
+  const o = { combos: [], blasts: [], kills: [], beams: {}, projKinds: {}, projSrc: {}, effects: {}, _b: new WeakSet(), _p: new WeakSet(), _e: new WeakSet() };
   g.on('combo', (e) => o.combos.push({ ...e, time: g.state.time }));
   g.on('blast', (e) => o.blasts.push({ ...e }));
   g.on('kill', (e) => o.kills.push({ ...e }));
   o.tick = () => {
     for (const b of g.state.beams) if (!o._b.has(b)) { o._b.add(b); o.beams[b.kind] = (o.beams[b.kind] || 0) + 1; }
-    for (const p of g.state.projectiles) if (!o._p.has(p)) { o._p.add(p); o.projKinds[p.kind] = (o.projKinds[p.kind] || 0) + 1; }
+    for (const p of g.state.projectiles) if (!o._p.has(p)) { o._p.add(p); o.projKinds[p.kind] = (o.projKinds[p.kind] || 0) + 1; o.projSrc[p.kind + ':' + p.sourceId] = (o.projSrc[p.kind + ':' + p.sourceId] || 0) + 1; }
     for (const e of g.state.effects) if (!o._e.has(e)) { o._e.add(e); o.effects[e.kind] = (o.effects[e.kind] || 0) + 1; }
   };
   return o;
@@ -126,9 +126,22 @@ const recipes = [];
 for (const [colour, list] of Object.entries(COMBOS)) for (const r of list) recipes.push({ colour, r });
 check('20 recipes in data', recipes.length === 20, String(recipes.length));
 
+/** Partner colours to build: per colour the larger of needs and takes (takes = partners used, default needs). */
 function partnersFor(r) {
   const out = [];
-  for (const [c, n] of Object.entries(r.needs)) for (let i = 0; i < n; i++) out.push(c);
+  const takes = r.takes || r.needs;
+  for (const c of ['red', 'green', 'blue', 'yellow']) {
+    const n = Math.max(r.needs[c] || 0, takes[c] || 0);
+    for (let i = 0; i < n; i++) out.push(c);
+  }
+  return out;
+}
+/** Partners per colour that a combo puts on recharge, given the partners built by partnersFor. */
+function takenFor(r) {
+  const takes = r.takes || r.needs, built = {};
+  for (const c of partnersFor(r)) built[c] = (built[c] || 0) + 1;
+  const out = {};
+  for (const c of Object.keys(built)) out[c] = Math.min(takes[c] || 0, built[c]);
   return out;
 }
 
@@ -153,11 +166,15 @@ for (const { colour, r } of recipes) {
     first ? first.id : 'no combo');
   if (!first) continue;
   const ct = g.state.time;
-  check(`[${r.id}] recharge applied to lead and partners`,
+  const recharged = partners.filter((p) => Math.abs(p.comboNext - ct - r.recharge) <= 2 * STEP_MS && !p.comboReady);
+  const taken = takenFor(r), byCol = {};
+  for (const p of recharged) byCol[p.color] = (byCol[p.color] || 0) + 1;
+  const nTaken = Object.values(taken).reduce((a, b) => a + b, 0);
+  check(`[${r.id}] recharge applied to lead and the partners it takes`,
     Math.abs(lead.comboNext - ct - r.recharge) <= 2 * STEP_MS && lead.cd > r.recharge - 40 &&
-    partners.every((p) => Math.abs(p.comboNext - ct - r.recharge) <= 2 * STEP_MS && !p.comboReady));
+    recharged.length === nTaken && Object.entries(taken).every(([c, n]) => (byCol[c] || 0) === n), JSON.stringify(byCol));
   check(`[${r.id}] comboName effect and partner chain beams`,
-    g.state.effects.some((e) => e.kind === 'comboName' && e.data.name === r.name) && (o.beams.chain || 0) >= partners.length);
+    g.state.effects.some((e) => e.kind === 'comboName' && e.data.name === r.name) && (o.beams.chain || 0) >= nTaken);
 
   // ---- behaviour
   const win = windowFor(r);
@@ -202,8 +219,10 @@ for (const { colour, r } of recipes) {
     check(`[${r.id}] mine spawned, travels and arms`, !!mine && mine.data.armed && Math.hypot(mine.x - mine.destX, mine.y - mine.destY) < 1);
     // mine point lies within the lead's maximum range
     const maxR = 350; // red max; blue max is 220, this is only a loose bound for the lead (blue)
-    check(`[${r.id}] mine is on the road within max range of the lead`,
-      g.path.distanceTo(mine.x, mine.y) < 2 && Math.hypot(mine.x - lead.x, mine.y - lead.y) <= 220 + 1e-6 && maxR > 0);
+    // jitter: up to MINE.jitter on x and y, so up to J * sqrt(2) off the sampled road point
+    const J = MINE.jitter * Math.SQRT2 + 1e-6;
+    check(`[${r.id}] mine is on the road (within jitter) and within max range of the lead`,
+      g.path.distanceTo(mine.x, mine.y) < 2 + J && Math.hypot(mine.x - lead.x, mine.y - lead.y) <= 220 + J && maxR > 0);
     // phase 2: stays armed while nobody is near
     for (const a of g.state.attackers) {
       const d = Math.hypot(a.x - mine.x, a.y - mine.y);
@@ -218,7 +237,7 @@ for (const { colour, r } of recipes) {
     v.blackholed = true; v.x = mine.x + MINE.triggerRadius - 4; v.y = mine.y;
     g.grid.rebuild(g.state.attackers);
     const loss0 = v.maxHp - v.hp;
-    run(g, o, 4);
+    run(g, o, Math.ceil(MINE.checkInterval / STEP_MS) + 2);
     check(`[${r.id}] mine triggers: removed, hit + blast on the attacker`, mine.dead && (v.maxHp - v.hp - loss0) >= fx.hit + fx.blast.damage - 1 && blastCount(o, fx.blast.size) >= 1,
       `loss ${(v.maxHp - v.hp).toExponential(2)}`);
     if (fx.cluster) {
@@ -400,34 +419,88 @@ for (const id of ['rocketBfg', 'bfg', 'tazerBfg']) {
   const want = Math.floor(ms / (60000 / rate));
   check(`[${id}] flight time matches speed ${fx.speed} (${Math.round(dist0)} units in ${Math.round(ms)} ms)`, Math.abs(ms / 1000 - (dist0 - 14) / fx.speed) < 0.1);
   check(`[${id}] ${fx.laser ? 'laser' : 'spark'} every ${Math.round(60000 / rate)} ms during flight`, Math.abs(got - want) <= 1 && got >= 5, `got ${got}, expected ~${want}`);
-  if (fx.rockets) check(`[${id}] small rockets every ${Math.round(60000 / fx.rockets.rate)} ms`, Math.abs((o.projKinds.rocket || 0) - Math.floor(ms / (60000 / fx.rockets.rate))) <= 1 && o.projKinds.rocket >= 3, String(o.projKinds.rocket));
+  // only the plasma ball's rockets (sourceId = lead); a free partner Red may fire its own rockets meanwhile
+  const ballRockets = o.projSrc['rocket:' + lead.id] || 0;
+  if (fx.rockets) check(`[${id}] small rockets every ${Math.round(60000 / fx.rockets.rate)} ms`, Math.abs(ballRockets - Math.floor(ms / (60000 / fx.rockets.rate))) <= 1 && ballRockets >= 3, String(ballRockets));
   check(`[${id}] hit + bfg blast, large loss`, blastCount(o, 'bfg') === 1 && a.maxHp - a.hp >= fx.hit + fx.blast.damage, `loss ${(a.maxHp - a.hp).toExponential(2)}`);
 }
 
 // ------------------------------------------------------------------ white-box: mines, shockwave clamp
 {
+  // no mine limit (original): 30 mines from one turret all stay
   const { g, lead } = setup({ lead: 'blue', partners: ['blue'] });
   const rec = COMBOS.blue.find((r) => r.id === 'mine');
   const pts = g.roadPoints().filter((q) => Math.hypot(q.x - lead.x, q.y - lead.y) < 200);
-  for (let i = 0; i < 14; i++) g.combos._launchMine(lead, rec, 1, 0, pts[i * 3]);
+  for (let i = 0; i < 30; i++) g.combos._launchMine(lead, rec, 1, 0, pts[(i * 3) % pts.length]);
   const mines = g.state.projectiles.filter((p) => p.tag === 'mine' && !p.dead);
-  check('(mines) at most 12 per turret, oldest removed', mines.length === 12 && !mines.some((m) => m.destX === pts[0].x && m.destY === pts[0].y), String(mines.length));
+  check('(mines) no limit per turret: 30 launched, 30 present', mines.length === 30, String(mines.length));
 }
 {
-  // a mine disappears after 60 s without blast; partners sold so no further combos
+  // no mine lifetime (original): an armed mine stays 300 s without attackers; partners sold so no further combos
   const { g, partners } = setup({ lead: 'blue', partners: ['blue'] });
   addAttackers(g, SPOT, 1);
   const o = observe(g);
   let n = 0;
   while (!o.combos.length && n++ < 60) { g.advance(1); o.tick(); }
   g.sell(partners[0].id);
-  // keep attackers away from the mine: remove them so nothing can trigger it
   for (const a of g.state.attackers) { a.dead = true; g.attackerMap.delete(a.id); }
   g.advance(1);
-  const mineSeen = g.state.projectiles.some((p) => p.tag === 'mine');
+  const mine = g.state.projectiles.find((p) => p.tag === 'mine');
   const b0 = o.blasts.length;
-  run(g, o, Math.round(61000 / STEP_MS));
-  check('(mines) armed mine expires after 60 s without a blast', mineSeen && !g.state.projectiles.some((p) => p.tag === 'mine') && o.blasts.length === b0);
+  run(g, o, Math.round(300000 / STEP_MS));
+  check('(mines) armed mine still there after 300 s without attackers', !!mine && !mine.dead && g.state.projectiles.includes(mine) && mine.data.armed && o.blasts.length === b0);
+}
+{
+  // jitter: every mine lands within MINE.jitter (per axis) of a sampled road point, and not always exactly on one
+  const { g, lead } = setup({ lead: 'blue', partners: ['blue'], seed: 11 });
+  const road = g.roadPoints();
+  let within = true, offRoadPoint = 0;
+  for (let i = 0; i < 40; i++) {
+    const s = g.combos._mineSpot(lead);
+    const best = road.reduce((m, q) => Math.min(m, Math.max(Math.abs(q.x - s.x), Math.abs(q.y - s.y))), Infinity);
+    if (best > MINE.jitter + 1e-6) within = false;
+    if (!road.some((q) => q.x === s.x && q.y === s.y)) offRoadPoint++;
+  }
+  check('(mines) landing spot jittered within +-' + MINE.jitter + ' of a road point', within && offRoadPoint > 10, String(offRoadPoint));
+}
+{
+  // a mine checks for attackers only every MINE.checkInterval ms
+  const { g, lead } = setup({ lead: 'blue', partners: [] });
+  const rec = COMBOS.blue.find((r) => r.id === 'mine');
+  const q = roadNear(g, SPOT)[0];
+  const m = g.combos._launchMine(lead, rec, 1, 0, { x: q.x, y: q.y });
+  let k = 0;
+  while (!m.data.armed && k++ < 200) g.advance(1);
+  g.advance(Math.ceil(MINE.checkInterval / STEP_MS) + 1); // first check done, next one ~150 ms away
+  const v = g.spawnAttacker(1, HP); v.blackholed = true; v.x = m.x + 5; v.y = m.y;
+  g.grid.rebuild(g.state.attackers);
+  let steps = 0;
+  while (!m.dead && steps < 60) { g.advance(1); steps++; }
+  check('(mines) trigger check runs every ' + MINE.checkInterval + ' ms', m.dead && steps <= Math.ceil(MINE.checkInterval / STEP_MS) + 1, `${steps} steps`);
+}
+{
+  // Sparky Landmine (original quirk): Blue + Yellow is enough, no Red needed
+  const r = COMBOS.blue.find((x) => x.id === 'sparkyMine');
+  const { g, lead, partners } = setup({ lead: 'blue', partners: ['blue', 'yellow'] });
+  addAttackers(g, SPOT, 4);
+  const o = observe(g);
+  let n = 0;
+  while (!o.combos.length && n++ < 120) { g.advance(1); o.tick(); }
+  check('(sparkyMine) fires with Blue + Yellow partners and no Red', o.combos[0] && o.combos[0].id === 'sparkyMine' && o.combos[0].turretId === lead.id &&
+    partners.every((p) => o.combos[0].partnerIds.includes(p.id)), o.combos[0] ? o.combos[0].id : 'none');
+  check('(sparkyMine) recipe gates on Blue + Yellow only', !r.needs.red && r.needs.blue === 1 && r.needs.yellow === 1 && r.takes.red === 1);
+}
+{
+  // Rocket BFG (original quirk): 2 Red in range, only 1 Red used; the other stays ready
+  const { g, lead, partners } = setup({ lead: 'green', partners: ['red', 'red', 'blue'] });
+  addAttackers(g, SPOT, 4);
+  const o = observe(g);
+  let n = 0;
+  while (!o.combos.length && n++ < 120) { g.advance(1); o.tick(); }
+  const c = o.combos[0];
+  const reds = partners.filter((p) => p.color === 'red');
+  const usedReds = c ? reds.filter((p) => c.partnerIds.includes(p.id)).length : -1;
+  check('(rocketBfg) needs 2 Red but takes 1 Red + 1 Blue', c && c.id === 'rocketBfg' && c.partnerIds.length === 2 && usedReds === 1, c ? `${c.id}, reds used ${usedReds}` : 'none');
 }
 {
   const { g, lead } = setup({ lead: 'yellow', partners: [] });
@@ -493,6 +566,69 @@ for (const id of ['rocketBfg', 'bfg', 'tazerBfg']) {
   check(`(tazerBfg) one tick fires qty=${fx.sparks.qty} sparks at distinct attackers`, hit.length === want && (o.beams.spark || 0) - before === want && want > 1, `hit ${hit.length}, in range ${inRange}`);
 }
 
+// ------------------------------------------------------------------ combo counters, log and preview (panel Combos tab)
+{
+  const { g, lead, partners } = setup({ lead: 'red', partners: ['blue', 'blue'] });
+  const pv0 = g.comboPreview(lead.id);
+  const nuke0 = pv0.recipes.find((r) => r.id === 'nuke');
+  check('(preview) Red + 2 Blue: leads, 2 blue partners, Nuke has nothing missing and is next at wait 0',
+    pv0.leads && pv0.partners.length === 2 && pv0.partners.every((p) => p.color === 'blue') &&
+    nuke0 && !Object.keys(nuke0.missing).length && pv0.next && pv0.next.id === 'nuke' && pv0.next.wait === 0,
+    JSON.stringify(pv0.next));
+  check('(preview) lists every recipe of the lead colour, poisonGas missing a green',
+    pv0.recipes.length === COMBOS.red.length && pv0.recipes.find((r) => r.id === 'poisonGas').missing.green === 1);
+  const before = JSON.stringify(g.serialize());
+  g.comboPreview(lead.id); g.comboPreview(partners[0].id);
+  check('(preview) is read-only and draws no rng', JSON.stringify(g.serialize()) === before);
+
+  addAttackers(g, SPOT, 4);
+  const o = observe(g);
+  run(g, o, 30, () => (o.combos.length ? 'stop' : undefined));
+  const ev = o.combos[0];
+  check('(log) combo event carries partnerIds', ev && Array.isArray(ev.partnerIds) && ev.partnerIds.length === 2 &&
+    partners.every((p) => ev.partnerIds.includes(p.id)), ev && JSON.stringify(ev.partnerIds));
+  check('(log) lead: combosFired 1, comboLog [nuke lead]', lead.combosFired === 1 && lead.combosAssisted === 0 &&
+    lead.comboLog.length === 1 && lead.comboLog[0].id === 'nuke' && lead.comboLog[0].role === 'lead' && lead.comboLog[0].time === ev.time);
+  check('(log) partners: combosAssisted 1, comboLog [nuke partner]', partners.every((p) => p.combosAssisted === 1 && p.combosFired === 0 &&
+    p.comboLog[0].id === 'nuke' && p.comboLog[0].role === 'partner'));
+
+  const pv1 = g.comboPreview(lead.id);
+  const rech = COMBOS.red.find((r) => r.id === 'nuke').recharge;
+  check('(preview) right after firing, next Nuke waits about the recharge', pv1.next && pv1.next.id === 'nuke' &&
+    Math.abs(pv1.next.wait - rech) <= 2 * STEP_MS, pv1.next && String(pv1.next.wait));
+  const save = JSON.parse(JSON.stringify(g.serialize()));
+  const g2 = Game.deserialize(save);
+  const l2 = g2.turretMap.get(lead.id);
+  check('(save) counters and comboLog survive save/restore', l2.combosFired === 1 && l2.comboLog.length === 1 && l2.comboLog[0].id === 'nuke');
+
+  // the log is capped
+  for (let i = 0; i < COMBO_LOG_MAX + 3; i++) g.combos._log(lead, 'nuke', 'lead');
+  check('(log) comboLog capped at COMBO_LOG_MAX', lead.comboLog.length === COMBO_LOG_MAX && lead.combosFired === COMBO_LOG_MAX + 4);
+
+  // removing a partner makes Nuke miss a blue
+  g.sell(partners[1].id);
+  const pv2 = g.comboPreview(lead.id);
+  const nuke2 = pv2.recipes.find((r) => r.id === 'nuke');
+  check('(preview) after selling a blue, Nuke needs 1 blue and wait is Infinity', nuke2.missing.blue === 1 && nuke2.wait === Infinity && pv2.partners.length === 1);
+}
+{
+  const { g, lead } = setup({ lead: 'yellow', partners: ['yellow', 'yellow', 'green', 'green'] });
+  const bh = g.comboPreview(lead.id).recipes.find((r) => r.id === 'blackHole');
+  check('(preview) Black Hole with 2 greens is exactBlocked', bh.exactBlocked && bh.wait === Infinity);
+}
+{
+  const { g, lead, partners } = setup({ lead: 'red', partners: [{ kind: 'comboOnly', color: 'blue' }, 'blue'] });
+  const pv = g.comboPreview(partners[0].id);
+  check('(preview) Combo-only never leads, lists the recipes of leads in range that need its colour',
+    !pv.leads && pv.recipes.some((r) => r.id === 'nuke') && pv.recipes.every((r) => r.needs.blue), pv.recipes.map((r) => r.id).join(','));
+}
+{
+  const g3 = new Game({ mapId: MAP, mode: 'sandbox', seed: 5, waveInterval: 1e9 });
+  const id = g3.build('red', SPOT.x, SPOT.y).id;
+  const pv = g3.comboPreview(id);
+  check('(preview) weapon not at max damage: recipes listed, nothing possible', !pv.next && pv.recipes.length === COMBOS.red.length && pv.recipes.every((r) => r.wait === Infinity));
+}
+
 // ------------------------------------------------------------------ save / restore determinism with active combos
 for (const { colour, r } of recipes) {
   const isHole = !!r.fx.blackHole;
@@ -512,6 +648,27 @@ for (const { colour, r } of recipes) {
 }
 
 // ------------------------------------------------------------------ performance
+{
+  // 400 armed mines all over the road plus 300 attackers walking: mines are checked every 150 ms, so cheap
+  const { g, lead } = setup({ lead: 'blue', partners: [] });
+  const rec = COMBOS.blue.find((r) => r.id === 'mine');
+  const road = g.roadPoints();
+  for (let i = 0; i < 400; i++) {
+    const q = road[Math.floor((i * road.length) / 400)];
+    const m = g.combos._launchMine(lead, rec, 1, 0, { x: q.x, y: q.y });
+    m.x = q.x; m.y = q.y; m.data.armed = true; m.armed = true; m.data.check = (i * 7) % 150;
+  }
+  for (let i = 0; i < 300; i++) { const a = g.spawnAttacker(1, HP); a.progress = (i % 100) * 3; g.path.place(a, a.progress); }
+  g.advance(1);
+  const save = JSON.parse(JSON.stringify(g.serialize()));
+  const g2 = Game.deserialize(save);
+  const t0 = process.hrtime.bigint();
+  g.advance(240);
+  const ms = Number(process.hrtime.bigint() - t0) / 1e6 / 240;
+  check('(perf) 400 armed mines + 300 attackers: < 3 ms per step', ms < 3, ms.toFixed(2) + ' ms');
+  g2.advance(240);
+  check('(save) 400 mines: restore continues identically', JSON.stringify(g.serialize()) === JSON.stringify(g2.serialize()));
+}
 {
   const { g } = setup({ lead: 'yellow', partners: ['yellow', 'yellow', 'green'] });
   for (let i = 0; i < 300; i++) {
