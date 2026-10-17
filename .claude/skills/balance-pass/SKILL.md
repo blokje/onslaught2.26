@@ -5,6 +5,8 @@ description: Measure and tune the numbers of OnSlaught2.26's new (non-original) 
 
 # Balance pass
 
+**Docs first:** Note in `docs/claude/data-and-balance.md` what you are about to measure and why, before changing numbers.
+
 Read `docs/claude/data-and-balance.md` first: original [ORIG] numbers are frozen, only [NEW] content is tuned.
 
 1. Measure before changing anything. Use `scripts/balance.mjs` if it exists, or write one: drive `Game` in Node with a fixed `seed`, `mode: 'sandbox'` for cash, `spawnAttacker(wave, hpOverride)` for high-HP targets, `advance(steps)`.
@@ -13,3 +15,6 @@ Read `docs/claude/data-and-balance.md` first: original [ORIG] numbers are frozen
 4. Difficulty: greedy bot games on maps 1, 4 and 9 per difficulty; report the wave reached.
 5. Change only `src/data/` numbers for [NEW] content. Update `SPEC.md` section 9.
 6. Report a before/after table with reasons, plus the measurement tables. `sim-test` and `combo-test` must still pass.
+
+**Docs after:** update `SPEC.md` section 9 with the new numbers, replace the "Latest balance pass" section in `docs/claude/data-and-balance.md` with the new measurements, add a `CHANGELOG.md` entry with the before/after summary.
+A task is not done until the docs are touched (see `docs/claude/documentation.md`).

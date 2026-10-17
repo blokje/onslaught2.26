@@ -5,6 +5,7 @@ Vite + plain ES modules (JavaScript, no TypeScript, no framework) + three.js 0.1
 
 ## Hard rules
 
+0. **Docs first, docs after.** Before coding, update the doc that describes the change (intent). After coding, correct it to match what was built and add a `CHANGELOG.md` entry. **A task without doc changes is not done.** Which doc to touch: `docs/claude/documentation.md`.
 1. **Layers:** `src/data` (numbers) <- `src/game` (pure simulation) <- `src/render` (three.js, read-only view) and `src/ui` (DOM, input, storage, audio).
    `src/game` never touches DOM, `window` or three.js and must run in Node. `src/render` never mutates game state.
 2. **Contract:** `ARCHITECTURE.md` defines the state, commands, events and renderer API. Adding optional fields is fine (document them there in the same change). Renaming or removing anything needs the user's OK.
@@ -17,6 +18,7 @@ Vite + plain ES modules (JavaScript, no TypeScript, no framework) + three.js 0.1
 
 ## Done means
 
+- Docs updated (intent before, result after), `CHANGELOG.md` entry under Unreleased, docs listed in the report or commit message.
 - `node scripts/sim-test.mjs` and `node scripts/combo-test.mjs` pass, with new checks for new mechanics.
 - `npm run build` succeeds.
 - Visual or UI changes have been looked at in a browser with no console errors; otherwise say so explicitly.
@@ -46,8 +48,9 @@ Port 5226 busy? Use `npx vite --port 5227` and stop it afterwards.
 | Tests, browser checks, builds | `docs/claude/testing.md` |
 | Splitting work over several agents | `docs/claude/multi-agent.md` |
 | Known quirks and traps | `docs/claude/gotchas.md` |
+| Which doc to update, doc style | `docs/claude/documentation.md` |
 
-Rules and numbers: `SPEC.md`. Interfaces: `ARCHITECTURE.md`.
+Rules and numbers: `SPEC.md`. Interfaces: `ARCHITECTURE.md`. Humans: `README.md`, `CONTRIBUTING.md`, `CHANGELOG.md`.
 
 ## Skills (runbooks in .claude/skills/)
 
@@ -55,5 +58,5 @@ Rules and numbers: `SPEC.md`. Interfaces: `ARCHITECTURE.md`.
 
 ## Git
 
-Single branch `main`. The coordinator commits; worker agents do not commit or branch unless their brief says so.
+Single branch `main`. Commit docs together with the code they describe. The coordinator commits; worker agents do not commit or branch unless their brief says so.
 Never commit `node_modules/`, `dist*/` or `*.swf`.

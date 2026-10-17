@@ -19,9 +19,10 @@ The project was built by one coordinator agent and several worker agents running
 1. The project path and which docs to read (`CLAUDE.md`, the relevant `docs/claude/*.md`, `ARCHITECTURE.md`, `SPEC.md`).
 2. Exactly which files it may edit, and which it must not touch.
 3. The concrete items to do, with the rules or numbers that apply.
-4. The verification it must run (tests, build, browser check).
-5. What to report: files changed, contract additions, test output, what was not verified, judgement calls.
+4. The docs it must update before and after (per `docs/claude/documentation.md`), and permission to edit them.
+5. The verification it must run (tests, build, browser check).
+6. What to report: files changed, **docs touched**, contract additions, test output, what was not verified, judgement calls.
 
 ## Validating a report
 
-A report is a claim, not proof. Re-run `sim-test`, `combo-test` and the build yourself, read the diff (`git diff --stat`, then the risky files), and check the change in the browser before committing.
+A report is a claim, not proof. A report without doc changes is rejected: send the worker back. Re-run `sim-test`, `combo-test` and the build yourself, read the diff (`git diff --stat`, then the risky files), and check the change in the browser before committing.

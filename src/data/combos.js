@@ -11,7 +11,7 @@ export const BLAST_RADIUS = { small: 40, medium: 60, large: 80, huge: 87.5, bfg:
 export const COMBOS = {
   red: [
     { id: 'napalm', name: 'Napalm Rocket', isNew: true, needs: { red: 1, blue: 1, yellow: 1 }, recharge: 8000,
-      fx: { projectile: 'napalmRocket', speed: 150, hit: 6e6, napalm: { length: 160, duration: 4000, dps: 2.5e6 } } },
+      fx: { projectile: 'napalmRocket', speed: 150, hit: 8e6, napalm: { length: 160, duration: 4000, dps: 1.1e7 } } },
     { id: 'nuke', name: 'Nuke', needs: { blue: 2 }, recharge: 7400,
       fx: { projectile: 'nuke', speed: 150, hit: 9e6, blast: { size: 'huge', damage: 6e7 } } },
     { id: 'poisonGas', name: 'Poison Gas Rocket', needs: { green: 1, blue: 1 }, recharge: 5000,
@@ -19,7 +19,7 @@ export const COMBOS = {
     { id: 'laserRocket', name: 'Laser Rocket', needs: { green: 1 }, recharge: 3000,
       fx: { projectile: 'laserRocket', speed: 100, laser: { damage: 2e6, chain: true, range: 200 }, burst: { qty: 6, damage: 1e6, range: 300 } } },
     { id: 'tazerRocket', name: 'Tazer Rockets', isNew: true, needs: { yellow: 1 }, recharge: 4000,
-      fx: { projectile: 'tazerRocket', speed: 200, hit: 3e6, chainSpark: { qty: 6, range: 150, damage: 1e6, poison: 4 } } },
+      fx: { projectile: 'tazerRocket', speed: 200, hit: 5e6, chainSpark: { qty: 6, range: 150, damage: 2e6, poison: 4 } } },
   ],
   green: [
     { id: 'rocketBfg', name: 'Rocket BFG', needs: { red: 2, blue: 1 }, recharge: 9000,
@@ -55,10 +55,10 @@ export const COMBOS = {
     { id: 'blackHole', name: 'Black Hole', needs: { yellow: 2, green: 1 }, exact: { green: 1 }, recharge: 18000,
       fx: { blackHole: { placeRange: 90, radius: 120, gravity: 800, duration: 3000 } } },
     { id: 'shockwave', name: 'Shockwave', isNew: true, needs: { yellow: 1, blue: 1, green: 1 }, recharge: 10000,
-      fx: { shockwave: { radius: 200, speed: 400, damage: 5e6, knockback: 60, poison: 2 } } },
+      fx: { shockwave: { radius: 200, speed: 400, damage: 6.5e6, knockback: 60, poison: 2 } } },
     { id: 'tazerBfg', name: 'Tazer BFG', isNew: true, needs: { red: 1, blue: 1 }, recharge: 9000,
-      fx: { projectile: 'bfg', speed: 60, hit: 5e6, blast: { size: 'bfg', damage: 7e6, poison: 3 },
-            sparks: { qty: 6, damage: 2e6, poison: 3, range: 250, rate: 180 } } },
+      fx: { projectile: 'bfg', speed: 60, hit: 4e6, blast: { size: 'bfg', damage: 5.5e6, poison: 3 },
+            sparks: { qty: 6, damage: 1.5e6, poison: 3, range: 250, rate: 180 } } },
   ],
 };
 

@@ -197,23 +197,25 @@ The exact waypoint lists have been recovered and will go into the map data file 
 
 | | Easy | Medium (= original) | Hard | Extreme (unlockable) |
 |---|---|---|---|---|
-| HP growth per wave | ×1.10 | ×1.125 | ×1.14 | ×1.16 |
+| HP growth per wave | ×1.10 | ×1.125 | ×1.165 | ×1.25 |
 | Start cash | $60 | $30 | $30 | $20 |
 | Lives | 20 | 10 | 5 | 1 |
 | Wave interval | 25 s | 20 s | 17 s | 15 s |
 
 **Sandbox** (unlockable): $10,000,000 start cash, everything unlocked (the original's own debug mode does exactly this).
 
-**5 extra weapons** (unlock at 1,200 to 2,000 kills):
-- **Targeter**: cheap support. "Join" it to a turret (J) and that turret uses the Targeter's position and range for target acquisition.
-- **Sniper**: very long range (400+), very slow, huge single hit, prefers the strongest target.
-- **Fusion**: short-range beam whose damage ramps up while it stays on the same target.
-- **Railgun**: piercing line shot that damages every attacker along the line.
-- **Combo-only**: never fires on its own; it only takes part in combos as a wildcard colour you pick.
+**5 extra weapons** (unlock at 1,200 to 1,600 kills, that is roughly waves 121 to 161 on Medium; kills come at most 10 per wave):
+- **Targeter** ($3,000, unlock 1,200 kills; range ladder $400 to $3,200 for 175 to 300): cheap support. "Join" it to a turret (J) and that turret uses the Targeter's position and range for target acquisition.
+- **Sniper** ($6,000, unlock 1,300): very long range (420 to 550), very slow (12 to 22 shots/min), huge single hit (280k to 2.2M), prefers the strongest target.
+- **Fusion** ($7,500, unlock 1,400): short-range beam (110 to 160) whose damage ramps up (x1.15 per tick, max x6) while it stays on the same target; base 4,100 damage, 300 shots/min, ladder to 25,000.
+- **Railgun** ($9,000, unlock 1,500): piercing line shot that damages every attacker along the line; 67k to 370k per hit, 20 to 35 shots/min, range 300 to 380.
+- **Combo-only** ($3,000, unlock 1,600; cheaper than the cheapest damage-maxed partner, Yellow at $3,360): never fires on its own; it only takes part in combos as a wildcard colour you pick.
 
 **4 missing combos**: Tazer Rockets (rocket with chain-stun), Napalm Rocket (burning ground strip on the road),
 Tazer BFG (BFG that also poisons), Shockwave (expanding ring that knocks attackers back along the path).
-They get recharge and damage values in the same range as the original combos.
+They get recharge and damage values in the same range as the original combos:
+Napalm Rocket 8 s, hit 8 M, burn 11 M/s for 4 s; Tazer Rockets 4 s, hit 5 M, 6 chain sparks of 2 M; Shockwave 10 s, 6.5 M to everything within 200;
+Tazer BFG 9 s, hit 4 M, 5.5 M blast, 6 sparks of 1.5 M.
 
 **Unlocks** (Extreme, Sandbox, extra weapons) are stored locally. A settings switch unlocks everything [CHOICE].
 

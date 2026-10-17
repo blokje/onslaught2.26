@@ -14,8 +14,8 @@ export const WAVES = {
 export const DIFFICULTIES = {
   easy:    { name: 'Easy',    hpGrowth: 1.10,  startCash: 60, lives: 20, waveInterval: 25000 },
   medium:  { name: 'Medium',  hpGrowth: 1.125, startCash: 30, lives: 10, waveInterval: 20000 },
-  hard:    { name: 'Hard',    hpGrowth: 1.14,  startCash: 30, lives: 5,  waveInterval: 17000 },
-  extreme: { name: 'Extreme', hpGrowth: 1.16,  startCash: 20, lives: 1,  waveInterval: 15000, unlock: { medium: 100 } },
+  hard:    { name: 'Hard',    hpGrowth: 1.165, startCash: 30, lives: 5,  waveInterval: 17000 },
+  extreme: { name: 'Extreme', hpGrowth: 1.25,  startCash: 20, lives: 1,  waveInterval: 15000, unlock: { medium: 100 } },
 };
 
 export const MODES = {
