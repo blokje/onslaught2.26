@@ -191,6 +191,7 @@ The exact waypoint lists have been recovered and will go into the map data file 
 | Space | send the next wave now |
 | P | pause |
 | I | info panel |
+| Drag panel header | move the info panel, double-click to dock it again [CHOICE] |
 | G | settings |
 | Esc | cancel build/move |
 | Mouse wheel / drag | zoom / pan [CHOICE] |

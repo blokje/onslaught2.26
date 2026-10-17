@@ -88,6 +88,7 @@ export class Hud {
 
     // ----- side panel
     this.side = h('div', { class: 'os-panel os-side' });
+    this.initPanelDrag();
     // ----- misc
     this.log = h('div', { class: 'os-log' });
     this.toasts = h('div', { class: 'os-toasts' });
@@ -197,9 +198,80 @@ export class Hud {
       if (t) this.refs = this.buildTurretView(t);
       else if (buildKind) this.refs = this.buildKindView(buildKind);
     }
+    const wasOn = this.side.classList.contains('on');
     setClass(this.side, 'on', !!key);
     setClass(this.side, 'collapsed', app.settings.infoCollapsed);
+    if (key && !wasOn) this.applyPanelPos();
     if (t && this.refs) this.updateTurretView(t, s);
+  }
+
+  // ------------------------------------------------------------ moving the side panel
+  /** Drag the side panel by its header, double-click or double-tap the header to dock it again. Saved as settings.panelPos. */
+  initPanelDrag() {
+    const side = this.side;
+    let drag = null;
+    let lastDown = -1e9;
+    const onHead = (e) => e.target.closest('.os-side-head') && !e.target.closest('button');
+    side.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 || !onHead(e)) return;
+      e.preventDefault();
+      // a second press within 350 ms docks the panel again (a dblclick event would be retargeted by the pointer capture)
+      if (e.timeStamp - lastDown < 350) {
+        lastDown = -1e9;
+        this.app.updateSettings({ panelPos: null });
+        this.applyPanelPos();
+        return;
+      }
+      lastDown = e.timeStamp;
+      const r = side.getBoundingClientRect();
+      drag = { id: e.pointerId, dx: e.clientX - r.left, dy: e.clientY - r.top, pos: null };
+      side.setPointerCapture(e.pointerId);
+      side.classList.add('dragging');
+    });
+    side.addEventListener('pointermove', (e) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      const hud = this.el.getBoundingClientRect();
+      drag.pos = this.placePanel(e.clientX - drag.dx - hud.left, e.clientY - drag.dy - hud.top);
+    });
+    const end = (e) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      const pos = drag.pos;
+      drag = null;
+      side.classList.remove('dragging');
+      if (side.hasPointerCapture(e.pointerId)) side.releasePointerCapture(e.pointerId);
+      if (pos) this.app.updateSettings({ panelPos: pos });
+    };
+    side.addEventListener('pointerup', end);
+    side.addEventListener('pointercancel', end);
+    window.addEventListener('resize', () => this.applyPanelPos());
+  }
+
+  /** Put the panel at the saved position (clamped), or back in the CSS dock when there is none. */
+  applyPanelPos() {
+    const p = this.app.settings.panelPos;
+    const st = this.side.style;
+    if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y)) { st.left = st.top = st.right = st.maxHeight = ''; return; }
+    if (this.side.classList.contains('on')) this.placePanel(p.x, p.y);
+  }
+
+  /** Place the panel at x, y (px in the HUD), clamped between the top bar and the build rack so its header stays reachable. Returns the clamped position. */
+  placePanel(x, y) {
+    const hud = this.el.getBoundingClientRect();
+    const r = this.side.getBoundingClientRect();
+    const head = this.side.querySelector('.os-side-head');
+    const headH = head ? head.offsetHeight : 40;
+    const topR = this.top.getBoundingClientRect();
+    const rackR = this.rack.getBoundingClientRect();
+    const minY = topR.height ? topR.bottom - hud.top + 4 : 0;
+    const maxY = (rackR.height ? rackR.top - hud.top - 4 : hud.height) - headH;
+    x = Math.round(Math.max(0, Math.min(hud.width - r.width, x)));
+    y = Math.round(Math.max(minY, Math.min(maxY, y)));
+    const st = this.side.style;
+    st.left = x + 'px';
+    st.top = y + 'px';
+    st.right = 'auto';
+    st.maxHeight = Math.max(headH, maxY + headH - y) + 'px';
+    return { x, y };
   }
 
   header(kind, title, subtitle) {
@@ -210,7 +282,7 @@ export class Hud {
     this.collapseBtn = collapse;
     const close = h('button', { class: 'os-iconbtn', type: 'button', tabindex: -1, title: 'Close (Esc)' }, '×');
     close.addEventListener('click', () => { app.cancelOrDeselect(); close.blur(); });
-    const head = h('div', { class: 'os-side-head' },
+    const head = h('div', { class: 'os-side-head', title: 'Drag to move, double-click to reset' },
       h('div', { class: 'os-ico', html: iconSvg(kind) }),
       h('div', { class: 'os-side-title' }, h('b', null, title), sub),
       collapse, close);
