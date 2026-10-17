@@ -6,6 +6,19 @@ It remakes the mechanics of a classic 2007 Flash game, with all-new code, art an
 
 Runs full-window in any modern browser, with zoom and pan. Built for desktop (mouse and keyboard); iPad works in landscape.
 
+## About this project
+
+OnSlaught2.26 is a reimplementation from scratch, made with the help of AI, of the tower-defense game **Onslaught 2**.
+It is my holy grail of games: the first tower-defense game I really played a lot. I finally had the time to try to
+rebuild it, using AI, screenshots and the original game as preserved on the
+[Internet Archive](https://archive.org/details/onslaught2_202311) as reference.
+
+Bringing it back to life was also a nice challenge to see how much Claude Opus 5.5 has improved. I tried this in the
+past with older models, with lesser results.
+
+No original code is used. The game was rebuilt from how it plays: all code, art and sound in this repository are new
+(see [Originality](#originality)).
+
 ## Play
 
 ```bash

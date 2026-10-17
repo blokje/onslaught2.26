@@ -13,6 +13,8 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
   (waves reached about 1.45 : 1 : 0.71 : 0.39 for Easy : Medium : Hard : Extreme). Details in `docs/claude/data-and-balance.md`.
 
 ### Added
+- README section "About this project": a from-scratch, AI-assisted reimplementation of Onslaught 2, why it was made,
+  and the reference material used (screenshots and the game on the Internet Archive).
 - Selected-turret panel always shows a freak-out chip for Cannon and Tazer, with upgrade progress toward the
   requirement ("Freak-out at 4 dmg + 4 rate (2/4, 1/4)") before they become eligible, so it is visible that they support it.
 - `scripts/balance.mjs` (`dps`, `combos`, `difficulty`, `unlock`, `all`).
