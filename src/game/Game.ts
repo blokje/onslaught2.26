@@ -444,7 +444,7 @@ export class Game {
   }
 
   // ------------------------------------------------------------------ placement
-  _placementProblem(kind: string, x: number, y: number, excludeId: number | null = null): string | null {
+  _placementProblem(_kind: string, x: number, y: number, excludeId: number | null = null): string | null {
     if (typeof x !== 'number' || !Number.isFinite(x) || typeof y !== 'number' || !Number.isFinite(y)) return 'Invalid position';
     const m = this.state.map;
     const half = TURRET_SIZE / 2;

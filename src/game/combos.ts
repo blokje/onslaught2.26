@@ -9,12 +9,11 @@
 // shockwaves. Mines, rockets, plasma balls and bomblets are ordinary projectiles with a `tag` and a `data`
 // object, so the engine already saves them. Only the cached mine road points are dropped.
 import { COMBOS, MINE, COMBO_LOG_MAX } from '../data/combos.ts';
-import { COMBO_RANGE } from '../data/turrets.ts';
 import { ladderValue } from './modifiers.ts';
 import { impact } from './projectiles.ts';
 import { applyPoison, laneOffset } from './Attacker.ts';
 import type {
-  Attacker, BlastSpec, ColorCounts, ComboFx, ComboLogEntry, ComboPreview, ComboRecipe, KeyColor, Point,
+  Attacker, ColorCounts, ComboFx, ComboLogEntry, ComboPreview, ComboRecipe, KeyColor, Point,
   Projectile, TurretState,
 } from '../types.ts';
 import type { Game } from './Game.ts';

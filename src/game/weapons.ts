@@ -105,7 +105,7 @@ function spawnOrbiter(game: Game, t: TurretState): void {
 }
 
 /** Turn an orbiting rocket into a diving one. */
-export function releaseOrbiter(game: Game, p: Projectile, target: Attacker | null, damage: number): void {
+export function releaseOrbiter(_game: Game, p: Projectile, target: Attacker | null, damage: number): void {
   p.mode = 'homing';
   p.orbiting = false;
   p.targetId = target ? target.id : null;
