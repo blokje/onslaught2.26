@@ -12,7 +12,7 @@ three.js 0.160.0, orthographic top-down. Contract: `ARCHITECTURE.md` section 2. 
 | `atlas.js` | All sprites drawn procedurally with the 2D canvas into atlases (effects, 9 attackers, 16 turret bases and weapons) plus a text atlas for "+$n" and combo names. |
 | `batches.js` | `SpriteBatch` and `RingBatch`: instanced quads. A full frame is about 25 draw calls. |
 | `entities.js` | Turrets, attackers, projectiles, rocket smoke. |
-| `fxlayer.js` | Beams, effects, overlays (ghost, selection, hover, ranges, combo lines, join line). |
+| `fxlayer.js` | Beams, effects, overlays (ghost, selection, hover, ranges, firing cones, combo lines, join line). |
 | `particles.js` | Renderer-owned particle pool (capped), not part of game state. |
 | `util.js` | Colour helpers and the compact number format. |
 | `demo.js` | Fake game with the 1.1 state shape, used by `/render-demo.html`. |

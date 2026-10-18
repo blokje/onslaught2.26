@@ -5,6 +5,13 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
 
 ## Unreleased
 
+### Fixed
+- The firing cone (D / Shift+D) is now drawn. It already restricted targeting, but the renderer never showed it, so
+  changing it looked like it did nothing. Selected and hovered weapons (and all weapons with R) show the cone as a wedge
+  from their acquisition origin (a joined Targeter's position and range), with the rest of the range ring dimmed;
+  every weapon with a cone also gets a small aim tick on its base. The render demo has a coned Rocket turret.
+  Docs: `ARCHITECTURE.md`, `docs/claude/rendering.md`, `docs/claude/gotchas.md`.
+
 ### Changed
 - Late-game wall softened (approved deviation from the original after wave 100; waves 1 to 100 unchanged): HP growth per
   wave after wave 100 is 1 + (growth - 1) x 0.4 (Medium x1.05 instead of x1.125) and bounty is round(wave x 1.03^(wave - 100)).

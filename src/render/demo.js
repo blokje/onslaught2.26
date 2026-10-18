@@ -115,6 +115,12 @@ export function createDemoGame({ mapIndex = 0, seed = 1 } = {}) {
   const freakers = state.turrets.filter((t) => t.kind === 'blue' || t.kind === 'yellow');
   const reds = state.turrets.filter((t) => t.kind === 'red');
   if (reds[0]) reds[0].holding = true;
+  // a firing cone (D / Shift+D in the game), aimed at the nearest road point
+  if (reds[1]) {
+    let best = null, bd = Infinity;
+    for (let s = 0; s < length; s += 10) { const p = pointAt(s); const d = Math.hypot(p.x - reds[1].x, p.y - reds[1].y); if (d < bd) { bd = d; best = p; } }
+    if (best) reds[1].directional = { mode: 'medium', angle: Math.atan2(best.y - reds[1].y, best.x - reds[1].x) };
+  }
 
   // ---------------------------------------------------------------- simulation bits
   let spawnTimer = 0, spawnCount = 0, specialTimer = 1500, fxTimer = 0, blastSizeIdx = 0, comboNameTimer = 2500;

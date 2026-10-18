@@ -127,7 +127,7 @@ r.screenToWorld(clientX, clientY)           // -> { x, y } in world units
 r.worldToScreen(x, y)                       // -> { x, y } client pixels
 r.setOverlay({                              // UI-driven overlays, call whenever they change
   ghost: { kind, x, y, valid } | null,      // build/move preview with its range ring
-  selectedId: id | null,
+  selectedId: id | null,                    // range ring; a weapon with a cone (directional) shows the cone instead
   hoverId: id | null,
   showRanges: 'selected' | 'all',           // R key toggles to 'all'
   showCombo: bool,                          // C key: lines from selected turret to comboPartners
