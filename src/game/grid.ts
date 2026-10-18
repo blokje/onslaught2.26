@@ -1,6 +1,13 @@
 // Uniform spatial grid (cell 64) rebuilt every simulation step for attacker queries.
+import type { Attacker } from '../types.ts';
+
 export class SpatialGrid {
-  constructor(width, height, cell = 64) {
+  cell: number;
+  cols: number;
+  rows: number;
+  cells: Attacker[][];
+
+  constructor(width: number, height: number, cell = 64) {
     this.cell = cell;
     this.cols = Math.ceil(width / cell) + 1;
     this.rows = Math.ceil(height / cell) + 1;
@@ -8,7 +15,7 @@ export class SpatialGrid {
     for (let i = 0; i < this.cols * this.rows; i++) this.cells.push([]);
   }
 
-  rebuild(attackers) {
+  rebuild(attackers: Attacker[]): void {
     const cells = this.cells;
     for (let i = 0; i < cells.length; i++) cells[i].length = 0;
     const { cell, cols, rows } = this;
@@ -26,7 +33,7 @@ export class SpatialGrid {
    * Fills `out` with living attackers whose centre is within r of (x, y); returns the count.
    * (out.length is also set to the count.)
    */
-  query(x, y, r, out) {
+  query(x: number, y: number, r: number, out: Attacker[]): number {
     const { cell, cols, rows, cells } = this;
     let x0 = Math.floor((x - r) / cell), x1 = Math.floor((x + r) / cell);
     let y0 = Math.floor((y - r) / cell), y1 = Math.floor((y + r) / cell);

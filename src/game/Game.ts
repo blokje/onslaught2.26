@@ -2,7 +2,7 @@
 // Interface contract: ARCHITECTURE.md section 1. Rules: SPEC.md sections 2 to 6 and 9.
 //
 // ---------------------------------------------------------------------------------------------
-// COMBO MODULE HOOKS (for src/game/combos.js)
+// COMBO MODULE HOOKS (for src/game/combos.ts)
 //
 // game.combos = new Combos(game)   created in the Game constructor; the engine calls
 //   combos.tryFire(lead)  -> boolean   before a NORMAL shot of a combo-capable lead whose
@@ -23,7 +23,7 @@
 // Helpers on Game (all safe to call from combos):
 //   game.comboPartners(id)            -> [turretId]  weapon/Combo-only turrets within COMBO_RANGE (70), excluding self
 //   game.comboPreview(id)             -> read-only combo outlook for the UI (Combos.preview), no rng
-//   game.spawnProjectile(kind, props) -> projectile  appended to state.projectiles; see projectiles.js for props
+//   game.spawnProjectile(kind, props) -> projectile  appended to state.projectiles; see projectiles.ts for props
 //                                        (modes: straight | homing | orbit | goto; blast, poison, tag, ttl, stay...)
 //   game.addEffect(kind, props)       -> effect      {x, y, radius, duration, data}; aged in game ms
 //   game.addBeam(kind, x1, y1, x2, y2, ttl = 120)    short-lived line, aged in (real-time-ish) ms
@@ -49,33 +49,58 @@ import { BLAST_RADIUS } from '../data/combos.ts';
 import { RNG } from './rng.ts';
 import { Emitter } from './events.ts';
 import { Path } from './Path.ts';
+import type { RoadSample } from './Path.ts';
 import { SpatialGrid } from './grid.ts';
 import { Turret, assignSafe } from './Turret.ts';
 import { emptyMods, addMod, computeStats, nextUpgradeCost, modRangeAt, STATS } from './modifiers.ts';
+import type { ModSum } from './modifiers.ts';
 import { createAttacker, moveAttackers, applyPoison } from './Attacker.ts';
 import { startWave, updateSpawners } from './Waves.ts';
 import { stepTurret, chainBonus, releaseOrbiter } from './weapons.ts';
 import { updateProjectiles } from './projectiles.ts';
-import type { Attacker, GameOptions, GameState, Projectile } from '../types.ts';
+import type {
+  Attacker, Beam, BeamKind, BlastSize, ComboPreview, DifficultyId, DirectionalMode, Effect, EffectKind, Fail, GameEventName, GameEvents,
+  GameOptions, GameState, KeyColor, ModeId, Projectile, ProjectileKind, Result, Stat, TargetMode, TurretState,
+} from '../types.ts';
 import type { Spawner } from './Waves.ts';
 import { Combos } from './combos.ts';
 
 export const STEP_MS = 1000 / 60;
 // Seed used when opts.seed is missing (src/game must not call Math.random). Callers that want a
-// different game each time (src/main.js) pass opts.seed themselves.
+// different game each time (src/main.ts) pass opts.seed themselves.
 const DEFAULT_SEED = 0x2261;
 // Save format version and sanity caps for Game.deserialize (far above anything play can reach).
 const SAVE_VERSION = 1;
 const SAVE_LIMITS = { turrets: 2000, attackers: 5000, projectiles: 20000, beams: 5000, effects: 5000, spawners: 1000 };
-const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+const isObj = (v: unknown): v is Record<string, any> => v !== null && typeof v === 'object' && !Array.isArray(v);
 const MAX_BEAMS = 400;
 const MAX_EFFECTS = 300;
-const DIRECTIONAL_ORDER = Object.keys(DIRECTIONAL); // D cycle order
-const COMBO_COLORS = ['red', 'green', 'blue', 'yellow'];
+const DIRECTIONAL_ORDER = Object.keys(DIRECTIONAL) as DirectionalMode[]; // D cycle order
+const COMBO_COLORS: KeyColor[] = ['red', 'green', 'blue', 'yellow'];
 
 export interface GameOpts {
   mapId: string; difficulty: string; mode: string; unlockAll: boolean;
   seed: number; waveInterval: number | null;
+}
+
+/** Serialised game (output of Game.serialize, plain JSON). */
+export interface SaveData {
+  version: number;
+  opts: GameOpts;
+  rng: number;
+  nextId: number;
+  acc: number;
+  stepCount: number;
+  focusId: number | null;
+  spawners: Spawner[];
+  waveInterval: number;
+  state: Pick<GameState, 'time' | 'speed' | 'paused' | 'over' | 'cash' | 'lives' | 'kills' | 'spent' | 'wave' | 'nextWaveIn' | 'score' | 'unlocked'>;
+  turrets: TurretState[];
+  attackers: Attacker[];
+  projectiles: Projectile[];
+  beams: Beam[];
+  effects: Effect[];
+  combos: unknown;
 }
 
 export class Game {
@@ -94,7 +119,7 @@ export class Game {
   turretMap: Map<number, Turret>;
   attackerMap: Map<number, Attacker>;
   _acqBuf: Attacker[];
-  _projBuf: Projectile[];
+  _projBuf: Attacker[];
   _blastBuf: Attacker[];
   state: GameState;
   _nextUnlock: number;
@@ -133,12 +158,12 @@ export class Game {
     this._blastBuf = [];
 
     const unlockedAll = this.opts.unlockAll || !!mode.unlockAllTurrets;
-    const unlocked = {};
+    const unlocked: Record<string, true> = {};
     for (const [k, d] of Object.entries(TURRETS)) if (unlockedAll || d.unlockKills == null) unlocked[k] = true;
 
     this.state = {
       time: 0, speed: 1, paused: false, over: false,
-      difficulty: o.difficulty, mode: o.mode, mapId: o.mapId,
+      difficulty: o.difficulty as DifficultyId, mode: o.mode as ModeId, mapId: o.mapId, // validated against DIFFICULTIES / MODES above
       cash: mode.startCash ?? diff.startCash, lives: diff.lives, kills: 0, spent: 0, wave: 0,
       nextWaveIn: this.waveInterval, score: 0,
       unlocked,
@@ -155,22 +180,22 @@ export class Game {
   }
 
   /** Focus-fire target; mirrored to state.focusId for the renderer. */
-  get focusId() { return this._focusId; }
-  set focusId(v) { this._focusId = v; if (this.state) this.state.focusId = v; }
+  get focusId(): number | null { return this._focusId; }
+  set focusId(v: number | null) { this._focusId = v; if (this.state) this.state.focusId = v; }
 
   // ------------------------------------------------------------------ events
-  on(name, fn) { return this.events.on(name, fn); }
-  off(name, fn) { this.events.off(name, fn); }
-  emit(name, payload) { this.events.emit(name, payload); }
+  on<K extends GameEventName>(name: K, fn: (p: GameEvents[K]) => void): () => void { return this.events.on(name, fn); }
+  off<K extends GameEventName>(name: K, fn: (p: GameEvents[K]) => void): void { this.events.off(name, fn); }
+  emit<K extends GameEventName>(name: K, payload: GameEvents[K]): void { this.events.emit(name, payload); }
 
-  _fail(reason) {
+  _fail(reason: string): Fail {
     this.emit('error', { reason });
     return { ok: false, reason };
   }
 
   // ------------------------------------------------------------------ time
   /** Advance by real milliseconds; fixed 1/60 s steps scaled by speed (max 8 per call per speed unit). */
-  update(realDtMs) {
+  update(realDtMs: number): void {
     const s = this.state;
     if (s.paused || s.over || !(realDtMs > 0)) return;
     this.acc += realDtMs * s.speed;
@@ -185,11 +210,11 @@ export class Game {
   }
 
   /** Run exactly `steps` simulation steps (ignores speed/pause; for tests and tools). */
-  advance(steps) {
+  advance(steps: number): void {
     for (let i = 0; i < steps && !this.state.over; i++) this.step(STEP_MS);
   }
 
-  step(dt) {
+  step(dt: number): void {
     const s = this.state;
     s.time += dt;
     this.stepCount++;
@@ -216,14 +241,14 @@ export class Game {
     this._cleanup();
   }
 
-  _cleanup() {
+  _cleanup(): void {
     const list = this.state.attackers;
     let j = 0;
     for (let i = 0; i < list.length; i++) if (!list[i].dead) list[j++] = list[i];
     list.length = j;
   }
 
-  _ageVisuals(dt) {
+  _ageVisuals(dt: number): void {
     const s = this.state;
     const beamDt = dt / s.speed; // beams stay visible for a few rendered frames even at 8x
     const beams = s.beams;
@@ -244,14 +269,14 @@ export class Game {
     fx.length = j;
   }
 
-  setSpeed(sp) {
+  setSpeed(sp: number): Result {
     if (!SPEEDS.includes(sp)) return this._fail('Invalid speed');
     this.state.speed = sp;
     return { ok: true };
   }
-  setPaused(p) { this.state.paused = !!p; return { ok: true }; }
-  togglePause() { this.state.paused = !this.state.paused; return { ok: true, paused: this.state.paused }; }
-  setWaveInterval(ms) {
+  setPaused(p: boolean): Result { this.state.paused = !!p; return { ok: true }; }
+  togglePause(): Result<{ paused: boolean }> { this.state.paused = !this.state.paused; return { ok: true, paused: this.state.paused }; }
+  setWaveInterval(ms: number): Result {
     if (!Number.isFinite(ms) || ms < 1000) return this._fail('Invalid wave interval');
     this.waveInterval = ms;
     this.opts.waveInterval = ms;
@@ -260,7 +285,7 @@ export class Game {
   }
 
   // ------------------------------------------------------------------ waves
-  sendWave() {
+  sendWave(): Result<{ bonus: number }> {
     const s = this.state;
     if (s.over) return this._fail('Game over');
     if (s.paused) return this._fail('Game is paused');
@@ -273,17 +298,17 @@ export class Game {
   }
 
   /** Add an attacker to the field (used by waves; also handy for tests). */
-  addAttacker(a) {
+  addAttacker(a: Attacker): Attacker {
     this.state.attackers.push(a);
     this.attackerMap.set(a.id, a);
     return a;
   }
   /** Create and add an attacker of the given wave (hp from the wave formula unless hpOverride). */
-  spawnAttacker(wave, hpOverride) {
+  spawnAttacker(wave: number, hpOverride?: number | null): Attacker {
     return this.addAttacker(createAttacker(this, wave, hpOverride));
   }
 
-  leak(a) {
+  leak(a: Attacker): void {
     const s = this.state;
     a.dead = true;
     this.attackerMap.delete(a.id);
@@ -298,8 +323,8 @@ export class Game {
   }
 
   // ------------------------------------------------------------------ damage, kills, blasts
-  /** @returns {boolean} true if the attacker died from this hit */
-  damageAttacker(a, dmg, sourceTurret, poison = 0) {
+  /** Returns true if the attacker died from this hit. */
+  damageAttacker(a: Attacker, dmg: number, sourceTurret: TurretState | null | undefined, poison = 0): boolean {
     if (a.dead) return false;
     a.hp -= dmg;
     if (poison > 1) applyPoison(a, poison);
@@ -312,7 +337,7 @@ export class Game {
     return false;
   }
 
-  killAttacker(a, opts) {
+  killAttacker(a: Attacker, opts?: { bounty?: number }): void {
     if (a.dead) return;
     const s = this.state;
     a.dead = true;
@@ -328,7 +353,7 @@ export class Game {
     if (s.kills >= this._nextUnlock) this._checkUnlocks();
   }
 
-  blast(x, y, size, damage, opts = {}) {
+  blast(x: number, y: number, size: BlastSize | number, damage: number, opts: { poison?: number; source?: TurretState | null } = {}): void {
     const radius = typeof size === 'number' ? size : BLAST_RADIUS[size] || 40;
     if (damage > 0) {
       const buf = this._blastBuf;
@@ -340,36 +365,36 @@ export class Game {
   }
 
   /** Blast graphics + event without damage (e.g. plain rocket impacts). */
-  visualBlast(x, y, size) {
+  visualBlast(x: number, y: number, size: BlastSize | number): void {
     const radius = (typeof size === 'number' ? size : BLAST_RADIUS[size] || 40) * 0.6;
     this.addEffect('blast', { x, y, radius, duration: 300, data: { size } });
     this.emit('blast', { size, x, y });
   }
 
-  attackersInRadius(x, y, r) {
-    const out = [];
+  attackersInRadius(x: number, y: number, r: number): Attacker[] {
+    const out: Attacker[] = [];
     this.grid.query(x, y, r, out);
     return out;
   }
 
-  roadPoints() { return this.path.samples(4); }
+  roadPoints(): RoadSample[] { return this.path.samples(4); }
 
-  chainLaserDamage(green, consume = false) {
+  chainLaserDamage(green: TurretState, consume = false): number {
     return green.stats.damage + chainBonus(this, green, new Set([green.id]), consume);
   }
 
   // ------------------------------------------------------------------ visuals
-  spawnProjectile(kind, props = {}) {
+  spawnProjectile(kind: ProjectileKind, props: Partial<Projectile> = {}): Projectile {
     const p = Object.assign(
-      { id: this.nextId++, kind, x: 0, y: 0, angle: 0, speed: 0, mode: 'straight', targetId: null, age: 0, dead: false },
+      { id: this.nextId++, kind, x: 0, y: 0, angle: 0, speed: 0, mode: 'straight' as const, targetId: null, age: 0, dead: false },
       props,
     );
     this.state.projectiles.push(p);
     return p;
   }
 
-  addEffect(kind, props = {}) {
-    const e = Object.assign(
+  addEffect(kind: EffectKind, props: Partial<Effect> = {}): Effect {
+    const e: Effect = Object.assign(
       { id: this.nextId++, kind, x: 0, y: 0, radius: 0, age: 0, duration: 500, data: {} },
       props,
     );
@@ -379,26 +404,26 @@ export class Game {
     return e;
   }
 
-  addBeam(kind, x1, y1, x2, y2, ttl = 120) {
-    const b = { kind, x1, y1, x2, y2, age: 0, ttl };
+  addBeam(kind: BeamKind, x1: number, y1: number, x2: number, y2: number, ttl = 120): Beam {
+    const b: Beam = { kind, x1, y1, x2, y2, age: 0, ttl };
     const beams = this.state.beams;
     beams.push(b);
     if (beams.length > MAX_BEAMS) beams.splice(0, beams.length - MAX_BEAMS);
     return b;
   }
 
-  startRecharge(turret, ms) {
+  startRecharge(turret: TurretState, ms: number): void {
     turret.cd = ms;
     turret.comboNext = this.state.time + ms;
   }
 
   // ------------------------------------------------------------------ economy and unlocks
-  _refreshScore() {
+  _refreshScore(): void {
     const s = this.state;
     s.score = s.kills * s.spent;
   }
 
-  _computeNextUnlock() {
+  _computeNextUnlock(): number {
     let next = Infinity;
     for (const [k, d] of Object.entries(TURRETS)) {
       if (!this.state.unlocked[k] && d.unlockKills != null && d.unlockKills < next) next = d.unlockKills;
@@ -406,7 +431,7 @@ export class Game {
     return next;
   }
 
-  _checkUnlocks() {
+  _checkUnlocks(): void {
     const s = this.state;
     for (const [k, d] of Object.entries(TURRETS)) {
       if (!s.unlocked[k] && d.unlockKills != null && s.kills >= d.unlockKills) {
@@ -419,7 +444,7 @@ export class Game {
   }
 
   // ------------------------------------------------------------------ placement
-  _placementProblem(kind, x, y, excludeId = null) {
+  _placementProblem(kind: string, x: number, y: number, excludeId: number | null = null): string | null {
     if (typeof x !== 'number' || !Number.isFinite(x) || typeof y !== 'number' || !Number.isFinite(y)) return 'Invalid position';
     const m = this.state.map;
     const half = TURRET_SIZE / 2;
@@ -438,7 +463,7 @@ export class Game {
     return null;
   }
 
-  canBuild(kind, x, y) {
+  canBuild(kind: string, x: number, y: number): Result {
     const def = Object.hasOwn(TURRETS, kind) ? TURRETS[kind] : null;
     const s = this.state;
     if (s.over) return { ok: false, reason: 'Game over' };
@@ -450,7 +475,7 @@ export class Game {
     return { ok: true };
   }
 
-  build(kind, x, y) {
+  build(kind: string, x: number, y: number): Result<{ id: number }> {
     const c = this.canBuild(kind, x, y);
     if (!c.ok) return this._fail(c.reason);
     const s = this.state;
@@ -467,8 +492,8 @@ export class Game {
     return { ok: true, id: t.id };
   }
 
-  turretAt(x, y) {
-    let best = null, bd = (TURRET_SIZE / 2) * (TURRET_SIZE / 2);
+  turretAt(x: number, y: number): number | null {
+    let best: number | null = null, bd = (TURRET_SIZE / 2) * (TURRET_SIZE / 2);
     const ts = this.state.turrets;
     for (let i = 0; i < ts.length; i++) {
       const d = (ts[i].x - x) ** 2 + (ts[i].y - y) ** 2;
@@ -478,13 +503,13 @@ export class Game {
   }
 
   // ------------------------------------------------------------------ upgrades, sell, move
-  upgradeCost(id, stat) {
+  upgradeCost(id: number, stat: Stat): number | null {
     const t = this.turretMap.get(id);
     if (!t || !STATS.includes(stat)) return null;
     return nextUpgradeCost(t.kind, stat, t.levels[stat]);
   }
 
-  upgrade(id, stat, toMax = false) {
+  upgrade(id: number, stat: Stat, toMax = false): Result<{ levels: number }> {
     const t = this.turretMap.get(id);
     if (this.state.over) return this._fail('Game over');
     if (!t) return this._fail('No such turret');
@@ -509,7 +534,7 @@ export class Game {
     return { ok: true, levels: n };
   }
 
-  sell(id) {
+  sell(id: number): Result<{ refund: number }> {
     const t = this.turretMap.get(id);
     if (this.state.over) return this._fail('Game over');
     if (!t) return this._fail('No such turret');
@@ -517,7 +542,7 @@ export class Game {
     // circling rockets dive at the weakest attacker within 720
     for (const p of s.projectiles) {
       if (p.orbiting && p.ownerId === id) {
-        let best = null;
+        let best: Attacker | null = null;
         for (const a of s.attackers) {
           if (a.dead || Math.hypot(a.x - t.x, a.y - t.y) > 720) continue;
           if (!best || a.hp < best.hp) best = a;
@@ -536,7 +561,7 @@ export class Game {
     return { ok: true, refund };
   }
 
-  move(id, x, y) {
+  move(id: number, x: number, y: number): Result {
     const t = this.turretMap.get(id);
     if (this.state.over) return this._fail('Game over');
     if (!t) return this._fail('No such turret');
@@ -555,7 +580,7 @@ export class Game {
   }
 
   // ------------------------------------------------------------------ targeting commands
-  setTargetMode(id, mode) {
+  setTargetMode(id: number, mode: TargetMode): Result<{ mode: TargetMode }> {
     const t = this.turretMap.get(id);
     if (!t) return this._fail('No such turret');
     if (!TARGET_MODES.includes(mode)) return this._fail('Unknown target mode');
@@ -564,25 +589,25 @@ export class Game {
     t.targetId = null;
     return { ok: true, mode };
   }
-  cycleTargetMode(id) {
+  cycleTargetMode(id: number): Result<{ mode: TargetMode }> {
     const t = this.turretMap.get(id);
     if (!t) return this._fail('No such turret');
     return this.setTargetMode(id, TARGET_MODES[(TARGET_MODES.indexOf(t.targetMode) + 1) % TARGET_MODES.length]);
   }
-  toggleLock(id) {
+  toggleLock(id: number): Result<{ locked: boolean }> {
     const t = this.turretMap.get(id);
     if (!t || t.category !== 'weapon') return this._fail('No such weapon');
     t.locked = !t.locked;
     return { ok: true, locked: t.locked };
   }
-  focusFire(attackerId) {
+  focusFire(attackerId: number | null | undefined): Result {
     if (attackerId == null) { this.focusId = null; return { ok: true }; }
     const a = this.attackerMap.get(attackerId);
     if (!a || a.dead) return this._fail('No such attacker');
     this.focusId = attackerId;
     return { ok: true };
   }
-  setDirectional(id, mode, angle) {
+  setDirectional(id: number, mode: DirectionalMode, angle?: number | null): Result {
     const t = this.turretMap.get(id);
     if (!t || t.category !== 'weapon') return this._fail('No such weapon');
     if (!DIRECTIONAL_ORDER.includes(mode)) return this._fail('Unknown cone');
@@ -591,13 +616,13 @@ export class Game {
     t.targetId = null;
     return { ok: true };
   }
-  cycleDirectional(id) {
+  cycleDirectional(id: number): Result {
     const t = this.turretMap.get(id);
     if (!t) return this._fail('No such turret');
     const next = DIRECTIONAL_ORDER[(DIRECTIONAL_ORDER.indexOf(t.directional.mode) + 1) % DIRECTIONAL_ORDER.length];
     return this.setDirectional(id, next);
   }
-  join(targeterId, turretId) {
+  join(targeterId: number, turretId?: number | null): Result<{ joinedTo: number | null }> {
     const g = this.turretMap.get(targeterId);
     if (!g || g.kind !== 'targeter') return this._fail('Not a Targeter');
     if (turretId == null || g.joinedTo === turretId) {
@@ -611,7 +636,7 @@ export class Game {
     this._recompute();
     return { ok: true, joinedTo: g.joinedTo };
   }
-  setComboColor(id, color) {
+  setComboColor(id: number, color: KeyColor): Result {
     const t = this.turretMap.get(id);
     if (!t || t.kind !== 'comboOnly') return this._fail('Not a Combo-only turret');
     if (!COMBO_COLORS.includes(color)) return this._fail('Unknown colour');
@@ -619,10 +644,10 @@ export class Game {
     return { ok: true };
   }
 
-  comboPartners(id) {
+  comboPartners(id: number): number[] {
     const t = this.turretMap.get(id);
     if (!t) return [];
-    const out = [];
+    const out: number[] = [];
     for (const o of this.state.turrets) {
       if (o.id === id || (o.category !== 'weapon' && o.kind !== 'comboOnly')) continue;
       if (Math.hypot(o.x - t.x, o.y - t.y) <= COMBO_RANGE) out.push(o.id);
@@ -631,28 +656,28 @@ export class Game {
   }
 
   /** Read-only combo outlook for the panel (no rng): see Combos.preview. */
-  comboPreview(id) {
+  comboPreview(id: number): ComboPreview | null {
     const t = this.turretMap.get(id);
     return t && this.combos ? this.combos.preview(t) : null;
   }
 
   // ------------------------------------------------------------------ derived turret state
   /** Recompute modifiers, effective stats, links, joins, combo capability and freak eligibility. */
-  _recompute() {
+  _recompute(): void {
     const s = this.state;
     const turrets = s.turrets;
-    const mods = [];
+    const mods: TurretState[] = [];
     for (const t of turrets) {
       if (t.category === 'modifier') { t.modRange = modRangeAt(t.levels.range); mods.push(t); }
     }
-    const greens = [];
+    const greens: TurretState[] = [];
     for (const t of turrets) {
       const def = TURRETS[t.kind];
-      let sum = null;
+      let sum: ModSum | null = null;
       if (t.category === 'weapon') {
         sum = emptyMods();
         for (const m of mods) {
-          if (Math.hypot(m.x - t.x, m.y - t.y) <= m.modRange) addMod(sum, TURRETS[m.kind].mod);
+          if (Math.hypot(m.x - t.x, m.y - t.y) <= m.modRange) addMod(sum, TURRETS[m.kind].mod!);
         }
       }
       // freak-out eligibility
@@ -684,7 +709,7 @@ export class Game {
     }
   }
 
-  _tickFreak() {
+  _tickFreak(): void {
     const s = this.state;
     const turrets = s.turrets;
     for (let i = 0; i < turrets.length; i++) {
@@ -711,7 +736,7 @@ export class Game {
   }
 
   // ------------------------------------------------------------------ persistence
-  serialize() {
+  serialize(): SaveData {
     const s = this.state;
     return JSON.parse(JSON.stringify({
       version: SAVE_VERSION,
@@ -734,11 +759,12 @@ export class Game {
     }));
   }
 
-  static deserialize(save) {
-    const bad = (why) => new Error(`Invalid save: ${why}`);
+  static deserialize(save: unknown): Game {
+    const bad = (why: string): Error => new Error(`Invalid save: ${why}`);
     if (!isObj(save)) throw bad('not an object');
     if (save.version !== SAVE_VERSION) throw bad(`unsupported version ${save.version}`);
-    const d = JSON.parse(JSON.stringify(save));
+    // `d` is untrusted JSON: it is validated field by field below before use, so it stays `any` until then.
+    const d: any = JSON.parse(JSON.stringify(save));
     if (!isObj(d.state)) throw bad('state missing');
     if (d.opts != null && !isObj(d.opts)) throw bad('opts is not an object');
     for (const [key, max] of Object.entries(SAVE_LIMITS)) {

@@ -1,4 +1,4 @@
-// Combo module: recipe matching and every combo effect (see SPEC.md sections 6 and 9, src/data/combos.js).
+// Combo module: recipe matching and every combo effect (see SPEC.md sections 6 and 9, src/data/combos.ts).
 //
 // Damage scaling: every damage value in a recipe is a base value multiplied by the lead's `damageMult`
 // (the engine's effective damage multiplier: modifiers plus freak-out). Poison strengths are not scaled.
@@ -13,9 +13,14 @@ import { COMBO_RANGE } from '../data/turrets.ts';
 import { ladderValue } from './modifiers.ts';
 import { impact } from './projectiles.ts';
 import { applyPoison, laneOffset } from './Attacker.ts';
+import type {
+  Attacker, BlastSpec, ColorCounts, ComboFx, ComboLogEntry, ComboPreview, ComboRecipe, KeyColor, Point,
+  Projectile, TurretState,
+} from '../types.ts';
+import type { Game } from './Game.ts';
 
-const COLORS = ['red', 'green', 'blue', 'yellow'];
-const RECIPES = {};
+const COLORS: KeyColor[] = ['red', 'green', 'blue', 'yellow'];
+const RECIPES: Record<string, ComboRecipe> = {};
 for (const list of Object.values(COMBOS)) for (const r of list) RECIPES[r.id] = r;
 
 const ROCKET_TURN = 8;               // rad/s for combo rockets (they should not miss)
@@ -27,31 +32,62 @@ const LASER_ROCKET_TICK = 150;
 const BOMBLET_SPEED = 200;
 const BOMBLET_LASER_RANGE = 200;
 
+/** `Projectile.data` of tagged combo projectiles (the contract types it as a free record). */
+interface ComboProjData {
+  cid: string; mult: number; chain: number;
+  armed?: boolean; check?: number;            // mines
+  t?: number;                                 // laser rocket tick
+  tLaser?: number; tRocket?: number;          // BFG timers
+  laser?: number; chainOn?: boolean;          // bomblets
+}
+
+export interface BlackHole { x: number; y: number; radius: number; gravity: number; end: number; swallowed: number[] }
+export interface Shockwave {
+  x: number; y: number; r: number; max: number; speed: number; damage: number; poison: number; knock: number;
+  srcId: number; hit: number[];
+}
+export interface NapalmZone {
+  kind: 'napalm'; points: Point[]; dmg: number; srcId: number | null | undefined; end: number; next: number;
+}
+export interface CloudZone { kind: 'cloud'; x: number; y: number; radius: number; poison: number; end: number; next: number }
+export type Zone = NapalmZone | CloudZone;
+
+interface Spot { x: number; y: number }
+type Groups = Record<KeyColor, TurretState[]>;
+type PreviewRecipe = ComboPreview['recipes'][number];
+
 export class Combos {
-  constructor(game) {
+  game: Game;
+  holes: BlackHole[];   // { x, y, radius, gravity, end, swallowed: [attackerId] }
+  zones: Zone[];        // { kind: 'napalm'|'cloud', ..., end, next }
+  waves: Shockwave[];   // shockwaves { x, y, r, max, speed, damage, poison, knock, srcId, hit: [ids] }
+  mineCache: Map<number, { x: number; y: number; pts: Spot[] }>; // turretId -> { x, y, pts }
+  _buf: Attacker[];
+
+  constructor(game: Game) {
     this.game = game;
-    this.holes = [];   // { x, y, radius, gravity, end, swallowed: [attackerId] }
-    this.zones = [];   // { kind: 'napalm'|'cloud', ..., end, next }
-    this.waves = [];   // shockwaves { x, y, r, max, speed, damage, poison, knock, srcId, hit: [ids] }
-    this.mineCache = new Map(); // turretId -> { x, y, pts }
+    this.holes = [];
+    this.zones = [];
+    this.waves = [];
+    this.mineCache = new Map();
     this._buf = [];
   }
 
   // ------------------------------------------------------------------ helpers
-  _ready(t) {
+  _ready(t: TurretState): boolean {
     // computed here (not t.comboReady) so a partner used earlier in the same step is not used twice
     return t.comboCapable && t.cd <= 0 && this.game.state.time >= t.comboNext;
   }
 
-  _colorOf(t) { return t.kind === 'comboOnly' ? t.comboColor : t.color; }
+  _colorOf(t: TurretState): KeyColor | null { return t.kind === 'comboOnly' ? t.comboColor : t.color; }
 
   /** ms until t could take part in a combo (Infinity when it is not combo capable). */
-  _wait(t) {
+  _wait(t: TurretState): number {
     if (!t.comboCapable) return Infinity;
     return Math.max(0, t.cd, t.comboNext - this.game.state.time);
   }
 
-  _log(t, id, role) {
+  _log(t: TurretState, id: string, role: ComboLogEntry['role']): void {
     if (role === 'lead') t.combosFired = (t.combosFired || 0) + 1;
     else t.combosAssisted = (t.combosAssisted || 0) + 1;
     const log = t.comboLog || (t.comboLog = []);
@@ -65,26 +101,26 @@ export class Combos {
    * partner. "Earliest" because normal shots reset cd. Infinity = not possible with the current neighbours.
    * A Combo-only turret never leads: its recipes are those of capable leads in range that need its colour.
    */
-  preview(t) {
+  preview(t: TurretState): ComboPreview {
     const game = this.game;
-    const partners = [];
-    const waits = { red: [], green: [], blue: [], yellow: [] };
+    const partners: ComboPreview['partners'] = [];
+    const waits: Record<KeyColor, number[]> = { red: [], green: [], blue: [], yellow: [] };
     for (const id of game.comboPartners(t.id)) {
       const o = game.turretMap.get(id);
       if (!o) continue;
       const color = this._colorOf(o);
       const wait = this._wait(o);
       partners.push({ id: o.id, kind: o.kind, color, wait });
-      if (waits[color]) waits[color].push(wait);
+      if (color && waits[color]) waits[color].push(wait);
     }
     for (const c of COLORS) waits[c].sort((a, b) => a - b);
 
     const own = this._wait(t);
-    const recipes = [];
+    const recipes: PreviewRecipe[] = [];
     const leads = t.kind !== 'comboOnly' && !!t.color && !!COMBOS[t.color];
     if (leads) {
-      for (const r of COMBOS[t.color]) {
-        const missing = {};
+      for (const r of COMBOS[t.color!]) {
+        const missing: ColorCounts = {};
         let exactBlocked = false;
         let wait = own;
         for (const c of COLORS) {
@@ -98,29 +134,29 @@ export class Combos {
         recipes.push({ id: r.id, name: r.name, isNew: !!r.isNew, needs: r.needs, missing, exactBlocked, wait });
       }
     } else {
-      const col = this._colorOf(t);
-      const seen = new Set();
+      const col = this._colorOf(t)!;
+      const seen = new Set<string>();
       for (const p of partners) {
         const lead = game.turretMap.get(p.id);
-        if (!lead || lead.kind === 'comboOnly' || !lead.comboCapable || !COMBOS[lead.color]) continue;
-        for (const r of COMBOS[lead.color]) {
+        if (!lead || lead.kind === 'comboOnly' || !lead.comboCapable || !COMBOS[lead.color!]) continue;
+        for (const r of COMBOS[lead.color!]) {
           if (!r.needs[col] || seen.has(r.id)) continue;
           seen.add(r.id);
           recipes.push({ id: r.id, name: r.name, isNew: !!r.isNew, needs: r.needs, missing: {}, exactBlocked: false, wait: own });
         }
       }
     }
-    let next = null;
+    let next: ComboPreview['next'] = null;
     for (const r of recipes) if (r.wait !== Infinity && (!next || r.wait < next.wait)) next = { id: r.id, name: r.name, wait: r.wait };
     return { leads, partners, recipes, next };
   }
 
-  _rand(n) { return Math.floor(this.game.rng.next() * n); }
+  _rand(n: number): number { return Math.floor(this.game.rng.next() * n); }
 
-  _src(p) { return p.sourceId != null ? this.game.turretMap.get(p.sourceId) || null : null; }
+  _src(p: Projectile): TurretState | null { return p.sourceId != null ? this.game.turretMap.get(p.sourceId) || null : null; }
 
   /** Random living, not swallowed attacker within r of (x, y), or null. */
-  _randomAttacker(x, y, r) {
+  _randomAttacker(x: number, y: number, r: number): Attacker | null {
     const buf = this._buf;
     const n = this.game.grid.query(x, y, r, buf);
     let m = 0;
@@ -130,10 +166,10 @@ export class Combos {
   }
 
   /** Nearest living, not swallowed attacker to (x, y) within r that is not in `skip` (array of ids). */
-  _nearestAttacker(x, y, r, skip) {
+  _nearestAttacker(x: number, y: number, r: number, skip: number[] | null): Attacker | null {
     const buf = this._buf;
     const n = this.game.grid.query(x, y, r, buf);
-    let best = null, bd = Infinity;
+    let best: Attacker | null = null, bd = Infinity;
     for (let i = 0; i < n; i++) {
       const a = buf[i];
       if (a.swallowed || (skip && skip.includes(a.id))) continue;
@@ -145,20 +181,20 @@ export class Combos {
 
   // ------------------------------------------------------------------ firing
   /** Called before a normal shot of a combo-capable, ready lead. Return true if a combo fired. */
-  tryFire(lead) {
+  tryFire(lead: TurretState): boolean {
     const game = this.game;
     if (!lead.color || lead.kind === 'comboOnly') return false;
     const recipes = COMBOS[lead.color];
     if (!recipes) return false;
     if (!this._ready(lead)) return false;
 
-    const groups = { red: [], green: [], blue: [], yellow: [] };
+    const groups: Groups = { red: [], green: [], blue: [], yellow: [] };
     const ids = game.comboPartners(lead.id);
     for (let i = 0; i < ids.length; i++) {
       const t = game.turretMap.get(ids[i]);
       if (!t || !this._ready(t)) continue;
       const col = this._colorOf(t);
-      if (groups[col]) groups[col].push(t);
+      if (col && groups[col]) groups[col].push(t);
     }
 
     for (const r of recipes) {
@@ -174,14 +210,14 @@ export class Combos {
     return false;
   }
 
-  _fire(lead, r, groups) {
+  _fire(lead: TurretState, r: ComboRecipe, groups: Groups): boolean {
     const game = this.game;
-    const target = lead.targetId != null ? game.attackerMap.get(lead.targetId) : null;
+    const target: Attacker | null | undefined = lead.targetId != null ? game.attackerMap.get(lead.targetId) : null;
     const fx = r.fx;
     const mult = lead.damageMult > 0 ? lead.damageMult : 1;
 
     // a recipe whose effect cannot be placed does not fire (the next recipe is tried)
-    let spot = null;
+    let spot: Spot | null = null;
     if (fx.blackHole) {
       spot = this._holeSpot(lead, fx.blackHole.placeRange);
       if (!spot) return false;
@@ -193,7 +229,7 @@ export class Combos {
     }
 
     // choose partners at random: r.takes (up to n of those ready, original quirks) or exactly r.needs
-    const chosen = [];
+    const chosen: TurretState[] = [];
     const takes = r.takes || r.needs;
     for (const c of COLORS) {
       const pool = groups[c].slice();
@@ -216,46 +252,47 @@ export class Combos {
     game.addEffect('comboName', { x: lead.x, y: lead.y - 30, radius: 0, duration: 1800, data: { name: r.name } });
     if (target) lead.angle = Math.atan2(target.y - lead.y, target.x - lead.x);
 
-    if (fx.blackHole) this._openHole(fx.blackHole, spot);
+    if (fx.blackHole) this._openHole(fx.blackHole, spot!);
     else if (fx.shockwave) this._shockwave(lead, fx.shockwave, mult);
-    else if (fx.projectile === 'mine') this._launchMine(lead, r, mult, chain, spot);
-    else this._launch(lead, r, target, mult, chain);
+    else if (fx.projectile === 'mine') this._launchMine(lead, r, mult, chain, spot!);
+    else this._launch(lead, r, target!, mult, chain);
     return true;
   }
 
   // ------------------------------------------------------------------ projectile launch
-  _launch(lead, r, target, mult, chain) {
+  _launch(lead: TurretState, r: ComboRecipe, target: Attacker, mult: number, chain: number): void {
     const game = this.game;
     const fx = r.fx;
     const a = Math.atan2(target.y - lead.y, target.x - lead.x);
     const homing = fx.projectile === 'clusterBomb';
     const isBfg = fx.projectile === 'bfg';
-    const p = game.spawnProjectile(fx.projectile, {
+    const data: ComboProjData = { cid: r.id, mult, chain };
+    const p = game.spawnProjectile(fx.projectile!, {
       x: lead.x + Math.cos(a) * 14, y: lead.y + Math.sin(a) * 14, angle: a, speed: fx.speed,
       mode: 'homing', turnRate: homing ? 1000 : isBfg ? BFG_TURN : ROCKET_TURN, targetId: target.id, retarget: true,
       impactRadius: isBfg ? 14 : 10, damage: (fx.hit || 0) * mult + (fx.chain ? chain : 0), sourceId: lead.id,
       ttl: isBfg ? 40000 : 15000,
       tag: fx.projectile,
-      data: { cid: r.id, mult, chain },
+      data: data as unknown as Record<string, unknown>,
     });
     if (fx.blast) p.blast = { size: fx.blast.size, damage: fx.blast.damage * mult, poison: fx.blast.poison || 0 };
     else p.visualBlast = 'small';
-    if (fx.projectile === 'laserRocket') p.data.t = LASER_ROCKET_TICK;
+    if (fx.projectile === 'laserRocket') data.t = LASER_ROCKET_TICK;
     if (isBfg) {
-      p.data.tLaser = fx.laser || fx.sparks ? 60000 / (fx.laser ? fx.laser.rate : fx.sparks.rate) : 0;
-      p.data.tRocket = fx.rockets ? 60000 / fx.rockets.rate : 0;
+      data.tLaser = fx.laser || fx.sparks ? 60000 / (fx.laser ? fx.laser.rate! : fx.sparks!.rate!) : 0;
+      data.tRocket = fx.rockets ? 60000 / fx.rockets.rate : 0;
     }
   }
 
   // ------------------------------------------------------------------ mines
-  _maxRange(t) { return ladderValue(t.kind, 'range', t.maxLevels.range); }
+  _maxRange(t: TurretState): number { return ladderValue(t.kind, 'range', t.maxLevels.range); }
 
-  _mineSpot(lead) {
+  _mineSpot(lead: TurretState): Spot | null {
     const game = this.game;
     let c = this.mineCache.get(lead.id);
     if (!c || c.x !== lead.x || c.y !== lead.y) {
       const R = this._maxRange(lead), R2 = R * R;
-      const pts = [];
+      const pts: Spot[] = [];
       for (const q of game.roadPoints()) {
         if ((q.x - lead.x) ** 2 + (q.y - lead.y) ** 2 <= R2) pts.push(q);
       }
@@ -269,30 +306,30 @@ export class Combos {
     return { x: q.x + Math.floor(game.rng.next() * 2 * J - J), y: q.y + Math.floor(game.rng.next() * 2 * J - J) };
   }
 
-  _launchMine(lead, r, mult, chain, spot) {
+  _launchMine(lead: TurretState, r: ComboRecipe, mult: number, chain: number, spot: Spot): Projectile {
     const game = this.game;
     const fx = r.fx;
     // no limit and no lifetime: a mine stays until an attacker triggers it (original)
     const p = game.spawnProjectile('mine', {
       x: lead.x, y: lead.y, angle: Math.atan2(spot.y - lead.y, spot.x - lead.x), speed: MINE.travelSpeed,
       mode: 'goto', destX: spot.x, destY: spot.y, stay: true, sourceId: lead.id, tag: 'mine',
-      damage: fx.hit * mult, blast: { size: fx.blast.size, damage: fx.blast.damage * mult, poison: 0 },
+      damage: fx.hit! * mult, blast: { size: fx.blast!.size, damage: fx.blast!.damage * mult, poison: 0 },
       data: { cid: r.id, mult, chain, armed: false, check: 0 }, armed: false,
     });
     return p;
   }
 
   // ------------------------------------------------------------------ black hole
-  _holeSpot(lead, range) {
+  _holeSpot(lead: TurretState, range: number): Spot | null {
     const R2 = range * range;
-    const pts = [];
+    const pts: Spot[] = [];
     for (const q of this.game.roadPoints()) {
       if ((q.x - lead.x) ** 2 + (q.y - lead.y) ** 2 <= R2) pts.push(q);
     }
     return pts.length ? pts[this._rand(pts.length)] : null;
   }
 
-  _openHole(cfg, spot) {
+  _openHole(cfg: NonNullable<ComboFx['blackHole']>, spot: Spot): void {
     const game = this.game;
     game.addEffect('blackHole', { x: spot.x, y: spot.y, radius: cfg.radius, duration: cfg.duration, data: {} });
     this.holes.push({
@@ -301,7 +338,7 @@ export class Combos {
     });
   }
 
-  _updateHoles(dt) {
+  _updateHoles(dt: number): void {
     const game = this.game;
     const now = game.state.time;
     const dtS = dt / 1000;
@@ -318,7 +355,7 @@ export class Combos {
           h.swallowed.push(a.id);
         }
       }
-      const keep = [];
+      const keep: number[] = [];
       for (const id of h.swallowed) {
         const a = game.attackerMap.get(id);
         if (!a || a.dead) continue;
@@ -339,7 +376,7 @@ export class Combos {
   }
 
   // ------------------------------------------------------------------ shockwave
-  _shockwave(lead, cfg, mult) {
+  _shockwave(lead: TurretState, cfg: NonNullable<ComboFx['shockwave']>, mult: number): void {
     const game = this.game;
     game.addEffect('shockwave', {
       x: lead.x, y: lead.y, radius: cfg.radius, duration: (cfg.radius / cfg.speed) * 1000,
@@ -351,7 +388,7 @@ export class Combos {
     });
   }
 
-  _updateWaves(dt) {
+  _updateWaves(dt: number): void {
     const game = this.game;
     for (let i = this.waves.length - 1; i >= 0; i--) {
       const w = this.waves[i];
@@ -372,17 +409,17 @@ export class Combos {
   }
 
   // ------------------------------------------------------------------ zones (napalm, poison cloud)
-  _napalm(p, x, y, cfg, mult) {
+  _napalm(p: Projectile, x: number, y: number, cfg: NonNullable<ComboFx['napalm']>, mult: number): void {
     const game = this.game;
     const road = game.roadPoints();
-    let best = null, bd = Infinity;
+    let best: Spot & { d: number } | null = null, bd = Infinity;
     for (const q of road) {
       const d = (q.x - x) ** 2 + (q.y - y) ** 2;
       if (d < bd) { bd = d; best = q; }
     }
     if (!best) return;
     const half = cfg.length / 2;
-    const points = [];
+    const points: Point[] = [];
     for (const q of road) if (Math.abs(q.d - best.d) <= half) points.push([q.x, q.y]);
     game.addEffect('napalm', { x: best.x, y: best.y, radius: NAPALM_RADIUS, duration: cfg.duration, data: { points } });
     this.zones.push({
@@ -391,13 +428,13 @@ export class Combos {
     });
   }
 
-  _cloud(x, y, radius, duration, poison) {
+  _cloud(x: number, y: number, radius: number, duration: number, poison: number): void {
     const game = this.game;
     game.addEffect('poisonCloud', { x, y, radius, duration, data: {} });
     this.zones.push({ kind: 'cloud', x, y, radius, poison, end: game.state.time + duration, next: game.state.time + 250 });
   }
 
-  _updateZones() {
+  _updateZones(): void {
     const game = this.game;
     const now = game.state.time;
     for (let i = this.zones.length - 1; i >= 0; i--) {
@@ -406,8 +443,8 @@ export class Combos {
       if (now < z.next) continue;
       z.next += NAPALM_TICK;
       if (z.kind === 'napalm') {
-        const src = game.turretMap.get(z.srcId) || null;
-        const hit = new Set();
+        const src = game.turretMap.get(z.srcId!) || null;
+        const hit = new Set<number>();
         for (const q of z.points) {
           const found = game.attackersInRadius(q[0], q[1], NAPALM_RADIUS);
           for (const a of found) {
@@ -425,7 +462,7 @@ export class Combos {
 
   // ------------------------------------------------------------------ per step
   /** Called once per simulation step, after attackers moved and before turrets fire. */
-  update(dt) {
+  update(dt: number): void {
     if (this.holes.length) this._updateHoles(dt);
     if (this.waves.length) this._updateWaves(dt);
     if (this.zones.length) this._updateZones();
@@ -433,18 +470,19 @@ export class Combos {
   }
 
   // ------------------------------------------------------------------ projectile hooks
-  projectileUpdate(p, dt) {
+  projectileUpdate(p: Projectile, dt: number): void {
     const game = this.game;
-    const d = p.data;
+    // the projectile tag guarantees which fields of `data` and of the recipe's fx exist, hence Required
+    const d = p.data as unknown as Required<ComboProjData> | undefined;
     if (!d) return;
     const r = RECIPES[d.cid];
     if (!r) return;
-    const fx = r.fx;
+    const fx = r.fx as Required<ComboFx>;
     const src = this._src(p);
 
     if (p.tag === 'mine') {
       if (!d.armed) {
-        if (Math.hypot(p.destX - p.x, p.destY - p.y) < 0.5) { d.armed = true; p.armed = true; }
+        if (Math.hypot(p.destX! - p.x, p.destY! - p.y) < 0.5) { d.armed = true; p.armed = true; }
         return;
       }
       // check for attackers every MINE.checkInterval ms (original: 150 ms)
@@ -474,7 +512,7 @@ export class Combos {
         d.tLaser -= dt;
         if (d.tLaser <= 0) {
           const spark = !fx.laser && fx.sparks;
-          d.tLaser += 60000 / (spark ? fx.sparks.rate : fx.laser.rate);
+          d.tLaser += 60000 / (spark ? fx.sparks.rate! : fx.laser.rate!);
           const range = spark ? fx.sparks.range : fx.laser.range;
           if (spark) {
             // up to qty sparks per tick, each at a distinct random attacker in range
@@ -520,13 +558,14 @@ export class Combos {
     }
   }
 
-  projectileImpact(p, x, y, target) {
+  projectileImpact(p: Projectile, x: number, y: number, target: Attacker | null | undefined): void {
     const game = this.game;
-    const d = p.data;
+    // the projectile tag guarantees which fields of `data` and of the recipe's fx exist, hence Required
+    const d = p.data as unknown as Required<ComboProjData> | undefined;
     if (!d) return;
     const r = RECIPES[d.cid];
     if (!r) return;
-    const fx = r.fx;
+    const fx = r.fx as Required<ComboFx>;
     const src = this._src(p);
 
     switch (p.tag) {
@@ -578,7 +617,7 @@ export class Combos {
   }
 
   /** Bomblets and spark bursts after a cluster bomb or mine went off. */
-  _clusterExtras(p, x, y, r, d, src) {
+  _clusterExtras(p: Projectile, x: number, y: number, r: ComboRecipe, d: Required<ComboProjData>, src: TurretState | null): void {
     const game = this.game;
     const fx = r.fx;
     if (fx.cluster) {
@@ -607,11 +646,11 @@ export class Combos {
   }
 
   // ------------------------------------------------------------------ persistence
-  serialize() {
+  serialize(): { holes: BlackHole[]; zones: Zone[]; waves: Shockwave[] } {
     return { holes: this.holes, zones: this.zones, waves: this.waves };
   }
 
-  deserialize(json) {
+  deserialize(json: { holes?: BlackHole[]; zones?: Zone[]; waves?: Shockwave[] } | null): void {
     this.holes = (json && json.holes) || [];
     this.zones = (json && json.zones) || [];
     this.waves = (json && json.waves) || [];

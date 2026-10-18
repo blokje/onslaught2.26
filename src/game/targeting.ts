@@ -1,10 +1,12 @@
 // Target acquisition and validation (modes, directional cones).
 import { DIRECTIONAL } from '../data/rules.ts';
+import type { Attacker, TurretState } from '../types.ts';
+import type { Game } from './Game.ts';
 
 const TAU = Math.PI * 2;
 
 /** Is attacker a inside the turret's directional cone (as seen from the acquisition origin)? */
-export function inCone(t, ox, oy, a) {
+export function inCone(t: Pick<TurretState, 'directional'>, ox: number, oy: number, a: Attacker): boolean {
   const mode = t.directional.mode;
   if (mode === 'normal') return true;
   const half = ((DIRECTIONAL[mode] || 360) / 2) * (Math.PI / 180);
@@ -14,7 +16,7 @@ export function inCone(t, ox, oy, a) {
 }
 
 /** Alive, in range and inside the cone. */
-export function targetValid(t, a, ox, oy, range) {
+export function targetValid(t: Pick<TurretState, 'directional'>, a: Attacker | null | undefined, ox: number, oy: number, range: number): boolean {
   if (!a || a.dead || a.swallowed) return false;
   const dx = a.x - ox, dy = a.y - oy;
   if (dx * dx + dy * dy > range * range) return false;
@@ -26,17 +28,17 @@ export function targetValid(t, a, ox, oy, range) {
  * near: closest; far: furthest along the path; weak/strong: lowest/highest hp; slow/fast: lowest/highest speed; oldest/newest: spawned first/last.
  * Ties resolve by grid order (deterministic).
  */
-export function acquire(game, t, ox, oy, range) {
+export function acquire(game: Game, t: Pick<TurretState, 'targetMode' | 'directional'>, ox: number, oy: number, range: number): Attacker | null {
   const buf = game._acqBuf;
   const n = game.grid.query(ox, oy, range, buf);
   const mode = t.targetMode;
   const cone = t.directional.mode !== 'normal';
-  let best = null, bestKey = Infinity;
+  let best: Attacker | null = null, bestKey = Infinity;
   for (let i = 0; i < n; i++) {
     const a = buf[i];
     if (a.swallowed) continue; // inside a black hole
     if (cone && !inCone(t, ox, oy, a)) continue;
-    let key;
+    let key: number;
     switch (mode) {
       case 'far': key = -a.progress; break;
       case 'weak': key = a.hp; break;

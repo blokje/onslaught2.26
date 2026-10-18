@@ -1,26 +1,28 @@
 // Attacker creation, movement along the path, poison/slow.
 import { WAVES, WEAVE } from '../data/rules.ts';
 import { POISON } from '../data/turrets.ts';
+import type { Attacker } from '../types.ts';
+import type { Game } from './Game.ts';
 
 /**
  * HP of an attacker in wave n: baseEnergy * hpGrowth^n up to WAVES.lateWave (original), then the growth per wave
  * drops to 1 + (hpGrowth - 1) * lateGrowthFactor (plain doubles, trillions are fine).
  */
-export function waveHp(n, growth) {
+export function waveHp(n: number, growth: number): number {
   const early = Math.min(n, WAVES.lateWave), late = Math.max(0, n - WAVES.lateWave);
   return WAVES.baseEnergy * Math.pow(growth, early) * Math.pow(1 + (growth - 1) * WAVES.lateGrowthFactor, late);
 }
 
 /** Bounty of an attacker in wave n: $n up to WAVES.lateWave (original), then n * lateBountyGrowth^(n - lateWave). */
-export function waveBounty(n) {
+export function waveBounty(n: number): number {
   if (n <= WAVES.lateWave) return n;
   return Math.round(n * Math.pow(WAVES.lateBountyGrowth, n - WAVES.lateWave));
 }
 
 /** Builds a new attacker object for the given wave (hp from the wave curve unless hpOverride); does not add it to the game. */
-export function createAttacker(game, wave, hpOverride) {
+export function createAttacker(game: Game, wave: number, hpOverride?: number | null): Attacker {
   const hp = hpOverride != null ? hpOverride : waveHp(wave, game.hpGrowth);
-  const a = {
+  const a: Attacker = {
     id: game.nextId++,
     type: (wave - 1) % WAVES.types,
     x: 0, y: 0, angle: 0,
@@ -43,7 +45,7 @@ export function createAttacker(game, wave, hpOverride) {
 }
 
 /** Sideways offset from the road centreline at the attacker's current progress (|offset| <= WEAVE.amplitude). */
-export function laneOffset(a) {
+export function laneOffset(a: Pick<Attacker, 'weave' | 'progress'>): number {
   const w = a.weave;
   if (!w) return 0;
   const p = a.progress;
@@ -51,7 +53,7 @@ export function laneOffset(a) {
 }
 
 /** Slow an attacker: speed = baseSpeed / strength (floor 5). Strength <= 1 does nothing. */
-export function applyPoison(a, strength) {
+export function applyPoison(a: Attacker, strength: number): void {
   if (!(strength > 1)) return;
   const slowed = Math.max(POISON.minSpeed, a.baseSpeed / strength);
   if (slowed < a.speed) a.speed = slowed;
@@ -59,7 +61,7 @@ export function applyPoison(a, strength) {
 }
 
 /** Advance all attackers; leaks are flagged dead and handled via game.leak(). */
-export function moveAttackers(game, dt) {
+export function moveAttackers(game: Game, dt: number): void {
   const dtS = dt / 1000;
   const list = game.state.attackers;
   const path = game.path;

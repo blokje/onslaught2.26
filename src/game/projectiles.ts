@@ -10,9 +10,12 @@
 //   orbit: ownerId, orbitA (angle), orbitR (radius), orbitW (rad/s)
 //   goto: destX, destY, stay (true: park at the destination instead of impacting, e.g. mines)
 //   tag, data: free for the combo module (see combos.projectileUpdate / projectileImpact hooks)
+import type { Attacker, Projectile } from '../types.ts';
+import type { Game } from './Game.ts';
+
 const OFF = 90;
 
-function turnToward(p, tx, ty, dtS) {
+function turnToward(p: Projectile, tx: number, ty: number, dtS: number): void {
   const desired = Math.atan2(ty - p.y, tx - p.x);
   let diff = desired - p.angle;
   diff = ((((diff + Math.PI) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2)) - Math.PI;
@@ -20,8 +23,8 @@ function turnToward(p, tx, ty, dtS) {
   p.angle += diff < -maxTurn ? -maxTurn : diff > maxTurn ? maxTurn : diff;
 }
 
-function nearestAttacker(game, x, y) {
-  let best = null, bd = Infinity;
+function nearestAttacker(game: Game, x: number, y: number): Attacker | null {
+  let best: Attacker | null = null, bd = Infinity;
   const list = game.state.attackers;
   for (let i = 0; i < list.length; i++) {
     const a = list[i];
@@ -33,17 +36,17 @@ function nearestAttacker(game, x, y) {
 }
 
 /** Resolves a projectile hit: marks it dead, damages the target, applies blast or visual blast, notifies combos. */
-export function impact(game, p, x, y, target) {
+export function impact(game: Game, p: Projectile, x: number, y: number, target: Attacker | null | undefined): void {
   p.dead = true;
   const src = p.sourceId != null ? game.turretMap.get(p.sourceId) || null : null;
-  if (p.damage > 0 && target && !target.dead) game.damageAttacker(target, p.damage, src, p.poison || 0);
+  if (p.damage! > 0 && target && !target.dead) game.damageAttacker(target, p.damage!, src, p.poison || 0);
   if (p.blast) game.blast(x, y, p.blast.size, p.blast.damage, { poison: p.blast.poison, source: src });
   else if (p.visualBlast) game.visualBlast(x, y, p.visualBlast);
   if (p.tag && game.combos && game.combos.projectileImpact) game.combos.projectileImpact(p, x, y, target);
 }
 
 /** Moves every projectile by one step according to its mode and resolves impacts and expiry. */
-export function updateProjectiles(game, dt) {
+export function updateProjectiles(game: Game, dt: number): void {
   const dtS = dt / 1000;
   const list = game.state.projectiles;
   // holding counters are recounted from the orbiting rockets
@@ -53,7 +56,7 @@ export function updateProjectiles(game, dt) {
   for (let i = 0; i < list.length; i++) {
     const p = list[i];
     if (p.dead) continue;
-    p.age += dt;
+    p.age! += dt;
     if (p.ttl != null) {
       p.ttl -= dt;
       if (p.ttl <= 0 && !p.stay) { p.dead = true; continue; }
@@ -64,24 +67,24 @@ export function updateProjectiles(game, dt) {
     }
 
     if (p.mode === 'orbit') {
-      const owner = game.turretMap.get(p.ownerId);
+      const owner = game.turretMap.get(p.ownerId!);
       if (!owner) { p.dead = true; continue; }
       owner.holding++;
-      p.orbitA += p.orbitW * dtS;
-      p.x = owner.x + Math.cos(p.orbitA) * p.orbitR;
-      p.y = owner.y + Math.sin(p.orbitA) * p.orbitR;
-      p.angle = p.orbitA + Math.PI / 2;
+      p.orbitA! += p.orbitW! * dtS;
+      p.x = owner.x + Math.cos(p.orbitA!) * p.orbitR!;
+      p.y = owner.y + Math.sin(p.orbitA!) * p.orbitR!;
+      p.angle = p.orbitA! + Math.PI / 2;
       continue;
     }
 
     const step = p.speed * dtS;
 
     if (p.mode === 'goto') {
-      const dx = p.destX - p.x, dy = p.destY - p.y;
+      const dx = p.destX! - p.x, dy = p.destY! - p.y;
       const d = Math.hypot(dx, dy);
       if (d > 0.0001) p.angle = Math.atan2(dy, dx);
       if (d <= step) {
-        p.x = p.destX; p.y = p.destY;
+        p.x = p.destX!; p.y = p.destY!;
         if (!p.stay) impact(game, p, p.x, p.y, null);
       } else {
         p.x += (dx / d) * step; p.y += (dy / d) * step;
@@ -90,14 +93,14 @@ export function updateProjectiles(game, dt) {
     }
 
     if (p.mode === 'homing') {
-      let target = p.targetId != null ? game.attackerMap.get(p.targetId) : null;
+      let target: Attacker | null | undefined = p.targetId != null ? game.attackerMap.get(p.targetId) : null;
       let swallowed = false;
       if (target && (target.dead || target.swallowed)) { swallowed = !!target.swallowed && !target.dead; target = null; } // black hole victims are not chased
       if (!target) {
         if (p.retarget || swallowed) {
           target = nearestAttacker(game, p.x, p.y);
           if (target || !swallowed) p.targetId = target ? target.id : null; // none valid: fly on straight
-        } else if (p.damage > 0 && !p.blast) {
+        } else if (p.damage! > 0 && !p.blast) {
           p.dead = true; continue; // shell lost its target
         }
       }
@@ -111,7 +114,7 @@ export function updateProjectiles(game, dt) {
         }
         turnToward(p, target.x, target.y, dtS);
       }
-    } else if (p.damage > 0 || p.blast) {
+    } else if (p.damage! > 0 || p.blast) {
       // straight projectile: hits the first attacker it touches
       const buf = game._projBuf;
       if (game.grid.query(p.x, p.y, (p.impactRadius || 8) + step, buf) > 0) {

@@ -1,6 +1,8 @@
 // Per-turret behaviour each simulation step: cooldown, target upkeep, firing, and the weapon kinds.
 import { TURRETS } from '../data/turrets.ts';
 import { acquire, targetValid } from './targeting.ts';
+import type { Attacker, Projectile, TurretDef, TurretState } from '../types.ts';
+import type { Game } from './Game.ts';
 
 const SHELL = { speed: 900, impact: 8 };
 const ROCKET = { speed: 250, turn: (270 * Math.PI) / 180, impact: 10, ttl: 12000 };
@@ -9,16 +11,18 @@ const RAIL_WIDTH = 8;
 const LASER_WIDTH = 4; // half-width of the piercing laser line, half the Railgun's
 const MUZZLE = 12;
 
-export const fireInterval = (t) => (t.stats.rate > 0 ? 60000 / t.stats.rate : Infinity);
+export const fireInterval = (t: Pick<TurretState, 'stats'>): number => (t.stats.rate > 0 ? 60000 / t.stats.rate : Infinity);
 
 /** True when the turret has the range and rate levels that unlock its holding behaviour. */
-export function holdingEnabled(t) {
+export function holdingEnabled(t: Pick<TurretState, 'kind' | 'levels'>): boolean {
   const h = TURRETS[t.kind].holding;
   return !!h && t.levels.range >= h.range && t.levels.rate >= h.rate;
 }
 
 /** Where the turret acquires targets from: itself, or its joined Targeter. */
-function origin(game, t, out) {
+interface Origin { x: number; y: number; range: number }
+
+function origin(game: Game, t: TurretState, out: Origin): Origin {
   if (t.targeterId != null) {
     const g = game.turretMap.get(t.targeterId);
     if (g) {
@@ -30,10 +34,10 @@ function origin(game, t, out) {
   return out;
 }
 
-const ORIGIN = { x: 0, y: 0, range: 0 };
+const ORIGIN: Origin = { x: 0, y: 0, range: 0 };
 
 /** Advances one turret by dt ms: cooldown, target acquisition and firing its weapon. */
-export function stepTurret(game, t, dt) {
+export function stepTurret(game: Game, t: TurretState, dt: number): void {
   const s = game.state;
   if (t.category !== 'weapon') {
     // Combo-only: always capable, never fires, only its timers matter for combos
@@ -55,7 +59,7 @@ export function stepTurret(game, t, dt) {
   const ox = o.x, oy = o.y, range = o.range;
 
   // 2) target upkeep: keep while valid, focus fire overrides
-  let target = t.targetId != null ? game.attackerMap.get(t.targetId) : undefined;
+  let target: Attacker | undefined = t.targetId != null ? game.attackerMap.get(t.targetId) : undefined;
   if (target && !targetValid(t, target, ox, oy, range)) target = undefined;
   if (game.focusId != null) {
     const f = game.attackerMap.get(game.focusId);
@@ -90,7 +94,7 @@ export function stepTurret(game, t, dt) {
   fire(game, t, target, ox, oy, range, def);
 }
 
-function spawnOrbiter(game, t) {
+function spawnOrbiter(game: Game, t: TurretState): void {
   game.spawnProjectile('rocket', {
     x: t.x + HOLD.radius, y: t.y, angle: 0, speed: ROCKET.speed,
     mode: 'orbit', ownerId: t.id, orbitA: game.rng.next() * Math.PI * 2, orbitR: HOLD.radius, orbitW: HOLD.omega,
@@ -101,7 +105,7 @@ function spawnOrbiter(game, t) {
 }
 
 /** Turn an orbiting rocket into a diving one. */
-export function releaseOrbiter(game, p, target, damage) {
+export function releaseOrbiter(game: Game, p: Projectile, target: Attacker | null, damage: number): void {
   p.mode = 'homing';
   p.orbiting = false;
   p.targetId = target ? target.id : null;
@@ -110,7 +114,7 @@ export function releaseOrbiter(game, p, target, damage) {
   p.speed = ROCKET.speed;
 }
 
-function launchRocket(game, t, target) {
+function launchRocket(game: Game, t: TurretState, target: Attacker): void {
   const a = Math.atan2(target.y - t.y, target.x - t.x);
   game.spawnProjectile('rocket', {
     x: t.x + Math.cos(a) * MUZZLE, y: t.y + Math.sin(a) * MUZZLE, angle: a, speed: ROCKET.speed,
@@ -120,8 +124,8 @@ function launchRocket(game, t, target) {
 }
 
 /** Total chain bonus damage of the Greens linked to `lead`. consume: reset the contributors' timers and draw beams. */
-export function chainBonus(game, lead, visited, consume) {
-  const mult = TURRETS.green.link.mult;
+export function chainBonus(game: Game, lead: TurretState, visited: Set<number>, consume: boolean): number {
+  const mult = TURRETS.green.link!.mult;
   let sum = 0;
   for (let i = 0; i < lead.links.length; i++) {
     const id = lead.links[i];
@@ -139,14 +143,14 @@ export function chainBonus(game, lead, visited, consume) {
   return sum;
 }
 
-const PIERCE_HITS = [];
-const PIERCE_ALONG = [];
+const PIERCE_HITS: Attacker[] = [];
+const PIERCE_ALONG: number[] = [];
 
 /**
  * Piercing laser: spend `energy` along the line from `t` through `target`, nearest attacker first.
  * An attacker with hp <= energy dies and costs its hp; the first stronger one takes the rest and stops the beam.
  */
-function pierceLaser(game, t, target, energy, reach) {
+function pierceLaser(game: Game, t: TurretState, target: Attacker, energy: number, reach: number): void {
   const dx = target.x - t.x, dy = target.y - t.y;
   const dist = Math.hypot(dx, dy);
   const a = dist > 0 ? Math.atan2(dy, dx) : t.angle;
@@ -186,7 +190,7 @@ function pierceLaser(game, t, target, energy, reach) {
   game.addBeam('laser', t.x, t.y, endX, endY, 140);
 }
 
-function fire(game, t, target, ox, oy, range, def) {
+function fire(game: Game, t: TurretState, target: Attacker, ox: number, oy: number, range: number, def: TurretDef): void {
   const dmg = t.stats.damage;
   const interval = fireInterval(t);
   switch (def.weapon) {
@@ -236,7 +240,7 @@ function fire(game, t, target, ox, oy, range, def) {
     case 'fusion': {
       if (t.rampTarget === target.id) t.ramp++;
       else { t.ramp = 0; t.rampTarget = target.id; }
-      const mult = Math.min(def.ramp.max, 1 + def.ramp.perTick * t.ramp);
+      const mult = Math.min(def.ramp!.max, 1 + def.ramp!.perTick * t.ramp);
       game.addBeam('fusion', t.x, t.y, target.x, target.y, Math.max(100, Math.min(interval, 250)));
       game.damageAttacker(target, dmg * mult, t, 0);
       break;
@@ -262,5 +266,5 @@ function fire(game, t, target, ox, oy, range, def) {
       return;
   }
   t.cd += interval;
-  game.emit('shot', { kind: def.weapon, turretId: t.id });
+  game.emit('shot', { kind: def.weapon!, turretId: t.id });
 }

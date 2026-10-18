@@ -30,3 +30,4 @@
   `.ts` extension, and type-only imports use `import type` (`verbatimModuleSyntax`). Vite strips types too and never type-checks:
   only `npm run typecheck` (also run by `npm run build`) catches type errors.
 - **Shared shapes live in `src/types.ts`.** It is the typed copy of `ARCHITECTURE.md`; change both together.
+- **New event = new `GameEvents` entry.** `game.on/off/emit` are generic over `GameEvents` in `src/types.ts`; emitting an unlisted event or a payload of the wrong shape fails the type check.

@@ -1,9 +1,15 @@
 // Polyline road: length, position/angle at a distance, distance to the road, road sample points.
+import type { Point } from '../types.ts';
+
+/** Anything Path.place can write a position onto (attackers, or a scratch object). `_seg` is the segment cursor. */
+export interface Placeable { x: number; y: number; angle: number; _seg: number }
+/** A road sample point: position and distance along the road. */
+export interface RoadSample { x: number; y: number; d: number }
 
 const CORNER_BLEND = 20; // a sideways offset turns with the road over this distance either side of a waypoint
                          // (at most half of each neighbouring segment)
 
-function distToSegmentSq(px, py, ax, ay, bx, by) {
+function distToSegmentSq(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
   const dx = bx - ax, dy = by - ay;
   const l2 = dx * dx + dy * dy;
   let t = l2 > 0 ? ((px - ax) * dx + (py - ay) * dy) / l2 : 0;
@@ -13,7 +19,7 @@ function distToSegmentSq(px, py, ax, ay, bx, by) {
 }
 
 /** Angle from a to b at fraction t, along the shortest arc. */
-function blendAngle(a, b, t) {
+function blendAngle(a: number, b: number, t: number): number {
   let diff = b - a;
   while (diff > Math.PI) diff -= 2 * Math.PI;
   while (diff < -Math.PI) diff += 2 * Math.PI;
@@ -21,9 +27,17 @@ function blendAngle(a, b, t) {
 }
 
 export class Path {
-  /** @param {number[][]} points waypoints [[x,y],...] */
-  constructor(points) {
-    this.points = points.map((p) => [p[0], p[1]]);
+  points: Point[];
+  cum: number[];
+  segLen: number[];
+  segAngle: number[];
+  length: number;
+  blend: number[];
+  _samples: RoadSample[] | null;
+
+  /** @param points waypoints [[x,y],...] */
+  constructor(points: Point[]) {
+    this.points = points.map((p): Point => [p[0], p[1]]);
     this.cum = [0];
     this.segLen = [];
     this.segAngle = [];
@@ -47,7 +61,7 @@ export class Path {
    * o._seg is used as a cursor so repeated calls for a moving object are O(1).
    * `lateral` shifts the point that far to the left of the travel direction (negative = right).
    */
-  place(o, d, lateral = 0) {
+  place<T extends Placeable>(o: T, d: number, lateral = 0): T {
     const last = this.segLen.length - 1;
     let i = o._seg | 0;
     if (i > last) i = last;
@@ -77,13 +91,12 @@ export class Path {
     return o;
   }
 
-  /** @returns {{x:number,y:number,angle:number}} */
-  at(d) {
-    return this.place({ _seg: 0 }, Math.max(0, Math.min(this.length, d)));
+  at(d: number): Placeable {
+    return this.place({ x: 0, y: 0, angle: 0, _seg: 0 }, Math.max(0, Math.min(this.length, d)));
   }
 
   /** Distance from a point to the road centreline. */
-  distanceTo(x, y) {
+  distanceTo(x: number, y: number): number {
     let best = Infinity;
     for (let i = 0; i < this.segLen.length; i++) {
       const a = this.points[i], b = this.points[i + 1];
@@ -94,9 +107,9 @@ export class Path {
   }
 
   /** Road sample points every `step` units: [{x, y, d}], cached for the default step. */
-  samples(step = 4) {
+  samples(step = 4): RoadSample[] {
     if (step === 4 && this._samples) return this._samples;
-    const out = [];
+    const out: RoadSample[] = [];
     for (let d = 0; d < this.length; d += step) {
       const p = this.at(d);
       out.push({ x: p.x, y: p.y, d });

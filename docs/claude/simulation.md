@@ -2,6 +2,11 @@
 
 Pure logic, runs in Node and the browser. Contract: `ARCHITECTURE.md` section 1. Rules: `SPEC.md` sections 2 to 6 and 9.
 
+Types: entity and state shapes come from `src/types.ts`. Commands return `Result<...>` (`{ ok: true, ... } | { ok: false, reason }`),
+so callers narrow on `r.ok`. Command parameters are the literal unions (`Stat`, `TargetMode`, `DirectionalMode`, `KeyColor`).
+`serialize()` returns `SaveData`; `Game.deserialize(save: unknown)` validates before it trusts anything. Combo projectile
+payloads are typed locally in `combos.ts` (`ComboProjData`).
+
 ## Modules
 
 | File | Role |

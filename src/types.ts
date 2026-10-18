@@ -18,7 +18,7 @@ export type BlastSize = 'small' | 'medium' | 'large' | 'huge' | 'bfg' | 'poison'
 export interface LadderStep { cost: number; value: number }
 
 export interface ModifierEffect {
-  rangeAdd?: number; rateAdd?: number;
+  rangeAdd?: number; rateAdd?: number; damageAdd?: number;
   damageMult?: number; rangeMult?: number; rateMult?: number;
 }
 
@@ -47,7 +47,7 @@ export interface BlastSpec { size: BlastSize | number; damage: number; poison?: 
 
 /** Combo effect parameters; the shape differs per recipe, see src/data/combos.ts and src/game/combos.ts. */
 export interface ComboFx {
-  projectile?: string;
+  projectile?: ProjectileKind;
   speed?: number;
   hit?: number;
   chain?: boolean;
@@ -168,10 +168,10 @@ export interface Projectile {
   blast?: BlastSpec | null;
   visualBlast?: BlastSize | number;
   sourceId?: number | null;
-  ttl?: number;
+  ttl?: number | null;
   age?: number;
   dead?: boolean;
-  ownerId?: number; orbitA?: number; orbitR?: number; orbitW?: number;
+  ownerId?: number | null; orbiting?: boolean; orbitA?: number; orbitR?: number; orbitW?: number;
   destX?: number; destY?: number; stay?: boolean;
   tag?: string;
   data?: Record<string, unknown>;
