@@ -18,6 +18,9 @@ Use the `verify-in-browser` skill. Minimum: the game loads, a game starts, build
 
 `npm run build` (dist/) and `npm run build:single` (dist-single/index.html, about 640 KB). Both must succeed.
 
+CI: `.github/workflows/pages.yml` runs `sim-test`, `combo-test` and `npm run build` on every push to `main`
+(and on manual dispatch), then deploys `dist/` to GitHub Pages. A failing test blocks the deploy. PRs are not built.
+
 ## Not covered by automation
 
 Real touch devices (iPad), audio quality, GPU frame time on weak hardware. Say explicitly when you could not check these.

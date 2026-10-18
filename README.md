@@ -21,6 +21,10 @@ No original code is used. The game was rebuilt from how it plays: all code, art 
 
 ## Play
 
+Play online: <https://blokje.github.io/ontslaught2.26/> (rebuilt and published by GitHub Actions on every push to `main`).
+
+Or run it locally:
+
 ```bash
 npm install
 npm run dev          # open http://localhost:5226
