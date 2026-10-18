@@ -120,6 +120,40 @@ function makePlayer(game, spots) {
   const a1 = g.build('green', 300, 60).id, a2 = g.build('green', 346, 60).id, a3 = g.build('green', 600, 60).id;
   check('(c) links: near Greens linked, far one not', g.turretMap.get(a1).links.includes(a2) && !g.turretMap.get(a1).links.includes(a3));
 }
+{
+  // piercing laser: one Green with 25 energy, attackers in a row to its right
+  const setup = (hps, ys) => {
+    const g = new Game({ mapId: 'map9', mode: 'sandbox', seed: 3 });
+    g.build('green', 300, 60);
+    const aa = hps.map((hp, i) => freeze(g.spawnAttacker(1, hp), 330 + i * 20, ys ? ys[i] : 60));
+    g.advance(1);
+    return { g, aa };
+  };
+  let { aa } = setup([10, 8, 30]);
+  check('(c) pierce: weaker attackers die, energy carries on', aa[0].dead && aa[1].dead, aa.map((a) => a.hp).join(','));
+  check('(c) pierce: stronger attacker takes the rest (25 - 10 - 8 = 7)', !aa[2].dead && near(aa[2].maxHp - aa[2].hp, 7), `${aa[2].maxHp - aa[2].hp}`);
+  ({ aa } = setup([40, 5]));
+  check('(c) pierce: a stronger first target stops the beam', near(aa[0].maxHp - aa[0].hp, 25) && aa[1].hp === aa[1].maxHp);
+  ({ aa } = setup([5, 5, 5], [60, 66, 63]));
+  check('(c) pierce: off the line (6 > 4) is missed, within 4 is hit', aa[0].dead && aa[1].hp === aa[1].maxHp && aa[2].dead);
+  ({ aa } = setup([10, 10, 10]));
+  check('(c) pierce: energy runs out exactly (10 + 10, then 5)', aa[0].dead && aa[1].dead && near(aa[2].maxHp - aa[2].hp, 5));
+  const { g } = setup([5, 5]);
+  const beam = g.state.beams.find((b) => b.kind === 'laser');
+  check('(c) pierce: beam with energy left runs to the end of range', beam && near(beam.x2, 400, 1e-3), beam && `${beam.x2}`);
+  // determinism: save in the middle of a piercing fight, both continue identically
+  const mk = () => {
+    const h = new Game({ mapId: 'map9', mode: 'sandbox', seed: 4 });
+    h.build('green', 300, 60);
+    for (let i = 0; i < 12; i++) freeze(h.spawnAttacker(1, 3 + i), 320 + i * 7, 60 + (i % 3));
+    h.advance(1);
+    return h;
+  };
+  const h1 = mk();
+  const h2 = Game.deserialize(JSON.parse(JSON.stringify(h1.serialize())));
+  h1.advance(120); h2.advance(120);
+  check('(c) pierce: save/restore continues identically', JSON.stringify(h1.serialize()) === JSON.stringify(h2.serialize()));
+}
 
 // ------------------------------------------------------------------ (d) modifiers
 {
