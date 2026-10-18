@@ -21,7 +21,9 @@ No original code is used. The game was rebuilt from how it plays: all code, art 
 
 ## Play
 
-Requires Node.js 22.18 or newer (runs the TypeScript tests directly by stripping types; Vite 8 also needs 22.12+).
+Play online: <https://blokje.github.io/ontslaught2.26/> (rebuilt and published by GitHub Actions on every push to `main`).
+
+Or run it locally. Requires Node.js 22.18 or newer (runs the TypeScript tests directly by stripping types; Vite 8 also needs 22.12+).
 
 ```bash
 npm install

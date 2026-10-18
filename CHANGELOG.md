@@ -21,6 +21,9 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
   Docs: `CLAUDE.md`, `ARCHITECTURE.md`, `CONTRIBUTING.md`, `README.md`, all `docs/claude/*.md`, the skills in `.claude/skills/`.
 
 ### Added
+- GitHub Pages deploy: `.github/workflows/pages.yml` runs `npm test` and `npm run build` (typecheck included) on every push to
+  `main` and publishes `dist/` to <https://blokje.github.io/ontslaught2.26/>, so the game is playable from a URL.
+  Docs: `README.md`, `docs/claude/testing.md`, `.claude/skills/release-build/SKILL.md`.
 - Two extra firing cone widths: Tight 60 and Pinpoint 30 degrees. D now cycles All around, Wide 180, Medium 90, Tight 60,
   Narrow 45, Pinpoint 30 (new `directional.mode` values `tight` and `pinpoint`; the old values and saves are unchanged).
   Docs: `SPEC.md` section 5, `ARCHITECTURE.md`, `docs/claude/testing.md`.

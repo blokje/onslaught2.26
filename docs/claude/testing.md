@@ -26,6 +26,9 @@ Use the `verify-in-browser` skill. Minimum: the game loads, a game starts, build
 
 Optional demo builds (not part of the checks): `npx vite build --config scripts/vite.demo.config.ts` (UI demo with mocks, `dist-demo/`) and `npx vite build --config scripts/vite.render-demo.config.ts` (renderer demo, `dist-render-demo/`).
 
+CI: `.github/workflows/pages.yml` runs `npm test` (`sim-test`, `combo-test`) and `npm run build` (typecheck included) on every push to `main`
+(and on manual dispatch), then deploys `dist/` to GitHub Pages. A failing test or type error blocks the deploy. PRs are not built.
+
 ## Not covered by automation
 
 Real touch devices (iPad), audio quality, GPU frame time on weak hardware. Say explicitly when you could not check these.
