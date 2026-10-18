@@ -5,6 +5,11 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
 
 ## Unreleased
 
+### Removed
+- Dead code: unused imports, variables, parameters, exports and unreachable branches across `src/` and `scripts/`.
+  `tsconfig.json` now sets `noUnusedLocals` and `noUnusedParameters`, so new dead code fails `npm run typecheck`.
+  No gameplay change. Docs: `docs/claude/testing.md`, `docs/claude/gotchas.md`.
+
 ### Changed
 - The codebase is now TypeScript with `strict` on (was plain JavaScript): every `src/` file, the test scripts and the
   Vite configs are `.ts`. Shared contract types live in the new `src/types.ts`; `npm run typecheck` runs `tsc`, and

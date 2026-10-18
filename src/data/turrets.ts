@@ -4,9 +4,7 @@
 // Ladders: each entry is [cost, newValue]. Level 0 = base stat; level n = ladder[n-1][1].
 // rate is shots per minute (fire interval ms = 60000 / rate).
 
-import type { KeyColor, LadderStep, TurretDef } from '../types.ts';
-
-export const KEYS: KeyColor[] = ['blue', 'green', 'red', 'yellow'];
+import type { LadderStep, TurretDef } from '../types.ts';
 
 const L = (pairs: [number, number][]): LadderStep[] => pairs.map(([c, v]) => ({ cost: c, value: v }));
 

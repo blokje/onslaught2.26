@@ -12,7 +12,7 @@ Tests drive the real `Game` in Node: `new Game({ mapId, difficulty, mode, seed }
 
 ## Type checking
 
-`npm run typecheck` runs `tsc -p .` (`strict`, no emit) over `src/`, `scripts/` and `vite.config.ts`. It must report 0 errors;
+`npm run typecheck` runs `tsc -p .` (`strict`, `noUnusedLocals`, `noUnusedParameters`, no emit) over `src/`, `scripts/` and `vite.config.ts`. It must report 0 errors;
 `npm run build` and `npm run build:single` run it first, so a type error fails the build. Vite itself only strips types.
 The tests run the `.ts` sources directly with Node's type stripping (Node 22.18+), so they need no compile step.
 
