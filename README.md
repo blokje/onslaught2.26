@@ -38,7 +38,8 @@ npm run build:single # writes dist-single/index.html
 
 ## What's in it
 
-- **10 maps:** Classic, Incoming, Ells, Looping, Sinus, Puzzle, Squarely, Inspired, Lyne, and a How to Play map.
+- **18 maps:** Classic, Incoming, Ells, Looping, Sinus, Puzzle, Squarely, Inspired, Lyne, a How to Play map, and 8 new extra maps:
+  Switchback, Comb, Junction, Perimeter, Staircase, Lightning, Maelstrom and Doorstep.
 - **16 turrets:**
   - 4 basic weapons: Cannon, Laser, Rocket, Tazer.
   - 7 modifiers that boost nearby turrets: Ranger, Boom, SpeedEx, RangerEx, Speed, BigBang, BigBangEx.

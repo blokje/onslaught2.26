@@ -194,6 +194,24 @@ Nine maps plus a tutorial layout. Coordinates are waypoint polylines in the 720 
 
 The exact waypoint lists have been recovered and are in `src/data/maps.ts` (plain coordinates).
 
+### 7a. Extra maps [NEW]
+
+Eight extra maps (`map10` to `map17`, `extra: true` in the data) sit after the tutorial and show as E1 to E8 in the
+menu (one 6 x 3 grid of all 18 maps). Each is built around one placement idea. They may be retuned freely.
+
+| # | Name | Shape and idea |
+|---|---|---|
+| E1 | Switchback | long horizontal lanes stacked top to bottom, wide enough between lanes for a combo that hits two lanes |
+| E2 | Comb | spine along the top with three narrow, deep fingers; one turret column inside a finger hits both legs, the wide gaps hold the big combos |
+| E3 | Junction | horizontal, vertical and diagonal passes all cross one central hub |
+| E4 | Perimeter | road along the field edge, then one spoke into a base in the middle; free interior, but each turret reaches only one side |
+| E5 | Staircase | short diagonal of steps; the inner step corners cover two segments (short and hard, like Lyne) |
+| E6 | Lightning | sharp zigzag of long diagonals; the pocket inside each apex covers two legs |
+| E7 | Maelstrom | straight spoke to the centre, then a square spiral outward that crosses the spoke |
+| E8 | Doorstep | enters right beside the base, loops the field and returns across its own entry lane |
+
+Every extra map keeps a legal 5-turret combo cluster within reach of the road (checked in `scripts/sim-test.ts`).
+
 ## 8. Controls [ORIG + SITE]
 
 | Key | Action |

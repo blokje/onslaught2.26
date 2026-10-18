@@ -6,6 +6,7 @@ built independently. **Do not change these interfaces without the coordinator's 
 Stack: Vite + TypeScript (`strict`, ES modules, no framework) + three.js (`three@0.160.0`, types from `@types/three`).
 The shapes in this contract are also declared as TypeScript types in `src/types.ts`; keep both in sync.
 Data lives in `src/data/` (read-only for all layers): `maps.ts`, `turrets.ts`, `combos.ts`, `rules.ts`.
+`MapDef` (`src/types.ts`) is `{ id, name, base, path, extra? }`; the optional `extra` flag marks the [NEW] extra maps (menu grouping only, no simulation effect).
 
 ```
 src/
@@ -171,7 +172,7 @@ pooled meshes for attackers/projectiles).
 `src/ui/App.ts` exports `class App { constructor(rootEl, { createGame, restoreGame, renderer }) }` where
 `createGame(opts) -> Game`, `restoreGame(save) -> Game` (`Game.deserialize`) and `renderer` is the Renderer instance. The App owns screens and input:
 
-- **Main menu**: map picker (10 maps with a mini path preview drawn on a 2D canvas), difficulty, mode (Normal/Sandbox),
+- **Main menu**: map picker (18 maps in a 6 x 3 grid, each with a mini path preview drawn on a 2D canvas; maps with `extra: true` are labelled E1 to E8), difficulty, mode (Normal/Sandbox),
   Continue (if a mid-game save exists), high scores, settings, how-to-play.
 - **In-game HUD** (DOM overlay over the canvas): cash, lives, wave, kills, score, next-wave countdown,
   speed buttons 1/2/4/8, pause, send-wave; build rack with the 16 turrets (locked ones greyed with unlock hint);
