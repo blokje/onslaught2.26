@@ -1,7 +1,6 @@
 // OnSlaught2.26 UI orchestrator: screens, input, feedback, persistence and audio wiring.
 import './ui.css';
 import { h } from './dom.ts';
-import { MAPS } from '../data/maps.ts';
 import { TURRETS, BUILD_ORDER, MOVE_COST } from '../data/turrets.ts';
 import { DIFFICULTIES, MODES, TARGET_MODES } from '../data/rules.ts';
 import * as storage from './storage.ts';
@@ -11,7 +10,7 @@ import { Hud } from './hud.ts';
 import { buildSettings, buildHelp, buildScores, buildGameOver } from './dialogs.ts';
 import { formatCash, formatNum } from './format.ts';
 import type { AppGame, AppRenderer, AppOptions, CommandResult } from './appTypes.ts';
-import type { GameEventName, GameEvents, GameOptions, Overlay, Stat, TurretState, Attacker, KeyColor, TargetMode, DirectionalMode, ModeId, DifficultyId, Result } from '../types.ts';
+import type { GameEventName, GameEvents, GameOptions, Overlay, Stat, TurretState, Attacker, KeyColor, DirectionalMode } from '../types.ts';
 
 const GRID = 22;
 const FOCUS_RADIUS = 16;
@@ -403,7 +402,7 @@ export class App {
     this.cancelMode();
     this.closeAllModals();
     this.audio.play('alarm');
-    const m = this.openModal('Game over', buildGameOver(this, info), {
+    const m = this.openModal('Game over', buildGameOver(info), {
       cls: 'narrow', dismissable: false,
       buttons: [
         { label: 'High scores', onClick: () => this.openScores({ mapId: info.mapId, difficulty: info.difficulty, mode: info.mode, rank: info.rank }) },

@@ -202,7 +202,7 @@ for (const { colour, r } of recipes) {
   const sc = setup({ lead: colour, partners: partnersFor(r) });
   const { g, lead, partners } = sc;
   const needMoving = isHole || isWave;
-  const atts = addAttackers(g, sc.spot, 8, !needMoving);
+  addAttackers(g, sc.spot, 8, !needMoving);
   const o = observe(g);
   const cash0 = g.state.cash, kills0 = g.state.kills;
 
@@ -370,14 +370,14 @@ for (const { colour, r } of recipes) {
   check('(priority) Red + 2 Blue + 1 Green fires Nuke, not Poison Gas', o.combos.length === 1 && o.combos[0].id === 'nuke' && o.combos[0].turretId === lead.id, o.combos.map((c) => c.id).join(','));
 }
 {
-  const { g, lead } = setup({ lead: 'red', partners: ['blue', 'green', 'yellow'] });
+  const { g } = setup({ lead: 'red', partners: ['blue', 'green', 'yellow'] });
   addAttackers(g, SPOT, 4);
   const o = observe(g);
   run(g, o, 30);
   check('(priority) Red + Blue + Green + Yellow: Poison Gas (no Napalm, needs a 2nd Red)', o.combos[0] && o.combos[0].id === 'poisonGas', o.combos.map((c) => c.id).join(','));
 }
 {
-  const { g, lead } = setup({ lead: 'yellow', partners: ['yellow', 'yellow', 'green', 'green'] });
+  const { g } = setup({ lead: 'yellow', partners: ['yellow', 'yellow', 'green', 'green'] });
   addAttackers(g, SPOT, 6, false);
   const o = observe(g);
   run(g, o, 200);
@@ -393,7 +393,7 @@ for (const { colour, r } of recipes) {
 }
 {
   // Combo-only as a partner colour
-  const { g, lead, partners } = setup({ lead: 'red', partners: ['blue', { kind: 'comboOnly', color: 'blue' }] });
+  const { g, partners } = setup({ lead: 'red', partners: ['blue', { kind: 'comboOnly', color: 'blue' }] });
   addAttackers(g, SPOT, 4);
   const o = observe(g);
   run(g, o, 20);
@@ -409,7 +409,7 @@ for (const { colour, r } of recipes) {
   check('(combo-only) as Green: Red + Blue + Combo-only(green) fires Poison Gas', o.combos[0] && o.combos[0].id === 'poisonGas', o.combos.map((c) => c.id).join(','));
 }
 {
-  const { g, lead, partners } = setup({ lead: 'red', partners: [{ kind: 'comboOnly', color: 'blue' }, { kind: 'comboOnly', color: 'blue' }] });
+  const { g } = setup({ lead: 'red', partners: [{ kind: 'comboOnly', color: 'blue' }, { kind: 'comboOnly', color: 'blue' }] });
   addAttackers(g, SPOT, 4);
   const o = observe(g);
   run(g, o, 20);
@@ -419,7 +419,7 @@ for (const { colour, r } of recipes) {
   check('(combo-only) on cooldown: no second combo during recharge', o.combos.length === 1);
 }
 {
-  const { g, lead, partners } = setup({ lead: 'red', partners: ['blue', { kind: 'blue', unmaxed: true }] });
+  const { g } = setup({ lead: 'red', partners: ['blue', { kind: 'blue', unmaxed: true }] });
   addAttackers(g, SPOT, 4);
   const o = observe(g);
   run(g, o, 120);
@@ -545,7 +545,7 @@ for (const id of ['rocketBfg', 'bfg', 'tazerBfg']) {
 }
 {
   // Rocket BFG (original quirk): 2 Red in range, only 1 Red used; the other stays ready
-  const { g, lead, partners } = setup({ lead: 'green', partners: ['red', 'red', 'blue'] });
+  const { g, partners } = setup({ lead: 'green', partners: ['red', 'red', 'blue'] });
   addAttackers(g, SPOT, 4);
   const o = observe(g);
   let n = 0;
@@ -556,7 +556,7 @@ for (const id of ['rocketBfg', 'bfg', 'tazerBfg']) {
   check('(rocketBfg) needs 2 Red but takes 1 Red + 1 Blue', c && c.id === 'rocketBfg' && c.partnerIds.length === 2 && usedReds === 1, c ? `${c.id}, reds used ${usedReds}` : 'none');
 }
 {
-  const { g, lead } = setup({ lead: 'yellow', partners: [] });
+  const { g } = setup({ lead: 'yellow', partners: [] });
   const a = g.spawnAttacker(1, HP);
   a.progress = 20; g.path.place(a, 20);
   g.grid.rebuild(g.state.attackers);
@@ -568,7 +568,7 @@ for (const id of ['rocketBfg', 'bfg', 'tazerBfg']) {
 {
   // black-holed attackers do not move along the road
   const { g } = setup({ lead: 'yellow', partners: ['yellow', 'yellow', 'green'] });
-  const atts = addAttackers(g, SPOT, 5, false);
+  addAttackers(g, SPOT, 5, false);
   const o = observe(g);
   let moved = false;
   while (!o.effects.blackHole && g.stepCount < 120) { g.advance(1); o.tick(); }
@@ -671,7 +671,7 @@ for (const id of ['rocketBfg', 'bfg', 'tazerBfg']) {
   check('(preview) Black Hole with 2 greens is exactBlocked', bh!.exactBlocked && bh!.wait === Infinity);
 }
 {
-  const { g, lead, partners } = setup({ lead: 'red', partners: [{ kind: 'comboOnly', color: 'blue' }, 'blue'] });
+  const { g, partners } = setup({ lead: 'red', partners: [{ kind: 'comboOnly', color: 'blue' }, 'blue'] });
   const pv = preview(g, partners[0].id);
   check('(preview) Combo-only never leads, lists the recipes of leads in range that need its colour',
     !pv.leads && pv.recipes.some((r) => r.id === 'nuke') && pv.recipes.every((r) => r.needs.blue), pv.recipes.map((r) => r.id).join(','));

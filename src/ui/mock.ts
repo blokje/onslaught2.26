@@ -8,7 +8,7 @@ import { COMBOS, COMBO_LOG_MAX } from '../data/combos.ts';
 import type { AppGame, AppRenderer, CommandResult } from './appTypes.ts';
 import type {
   GameState, GameOptions, GameEvents, GameEventName, Attacker, TurretState, Result, Fail, ComboPreview,
-  Overlay, Stat, StatValues, DifficultyId, ModeId, TargetMode, DirectionalMode, KeyColor, ColorCounts, ComboRecipe,
+  Overlay, Stat, DifficultyId, ModeId, TargetMode, DirectionalMode, KeyColor, ColorCounts, ComboRecipe,
 } from '../types.ts';
 
 const STATS: Stat[] = ['damage', 'range', 'rate'];

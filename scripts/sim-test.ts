@@ -1,6 +1,5 @@
 // Headless simulation tests for src/game. Run: node scripts/sim-test.ts
 import { Game, STEP_MS } from '../src/game/Game.ts';
-import { TURRETS } from '../src/data/turrets.ts';
 import { MAPS } from '../src/data/maps.ts';
 import { DIFFICULTIES, WAVES, WEAVE } from '../src/data/rules.ts';
 import { waveHp, waveBounty, laneOffset } from '../src/game/Attacker.ts';
@@ -540,7 +539,6 @@ function makePlayer(game: Game, spots: Spot[]): () => void {
   g.setSpeed(8);
   for (let i = 0; i < 60; i++) { top(); g.update(1000 / 60); } // warm-up
   const times = [];
-  const t0 = performance.now();
   for (let i = 0; i < 600; i++) {
     top();
     const a = performance.now();

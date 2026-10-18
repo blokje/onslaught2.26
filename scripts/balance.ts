@@ -20,8 +20,7 @@
 import { Game, STEP_MS } from '../src/game/Game.ts';
 import { TURRETS } from '../src/data/turrets.ts';
 import { COMBOS } from '../src/data/combos.ts';
-import { DIFFICULTIES, FIELD } from '../src/data/rules.ts';
-import { MAPS } from '../src/data/maps.ts';
+import { DIFFICULTIES } from '../src/data/rules.ts';
 import type { Turret } from '../src/game/Turret.ts';
 import type { Attacker, ComboRecipe, GameEvents, KeyColor, Result, Stat } from '../src/types.ts';
 
@@ -200,7 +199,7 @@ function dpsReport() {
     }
     const ratios: Record<string, ({ avg: number; raw: number; spent: number } | null)[]> = {};
     for (const k of NEW) {
-      ratios[k] = BUDGETS.map((B, i) => {
+      ratios[k] = BUDGETS.map((_, i) => {
         const p = rows[k][i];
         if (!p) return null;
         const best = Math.max(...ORIG.map((o) => (rows[o][i] ? rows[o][i].dpsAvg : 0)));
@@ -297,7 +296,6 @@ function lockAfterFirst(g: Game, onFire: (e: GameEvents['combo']) => void): void
  */
 function comboOneShot(r: ComboRecipe, colour: string, spot: ComboSpot, layout: 'single' | 'pack' | 'walk', seed: number = 5): { dmg: number; fired: string | null; hit: number } {
   const { g, lead } = comboSetup(r, colour, spot, seed);
-  (g.combos as unknown as { dbg?: boolean }).dbg = true; // legacy debug flag, nothing reads it (kept to leave the run identical)
   const road = g.roadPoints();
   let c = road[0];
   for (const q of road) if (Math.hypot(q.x - lead.x, q.y - lead.y) < Math.hypot(c.x - lead.x, c.y - lead.y)) c = q;

@@ -6,7 +6,9 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
 ## Unreleased
 
 ### Removed
-- Dead code: unused imports, variables, parameters, exports and unreachable branches across `src/` and `scripts/`.
+- Dead code: unused imports, variables, parameters, exports and unreachable branches across `src/` and `scripts/`,
+  among them the `rail`/`sniper` projectile cases in the renderer (both are beams), the never-set ghost angle, the unused
+  `KEYS`, `FX_UNITS`, `lerp` and `TURRET_COLORS` exports, the `.is-off` button style and the unread `dbg` flag in `balance.ts`.
   `tsconfig.json` now sets `noUnusedLocals` and `noUnusedParameters`, so new dead code fails `npm run typecheck`.
   No gameplay change. Docs: `docs/claude/testing.md`, `docs/claude/gotchas.md`.
 

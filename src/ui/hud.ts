@@ -8,7 +8,7 @@ import { iconSvg, LOCK_SVG } from './icons.ts';
 import { formatNum, formatCash, formatTime } from './format.ts';
 import { COMBOS } from '../data/combos.ts';
 import type { App } from './App.ts';
-import type { TurretState, GameState, ComboPreview, KeyColor, Stat, TargetMode, DirectionalMode, TurretDef, Category } from '../types.ts';
+import type { TurretState, GameState, KeyColor, Stat, TargetMode, DirectionalMode, TurretDef, Category } from '../types.ts';
 
 const TARGET_NAMES: Record<TargetMode, string> = { near: 'Nearest', far: 'Furthest', weak: 'Weakest', strong: 'Strongest', slow: 'Slowest', fast: 'Fastest', oldest: 'Oldest', newest: 'Newest' };
 const DIR_NAMES: Record<DirectionalMode, string> = { normal: 'All around', wide: 'Wide 180', medium: 'Medium 90', tight: 'Tight 60', small: 'Narrow 45', pinpoint: 'Pinpoint 30' };
@@ -226,7 +226,6 @@ export class Hud {
     setProp(this.sendBtn, 'disabled', !!s.over || !!s.paused);
 
     // rack
-    const kills = s.kills;
     for (let i = 0; i < this.slots.length; i++) {
       const sl = this.slots[i];
       const locked = !s.unlocked || !s.unlocked[sl.kind];
@@ -235,7 +234,6 @@ export class Hud {
       setClass(sl.el, 'armed', app.mode === 'build' && app.armed === sl.kind);
       setClass(sl.el, 'cursor', app.rackIndex === i);
       if (locked) setText(sl.lockTxt, sl.def.unlockKills ? 'at ' + formatNum(sl.def.unlockKills) : '');
-      void kills;
     }
 
     // mode hint

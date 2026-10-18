@@ -47,5 +47,3 @@ export function iconSvg(kind: string, size = '100%'): string {
 }
 
 export const LOCK_SVG = '<svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2.5" fill="#d9c29a"/><path d="M8 11V8a4 4 0 0 1 8 0v3" fill="none" stroke="#d9c29a" stroke-width="2.4" stroke-linecap="round"/><circle cx="12" cy="16" r="1.6" fill="#2b251f"/></svg>';
-
-export const TURRET_COLORS: Record<string, string> = { blue: C.blue, green: C.green, red: C.red, yellow: C.yellow };

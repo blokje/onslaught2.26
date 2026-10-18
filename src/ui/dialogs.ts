@@ -140,7 +140,7 @@ export function buildScores(app: App, highlight?: ScoreHighlight): HTMLElement {
 }
 
 // ---------------- Game over ----------------
-export function buildGameOver(app: App, info: GameOverInfo): HTMLElement {
+export function buildGameOver(info: GameOverInfo): HTMLElement {
   const map = MAPS.find((m) => m.id === info.mapId);
   const rankText = info.rank > 0
     ? `New high score: rank ${info.rank} on ${map ? map.name : info.mapId}, ${DIFFICULTIES[info.difficulty]?.name || info.difficulty}${info.mode === 'sandbox' ? ' (Sandbox)' : ''}.`
