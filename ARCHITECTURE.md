@@ -3,12 +3,14 @@
 Read `SPEC.md` for the rules. This file fixes the interfaces between the three layers so they can be
 built independently. **Do not change these interfaces without the coordinator's OK.** Adding optional fields is fine.
 
-Stack: Vite + plain ES modules (JavaScript, no TypeScript, no framework) + three.js (`three@0.160.0`).
-Data lives in `src/data/` (read-only for all layers): `maps.js`, `turrets.js`, `combos.js`, `rules.js`.
+Stack: Vite + TypeScript (`strict`, ES modules, no framework) + three.js (`three@0.160.0`, types from `@types/three`).
+The shapes in this contract are also declared as TypeScript types in `src/types.ts`; keep both in sync.
+Data lives in `src/data/` (read-only for all layers): `maps.ts`, `turrets.ts`, `combos.ts`, `rules.ts`.
 
 ```
 src/
-  main.js            bootstrap (coordinator owns)
+  main.ts            bootstrap (coordinator owns)
+  types.ts           shared contract types (coordinator owns; mirrors this file)
   data/              shared data (coordinator owns)
   game/              simulation: pure logic, NO DOM, NO three.js   (Simulation agent)
   render/            three.js view: reads game state, draws it     (Renderer agent)
@@ -20,10 +22,10 @@ src/
 World units = original pixels. Field is 720 × 450, **x right, y down** (as in the map data).
 The renderer converts to three.js space. Angles are radians, 0 = +x, increasing clockwise on screen (y down).
 
-## 1. Simulation: `src/game/Game.js`
+## 1. Simulation: `src/game/Game.ts`
 
 ```js
-import { Game } from './game/Game.js';
+import { Game } from './game/Game.ts';
 const game = new Game({ mapId: 'map1', difficulty: 'medium', mode: 'normal', unlockAll: false });
 game.update(realDtMs);      // call every animation frame; applies speed/pause; internally fixed 1/60 s steps (max 8 per call per speed unit)
 game.on(event, fn);  game.off(event, fn);
@@ -32,7 +34,7 @@ const g2 = Game.deserialize(save);      // restore a running game
 ```
 
 The constructor's default `seed` is a fixed constant, so callers that want a different game each time pass `opts.seed`
-(`src/main.js` does). `Game.deserialize(d)` validates its input and throws `Error('Invalid save: ...')` on a malformed save
+(`src/main.ts` does). `Game.deserialize(d)` validates its input and throws `Error('Invalid save: ...')` on a malformed save
 (version, arrays, entity caps, unknown turret kind); it ignores `__proto__`, `constructor` and `prototype` keys.
 
 ### 1.1 `game.state` (read-only for render/ui; plain objects and arrays)
@@ -51,7 +53,7 @@ The constructor's default `seed` is a fixed constant, so callers that want a dif
 
   attackers: [ { id, type /*0..8*/, x, y, angle, hp, maxHp, speed, baseSpeed,
                  poisoned /*bool*/, blackholed /*bool*/, progress /*distance along path*/,
-                 weave /*optional [ph1, ph2, k1, k2]: sideways weave, see laneOffset() in Attacker.js*/ } ],
+                 weave /*optional [ph1, ph2, k1, k2]: sideways weave, see laneOffset() in Attacker.ts*/ } ],
 
   turrets: [ { id, kind /*key of TURRETS*/, x, y, angle /*weapon aim*/,
                levels: { damage, range, rate }, maxLevels: { damage, range, rate },
@@ -72,7 +74,7 @@ The constructor's default `seed` is a fixed constant, so callers that want a dif
   projectiles: [ { id, kind, x, y, angle, armed? } ],   // armed (mines only): false while travelling, true once placed
     // kind: 'shell' | 'rocket' | 'nuke' | 'poisonRocket' | 'laserRocket' | 'napalmRocket' | 'tazerRocket'
     //       | 'bfg' | 'clusterBomb' | 'cluster' | 'mine'
-    // other fields (speed, mode, blast, ttl, orbit, goto, ...): comment header of src/game/projectiles.js
+    // other fields (speed, mode, blast, ttl, orbit, goto, ...): comment header of src/game/projectiles.ts
 
   beams: [ { kind, x1, y1, x2, y2, age, ttl } ],
     // short-lived lines; kind: 'laser' | 'chain' (laser link between Greens) | 'spark' | 'fusion' | 'rail' | 'sniper'
@@ -85,7 +87,7 @@ The constructor's default `seed` is a fixed constant, so callers that want a dif
 ```
 
 Other fields (not part of the render contract): turret internals (`cd`, `ramp`, `kills`, ...) are listed in the comment header
-of `src/game/Turret.js`, attacker internals (`swallowed`, `dead`, ...) in `src/game/Attacker.js`, projectile fields in `src/game/projectiles.js`.
+of `src/game/Turret.ts`, attacker internals (`swallowed`, `dead`, ...) in `src/game/Attacker.ts`, projectile fields in `src/game/projectiles.ts`.
 
 Entity `id`s are unique integers that never repeat within a game. Renderer syncs meshes by id.
 
@@ -128,7 +130,7 @@ Everything in `SPEC.md` sections 2 to 6 and 9, using the data files. Target mode
 weak, strong, slow, fast, oldest (lowest attacker id), newest (highest attacker id). Directional cones restrict acquisition to ±half-angle around `directional.angle`.
 Focus fire overrides target choice for every weapon that has the focus target in range.
 
-## 2. Renderer: `src/render/Renderer.js`
+## 2. Renderer: `src/render/Renderer.ts`
 
 ```js
 const r = new Renderer(containerElement);   // creates canvas filling the container, handles resize + devicePixelRatio
@@ -166,7 +168,7 @@ pooled meshes for attackers/projectiles).
 
 ## 3. UI: `src/ui/`
 
-`src/ui/App.js` exports `class App { constructor(rootEl, { createGame, restoreGame, renderer }) }` where
+`src/ui/App.ts` exports `class App { constructor(rootEl, { createGame, restoreGame, renderer }) }` where
 `createGame(opts) -> Game`, `restoreGame(save) -> Game` (`Game.deserialize`) and `renderer` is the Renderer instance. The App owns screens and input:
 
 - **Main menu**: map picker (10 maps with a mini path preview drawn on a 2D canvas), difficulty, mode (Normal/Sandbox),
@@ -178,19 +180,19 @@ pooled meshes for attackers/projectiles).
 - **Input**: left click on field = build (when a rack item is armed), select turret, focus-fire attacker when F mode;
   all keyboard shortcuts from `SPEC.md` section 8; Esc cancels. Uses `renderer.screenToWorld`, `game.turretAt`,
   updates `renderer.setOverlay`.
-- **Persistence** (`src/ui/storage.js`, localStorage key prefix `os226.`, all access in try/catch):
+- **Persistence** (`src/ui/storage.ts`, localStorage key prefix `os226.`, all access in try/catch):
   settings, unlocks (Extreme after reaching wave 100 on Medium, Sandbox after wave 50 on anything),
   high scores per map+difficulty (top 10), autosave of the running game every 10 s and on page hide.
 - **Settings**: master volume / mute, wave interval override, snap-to-grid toggle (grid 22 units), unlock-all switch,
   show FPS, `autoPause` (pause while the tab is hidden), `panelPos` (moved turret panel). `getSettings()` drops stored values
   whose type does not match the default.
-- **Audio** (`src/ui/audio.js`): Web Audio synthesized SFX driven by game events (cannon pop, laser zap, rocket whoosh,
+- **Audio** (`src/ui/audio.ts`): Web Audio synthesized SFX driven by game events (cannon pop, laser zap, rocket whoosh,
   spark crackle, blasts by size, nuke boom, kill tick, leak alarm, wave horn, combo chord, UI clicks). Rate-limit
   per sound so 8× speed stays pleasant. Starts after the first user gesture.
 - Layout must work from 1024 × 640 up to 4K, and on iPad landscape (touch: tap = left click; a "pan mode" is not
   needed because two-finger gestures pan/zoom). Show a "rotate to landscape" notice in portrait.
 
-## 4. `src/main.js` (coordinator)
+## 4. `src/main.ts` (coordinator)
 
 Creates the Renderer on `#game`, the App on `#ui`, and runs the frame loop:
 `game.update(dt); renderer.render(dt); app.frame(dt);`. The App calls `renderer.setGame(game)` when it starts or loads a game.

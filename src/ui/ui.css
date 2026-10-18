@@ -41,7 +41,7 @@
 }
 .os-btn:hover:not(:disabled) { background: linear-gradient(#5d4930, #43331f); border-color: var(--amber); }
 .os-btn:active:not(:disabled) { transform: translateY(1px); }
-.os-btn:disabled, .os-btn.is-off { opacity: 0.45; }
+.os-btn:disabled { opacity: 0.45; }
 .os-btn.is-on { background: linear-gradient(var(--amber-hi), var(--amber)); color: #2a1a06; border-color: var(--amber-hi); }
 .os-btn.primary { background: linear-gradient(var(--amber-hi), var(--amber)); color: #2a1a06; border-color: var(--amber-hi); font-weight: 800; }
 .os-btn.primary:hover:not(:disabled) { background: linear-gradient(#ffe1a3, #ffb94f); }

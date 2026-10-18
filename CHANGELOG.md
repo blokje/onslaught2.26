@@ -5,6 +5,21 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
 
 ## Unreleased
 
+### Removed
+- Dead code: unused imports, variables, parameters, exports and unreachable branches across `src/` and `scripts/`,
+  among them the `rail`/`sniper` projectile cases in the renderer (both are beams), the never-set ghost angle, the unused
+  `KEYS`, `FX_UNITS`, `lerp` and `TURRET_COLORS` exports, the `.is-off` button style and the unread `dbg` flag in `balance.ts`.
+  `tsconfig.json` now sets `noUnusedLocals` and `noUnusedParameters`, so new dead code fails `npm run typecheck`.
+  No gameplay change. Docs: `docs/claude/testing.md`, `docs/claude/gotchas.md`.
+
+### Changed
+- The codebase is now TypeScript with `strict` on (was plain JavaScript): every `src/` file, the test scripts and the
+  Vite configs are `.ts`. Shared contract types live in the new `src/types.ts`; `npm run typecheck` runs `tsc`, and
+  `npm run build` / `build:single` type-check first. The tests still run without a build step (`node scripts/sim-test.ts`,
+  Node 22.18+ type stripping), so only erasable syntax is allowed. New dev dependencies: `typescript`, `@types/three`,
+  `@types/node`. The inline demo scripts moved to `src/render/render-demo.ts` and `src/ui/ui-demo.ts`. No gameplay change.
+  Docs: `CLAUDE.md`, `ARCHITECTURE.md`, `CONTRIBUTING.md`, `README.md`, all `docs/claude/*.md`, the skills in `.claude/skills/`.
+
 ### Added
 - Two extra firing cone widths: Tight 60 and Pinpoint 30 degrees. D now cycles All around, Wide 180, Medium 90, Tight 60,
   Narrow 45, Pinpoint 30 (new `directional.mode` values `tight` and `pinpoint`; the old values and saves are unchanged).
