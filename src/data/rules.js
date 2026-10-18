@@ -34,7 +34,8 @@ export const MODES = {
 export const SPEEDS = [1, 2, 4, 8];
 
 export const TARGET_MODES = ['near', 'far', 'weak', 'strong', 'slow', 'fast', 'oldest', 'newest'];
-export const DIRECTIONAL = { normal: 360, wide: 180, medium: 90, small: 45 };
+// Firing cone widths in degrees, in D cycle order (widest first).
+export const DIRECTIONAL = { normal: 360, wide: 180, medium: 90, tight: 60, small: 45, pinpoint: 30 };
 
 // Score = total kills x total cash spent (original formula).
 export const score = (kills, spent) => kills * spent;

@@ -5,6 +5,18 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
 
 ## Unreleased
 
+### Added
+- Two extra firing cone widths: Tight 60 and Pinpoint 30 degrees. D now cycles All around, Wide 180, Medium 90, Tight 60,
+  Narrow 45, Pinpoint 30 (new `directional.mode` values `tight` and `pinpoint`; the old values and saves are unchanged).
+  Docs: `SPEC.md` section 5, `ARCHITECTURE.md`, `docs/claude/testing.md`.
+
+### Fixed
+- The firing cone (D / Shift+D) is now drawn. It already restricted targeting, but the renderer never showed it, so
+  changing it looked like it did nothing. Selected and hovered weapons (and all weapons with R) show the cone as a wedge
+  from their acquisition origin (a joined Targeter's position and range), with the rest of the range ring dimmed;
+  every weapon with a cone also gets a small aim tick on its base. The render demo has a coned Rocket turret.
+  Docs: `ARCHITECTURE.md`, `docs/claude/rendering.md`, `docs/claude/gotchas.md`.
+
 ### Changed
 - Linked lasers pierce (approved deviation from the original): the Green's shot total (own damage plus chain bonus) is
   energy spent along a straight line through its target, half-width 4 (Railgun 8). Each attacker with HP at most the

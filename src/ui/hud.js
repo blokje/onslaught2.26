@@ -8,7 +8,7 @@ import { formatNum, formatCash, formatTime } from './format.js';
 import { COMBOS } from '../data/combos.js';
 
 const TARGET_NAMES = { near: 'Nearest', far: 'Furthest', weak: 'Weakest', strong: 'Strongest', slow: 'Slowest', fast: 'Fastest', oldest: 'Oldest', newest: 'Newest' };
-const DIR_NAMES = { normal: 'All around', wide: 'Wide 180', medium: 'Medium 90', small: 'Narrow 45' };
+const DIR_NAMES = { normal: 'All around', wide: 'Wide 180', medium: 'Medium 90', tight: 'Tight 60', small: 'Narrow 45', pinpoint: 'Pinpoint 30' };
 const STAT_NAMES = { damage: 'Damage', range: 'Range', rate: 'Rate' };
 const STAT_KEYS = { damage: 'Q', range: 'W', rate: 'E' };
 const COMBO_HEX = { red: '#ff6a4d', green: '#52d17a', blue: '#4da3ff', yellow: '#ffd54a' };

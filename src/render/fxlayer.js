@@ -2,6 +2,7 @@
 
 import { TURRETS, MODIFIER_RANGE, COMBO_RANGE } from '../data/turrets.js';
 import { BLAST_RADIUS } from '../data/combos.js';
+import { DIRECTIONAL } from '../data/rules.js';
 import { KIND_INDEX, KIND_TINT, MOD_TINT } from './atlas.js';
 import { clamp, hash2, fmtCompact, TAU } from './util.js';
 import { rgb, rangeOf, turretColor } from './entities.js';
@@ -200,6 +201,55 @@ export function drawEffects(R, f) {
 }
 
 // ------------------------------------------------------------------------------------------------ overlays
+/** Half-angle (radians) of a turret's firing cone, or 0 when it fires all around. */
+function coneHalf(tr) {
+  const d = tr.directional;
+  if (!d || d.mode === 'normal' || !DIRECTIONAL[d.mode]) return 0;
+  return (DIRECTIONAL[d.mode] / 2) * (Math.PI / 180);
+}
+
+/** Where a weapon acquires targets from: itself, or the Targeter joined to it (as in weapons.js origin()). */
+function coneOrigin(tr, turrets) {
+  for (const g of turrets) if (g.joinedTo === tr.id) return { x: g.x, y: g.y, r: rangeOf(g) };
+  return { x: tr.x, y: tr.y, r: rangeOf(tr) };
+}
+
+/**
+ * Firing cone as a ground wedge: two edges, the arc along the range and a dashed centre aim line.
+ * Drawn with normal blending (additive washes out on the light terrain). Edges start just outside the
+ * turret base so they do not cross it. Angles are world radians (y down), as in targeting.js inCone.
+ * detail: degrees per arc segment (coarser for the R "all ranges" view to stay inside the batch).
+ * outline: dark under-stroke for contrast (selected turret).
+ */
+function drawCone(L, cell, px, ox, oy, range, angle, half, col, alpha, detail, outline) {
+  if (range <= 0 || half <= 0) return;
+  const a0 = angle - half, a1 = angle + half;
+  const r0 = Math.min(20, range * 0.5);
+  const n = Math.max(2, Math.min(60, Math.ceil((2 * half) / (detail * Math.PI / 180))));
+  const passes = outline
+    ? [[px(4.2), [0.04, 0.08, 0.12], alpha * 0.45], [px(2), col, alpha]]
+    : [[px(1.5), col, alpha]];
+  for (const [w, [r, g, bl], a] of passes) {
+    for (const e of [a0, a1]) {
+      const ca = Math.cos(e), sa = Math.sin(e);
+      L.line(ox + ca * r0, oy + sa * r0, ox + ca * range, oy + sa * range, w, cell, r, g, bl, a);
+    }
+    let qx = ox + Math.cos(a0) * range, qy = oy + Math.sin(a0) * range;
+    for (let i = 1; i <= n; i++) {
+      const an = a0 + (a1 - a0) * (i / n);
+      const x = ox + Math.cos(an) * range, y = oy + Math.sin(an) * range;
+      L.line(qx, qy, x, y, w, cell, r, g, bl, a);
+      qx = x; qy = y;
+    }
+  }
+  // dashed centre line: shows where the cone is aimed
+  const dash = Math.max(px(6), range / 14), ca = Math.cos(angle), sa = Math.sin(angle);
+  for (let d = r0; d < range - dash * 0.5; d += dash * 2) {
+    const e = Math.min(d + dash, range);
+    L.line(ox + ca * d, oy + sa * d, ox + ca * e, oy + sa * e, px(1.3), cell, col[0], col[1], col[2], alpha * 0.6);
+  }
+}
+
 export function drawOverlay(R, f) {
   const { b, c } = R;
   const o = R.overlay, wpp = f.wpp, t = f.t;
@@ -212,8 +262,24 @@ export function drawOverlay(R, f) {
       const r = rangeOf(tr);
       if (r <= 0) continue;
       const col = turretColor(tr);
-      b.ringUnder.add(tr.x, tr.y, r, px(1), 0.025, 0, 0, col[0], col[1], col[2], 0.3);
+      const half = coneHalf(tr);
+      if (half > 0) {
+        const og = coneOrigin(tr, st.turrets);
+        drawCone(b.groundFx, c.fx.whiteSolid, px, og.x, og.y, og.r, tr.directional.angle, half, col, 0.5, 8, false);
+      } else {
+        b.ringUnder.add(tr.x, tr.y, r, px(1), 0.025, 0, 0, col[0], col[1], col[2], 0.3);
+      }
     }
+  }
+
+  // aim tick on every weapon that has a firing cone, so restricted turrets stand out unselected.
+  // Overlays run after effects, so if groundFx is full only these cone strokes are dropped.
+  for (const tr of st.turrets) {
+    const half = coneHalf(tr);
+    if (half <= 0) continue;
+    const ca = Math.cos(tr.directional.angle), sa = Math.sin(tr.directional.angle);
+    b.groundFx.line(tr.x + ca * 21, tr.y + sa * 21, tr.x + ca * 35, tr.y + sa * 35, px(4.6), c.fx.whiteSolid, 0.05, 0.05, 0.05, 0.5);
+    b.groundFx.line(tr.x + ca * 21, tr.y + sa * 21, tr.x + ca * 35, tr.y + sa * 35, px(2.6), c.fx.whiteSolid, 1, 0.78, 0.3, 1);
   }
 
   // focus fire: pulsing red reticle that follows the focused attacker (screen-constant size)
@@ -249,7 +315,15 @@ export function drawOverlay(R, f) {
   if (hov) {
     b.ringTop.add(hov.x, hov.y, 25.5, px(2.2), 0.07, 0.15, 0, 1, 1, 1, 0.8);
     const r = rangeOf(hov);
-    if (r > 0 && o.showRanges !== 'all') b.ringUnder.add(hov.x, hov.y, r, px(1), 0.03, 0, 0, 1, 1, 1, 0.3);
+    const half = coneHalf(hov);
+    if (r > 0 && o.showRanges !== 'all') {
+      if (half > 0) {
+        const og = coneOrigin(hov, st.turrets);
+        drawCone(b.groundFx, c.fx.whiteSolid, px, og.x, og.y, og.r, hov.directional.angle, half, [1, 1, 1], 0.5, 8, false);
+      } else {
+        b.ringUnder.add(hov.x, hov.y, r, px(1), 0.03, 0, 0, 1, 1, 1, 0.3);
+      }
+    }
   }
 
   // selected turret: range ring + marching highlight
@@ -257,7 +331,13 @@ export function drawOverlay(R, f) {
     const r = rangeOf(sel);
     const isMod = TURRETS[sel.kind] && TURRETS[sel.kind].category === 'modifier';
     const col = isMod ? rgb(MOD_TINT[sel.kind] || '#ffffff') : [0.7, 0.95, 1];
-    if (r > 0) {
+    const half = coneHalf(sel);
+    if (r > 0 && half > 0) {
+      // cone: the full ring stays as a faint reference, the wedge is what actually fires
+      const og = coneOrigin(sel, st.turrets);
+      b.ringUnder.add(og.x, og.y, og.r, px(1.2), 0.02, 0, 0, col[0], col[1], col[2], 0.22);
+      drawCone(b.groundFx, c.fx.whiteSolid, px, og.x, og.y, og.r, sel.directional.angle, half, col, 0.95, 4, true);
+    } else if (r > 0) {
       b.ringUnder.add(sel.x, sel.y, r, px(2.2), 0.08, 0.35, 0, col[0], col[1], col[2], 0.28);
       b.ringUnder.add(sel.x, sel.y, r, px(1.4), 0, 0, 0, col[0], col[1], col[2], 0.95);
     }

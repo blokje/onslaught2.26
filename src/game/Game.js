@@ -61,7 +61,7 @@ import { Combos } from './combos.js';
 export const STEP_MS = 1000 / 60;
 const MAX_BEAMS = 400;
 const MAX_EFFECTS = 300;
-const DIRECTIONAL_ORDER = ['normal', 'wide', 'medium', 'small'];
+const DIRECTIONAL_ORDER = Object.keys(DIRECTIONAL); // D cycle order
 const COMBO_COLORS = ['red', 'green', 'blue', 'yellow'];
 
 export class Game {

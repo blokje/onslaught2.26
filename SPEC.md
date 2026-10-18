@@ -131,7 +131,8 @@ The SWF has none of them. You chose "all 16", so these 5 need original designs [
 - Original: **nearest**, **weakest** (lowest HP), **fastest**. A turret keeps its target while it is alive and in range [ORIG].
 - Your choice adds strongest, furthest (along the path), slowest, oldest (spawned first), newest (spawned last),
   target lock (L), focus fire (F) and
-  directional cones (D / Shift+D) [CHOICE].
+  directional cones (D / Shift+D) [CHOICE]: D cycles all around, 180, 90, 60, 45 and 30 degrees; Shift+D aims the cone
+  at the cursor (a turret without a cone gets the 90 degree one).
 
 ## 6. Combos [ORIG]
 
