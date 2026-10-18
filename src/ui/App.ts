@@ -1,15 +1,15 @@
 // OnSlaught2.26 UI orchestrator: screens, input, feedback, persistence and audio wiring.
 import './ui.css';
-import { h } from './dom.js';
-import { MAPS } from '../data/maps.js';
-import { TURRETS, BUILD_ORDER, MOVE_COST } from '../data/turrets.js';
-import { DIFFICULTIES, MODES, TARGET_MODES } from '../data/rules.js';
-import * as storage from './storage.js';
-import { AudioEngine } from './audio.js';
-import { Menu } from './menu.js';
-import { Hud } from './hud.js';
-import { buildSettings, buildHelp, buildScores, buildGameOver } from './dialogs.js';
-import { formatCash, formatNum } from './format.js';
+import { h } from './dom.ts';
+import { MAPS } from '../data/maps.ts';
+import { TURRETS, BUILD_ORDER, MOVE_COST } from '../data/turrets.ts';
+import { DIFFICULTIES, MODES, TARGET_MODES } from '../data/rules.ts';
+import * as storage from './storage.ts';
+import { AudioEngine } from './audio.ts';
+import { Menu } from './menu.ts';
+import { Hud } from './hud.ts';
+import { buildSettings, buildHelp, buildScores, buildGameOver } from './dialogs.ts';
+import { formatCash, formatNum } from './format.ts';
 
 const GRID = 22;
 const FOCUS_RADIUS = 16;

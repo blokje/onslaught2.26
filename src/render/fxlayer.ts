@@ -1,11 +1,11 @@
 // Beams, effects and UI overlays. Rebuilt every frame from game.state / overlay settings.
 
-import { TURRETS, MODIFIER_RANGE, COMBO_RANGE } from '../data/turrets.js';
-import { BLAST_RADIUS } from '../data/combos.js';
-import { DIRECTIONAL } from '../data/rules.js';
-import { KIND_INDEX, KIND_TINT, MOD_TINT } from './atlas.js';
-import { clamp, hash2, fmtCompact, TAU } from './util.js';
-import { rgb, rangeOf, turretColor } from './entities.js';
+import { TURRETS, MODIFIER_RANGE, COMBO_RANGE } from '../data/turrets.ts';
+import { BLAST_RADIUS } from '../data/combos.ts';
+import { DIRECTIONAL } from '../data/rules.ts';
+import { KIND_INDEX, KIND_TINT, MOD_TINT } from './atlas.ts';
+import { clamp, hash2, fmtCompact, TAU } from './util.ts';
+import { rgb, rangeOf, turretColor } from './entities.ts';
 
 const easeOut = (u, p = 3) => 1 - Math.pow(1 - u, p);
 

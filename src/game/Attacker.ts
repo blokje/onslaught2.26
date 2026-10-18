@@ -1,6 +1,6 @@
 // Attacker creation, movement along the path, poison/slow.
-import { WAVES, WEAVE } from '../data/rules.js';
-import { POISON } from '../data/turrets.js';
+import { WAVES, WEAVE } from '../data/rules.ts';
+import { POISON } from '../data/turrets.ts';
 
 /**
  * HP of an attacker in wave n: baseEnergy * hpGrowth^n up to WAVES.lateWave (original), then the growth per wave

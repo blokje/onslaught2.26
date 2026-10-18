@@ -1,7 +1,7 @@
 # OnSlaught2.26
 
 Browser tower-defense game remaking the *mechanics* of a classic 2007 Flash TD game.
-Vite + plain ES modules (JavaScript, no TypeScript, no framework) + three.js 0.160.0.
+Vite + TypeScript (strict, ES modules, no framework) + three.js 0.160.0. Node 22.18+ runs the `.ts` tests directly (type stripping).
 
 ## Hard rules
 
@@ -15,6 +15,7 @@ Vite + plain ES modules (JavaScript, no TypeScript, no framework) + three.js 0.1
 6. **No em dash characters** anywhere: code, comments, UI text, docs.
 7. **Storage** only through `src/ui/storage.js` (prefix `os226.`, try/catch).
 8. **No new dependencies** without asking.
+9. **Typed:** all source is `.ts` with `strict` on. `npm run typecheck` must pass. Only erasable syntax (no `enum`, `namespace` or parameter properties) so Node can strip types; import with the `.ts` extension. Shared shapes live in `src/types.ts`; avoid `any`.
 
 ## Done means
 

@@ -9,15 +9,15 @@
 // atlases generated once, and there are no per-entity three.js objects.
 
 import * as THREE from 'three';
-import { FIELD } from '../data/rules.js';
-import { SpriteBatch, RingBatch } from './batches.js';
-import { buildFxAtlas, buildUnitAtlas, buildTurretAtlases, TextAtlas, cellUV, modIconUV, MOD_KINDS, FX, KIND_INDEX } from './atlas.js';
-import { Terrain } from './terrain.js';
-import { CameraController } from './camera.js';
-import { Particles } from './particles.js';
-import { drawTurrets, drawAttackers, drawProjectiles } from './entities.js';
-import { drawBeams, drawEffects, drawOverlay } from './fxlayer.js';
-import { clamp } from './util.js';
+import { FIELD } from '../data/rules.ts';
+import { SpriteBatch, RingBatch } from './batches.ts';
+import { buildFxAtlas, buildUnitAtlas, buildTurretAtlases, TextAtlas, cellUV, modIconUV, MOD_KINDS, FX, KIND_INDEX } from './atlas.ts';
+import { Terrain } from './terrain.ts';
+import { CameraController } from './camera.ts';
+import { Particles } from './particles.ts';
+import { drawTurrets, drawAttackers, drawProjectiles } from './entities.ts';
+import { drawBeams, drawEffects, drawOverlay } from './fxlayer.ts';
+import { clamp } from './util.ts';
 
 const DEFAULT_OVERLAY = { ghost: null, selectedId: null, hoverId: null, showRanges: 'selected', showCombo: false, joinFromId: null };
 const CLEAR = 0x120e0b;

@@ -1,7 +1,7 @@
 // Stat ladders and the effective-stat formula.
 //   effective = (ladder value + sum of flat adds) * max(0.2, 1 + sum of multiplier bonuses)
 // Freak-out ADDS its multipliers to the sums (damage +3, rate +4), like the original.
-import { TURRETS, MODIFIER_RANGE, FREAKOUT } from '../data/turrets.js';
+import { TURRETS, MODIFIER_RANGE, FREAKOUT } from '../data/turrets.ts';
 
 export const STATS = ['damage', 'range', 'rate'];
 

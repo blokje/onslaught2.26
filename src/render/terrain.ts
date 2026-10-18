@@ -7,10 +7,10 @@
 //   - the field frame + vignette.
 
 import * as THREE from 'three';
-import { FIELD } from '../data/rules.js';
-import { SpriteBatch } from './batches.js';
-import { FX, cellUV } from './atlas.js';
-import { mulberry32, clamp, TAU } from './util.js';
+import { FIELD } from '../data/rules.ts';
+import { SpriteBatch } from './batches.ts';
+import { FX, cellUV } from './atlas.ts';
+import { mulberry32, clamp, TAU } from './util.ts';
 
 const PPU = 2;          // texels per world unit (ground + distance field)
 const MARGIN = 100;     // backdrop extends this far beyond the field on every side

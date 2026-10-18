@@ -3,10 +3,10 @@
 // attackers walk the chosen map path, every turret kind is placed (plus a combo cluster), turrets
 // aim and shoot (projectiles + beams), and every effect kind cycles.
 
-import { MAPS } from '../data/maps.js';
-import { TURRETS, BUILD_ORDER, COMBO_RANGE, MODIFIER_RANGE } from '../data/turrets.js';
-import { FIELD } from '../data/rules.js';
-import { mulberry32 } from './util.js';
+import { MAPS } from '../data/maps.ts';
+import { TURRETS, BUILD_ORDER, COMBO_RANGE, MODIFIER_RANGE } from '../data/turrets.ts';
+import { FIELD } from '../data/rules.ts';
+import { mulberry32 } from './util.ts';
 
 const BASE_W = FIELD.baseSize[0], BASE_H = FIELD.baseSize[1];
 

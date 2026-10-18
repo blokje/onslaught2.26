@@ -40,23 +40,25 @@
 // the combo module moves them (set x/y) and kills them (killAttacker) when the hole closes.
 // ---------------------------------------------------------------------------------------------
 
-import { FIELD, WAVES, DIFFICULTIES, MODES, SPEEDS, TARGET_MODES, DIRECTIONAL } from '../data/rules.js';
-import { MAPS } from '../data/maps.js';
+import { FIELD, WAVES, DIFFICULTIES, MODES, SPEEDS, TARGET_MODES, DIRECTIONAL } from '../data/rules.ts';
+import { MAPS } from '../data/maps.ts';
 import {
   TURRETS, SELL_REFUND, MOVE_COST, TURRET_SIZE, COMBO_RANGE, FREAKOUT,
-} from '../data/turrets.js';
-import { BLAST_RADIUS } from '../data/combos.js';
-import { RNG } from './rng.js';
-import { Emitter } from './events.js';
-import { Path } from './Path.js';
-import { SpatialGrid } from './grid.js';
-import { Turret, assignSafe } from './Turret.js';
-import { emptyMods, addMod, computeStats, nextUpgradeCost, modRangeAt, STATS } from './modifiers.js';
-import { createAttacker, moveAttackers, applyPoison } from './Attacker.js';
-import { startWave, updateSpawners } from './Waves.js';
-import { stepTurret, chainBonus, releaseOrbiter } from './weapons.js';
-import { updateProjectiles } from './projectiles.js';
-import { Combos } from './combos.js';
+} from '../data/turrets.ts';
+import { BLAST_RADIUS } from '../data/combos.ts';
+import { RNG } from './rng.ts';
+import { Emitter } from './events.ts';
+import { Path } from './Path.ts';
+import { SpatialGrid } from './grid.ts';
+import { Turret, assignSafe } from './Turret.ts';
+import { emptyMods, addMod, computeStats, nextUpgradeCost, modRangeAt, STATS } from './modifiers.ts';
+import { createAttacker, moveAttackers, applyPoison } from './Attacker.ts';
+import { startWave, updateSpawners } from './Waves.ts';
+import { stepTurret, chainBonus, releaseOrbiter } from './weapons.ts';
+import { updateProjectiles } from './projectiles.ts';
+import type { Attacker, GameOptions, GameState, Projectile } from '../types.ts';
+import type { Spawner } from './Waves.ts';
+import { Combos } from './combos.ts';
 
 export const STEP_MS = 1000 / 60;
 // Seed used when opts.seed is missing (src/game must not call Math.random). Callers that want a
@@ -71,8 +73,34 @@ const MAX_EFFECTS = 300;
 const DIRECTIONAL_ORDER = Object.keys(DIRECTIONAL); // D cycle order
 const COMBO_COLORS = ['red', 'green', 'blue', 'yellow'];
 
+export interface GameOpts {
+  mapId: string; difficulty: string; mode: string; unlockAll: boolean;
+  seed: number; waveInterval: number | null;
+}
+
 export class Game {
-  constructor(options = {}) {
+  opts: GameOpts;
+  rng: RNG;
+  events: Emitter;
+  nextId: number;
+  acc: number;
+  stepCount: number;
+  _focusId: number | null;
+  spawners: Spawner[];
+  hpGrowth: number;
+  waveInterval: number;
+  path: Path;
+  grid: SpatialGrid;
+  turretMap: Map<number, Turret>;
+  attackerMap: Map<number, Attacker>;
+  _acqBuf: Attacker[];
+  _projBuf: Projectile[];
+  _blastBuf: Attacker[];
+  state: GameState;
+  _nextUnlock: number;
+  combos: Combos;
+
+  constructor(options: GameOptions = {}) {
     const o = { mapId: 'map1', difficulty: 'medium', mode: 'normal', unlockAll: false, ...options };
     const map = MAPS.find((m) => m.id === o.mapId);
     if (!map) throw new Error(`Unknown map: ${o.mapId}`);

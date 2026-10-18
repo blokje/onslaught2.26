@@ -1,12 +1,12 @@
 // Balance tooling for the new content (5 extra weapons, 4 new combos, difficulty, unlock thresholds).
 // Pure headless: drives src/game/Game.js in Node. Nothing here touches the game code.
 //
-//   node scripts/balance.mjs dps          cost efficiency of every weapon (single turret DPS vs originals)
-//   node scripts/balance.mjs combos       damage of all 20 combos (one shot per recharge, and a marching stream)
-//   node scripts/balance.mjs difficulty   greedy bot on maps 1, 4, 9 at every difficulty (wave reached)
-//   node scripts/balance.mjs unlock       wave at which a medium game reaches each unlock threshold
-//   node scripts/balance.mjs late         combo bot (Green+Red+Blue clusters, strongest bot) per difficulty: late-game wall
-//   node scripts/balance.mjs all
+//   node scripts/balance.ts dps          cost efficiency of every weapon (single turret DPS vs originals)
+//   node scripts/balance.ts combos       damage of all 20 combos (one shot per recharge, and a marching stream)
+//   node scripts/balance.ts difficulty   greedy bot on maps 1, 4, 9 at every difficulty (wave reached)
+//   node scripts/balance.ts unlock       wave at which a medium game reaches each unlock threshold
+//   node scripts/balance.ts late         combo bot (Green+Red+Blue clusters, strongest bot) per difficulty: late-game wall
+//   node scripts/balance.ts all
 //
 // Method notes (kept in the code so results are reproducible):
 //  * DPS: one build is simulated alone (the engine is deterministic and independent turrets do not interact, apart
@@ -17,11 +17,11 @@
 //    because its piercing depends on reach) among all level triples that fit the budget and a minimum range.
 //  * Blue/Yellow freak-out is NOT in the raw simulation window (first freak after 60 s); the "avg" column adds the
 //    expected freak-out uptime analytically (see freakFactor).
-import { Game, STEP_MS } from '../src/game/Game.js';
-import { TURRETS } from '../src/data/turrets.js';
-import { COMBOS } from '../src/data/combos.js';
-import { DIFFICULTIES, FIELD } from '../src/data/rules.js';
-import { MAPS } from '../src/data/maps.js';
+import { Game, STEP_MS } from '../src/game/Game.ts';
+import { TURRETS } from '../src/data/turrets.ts';
+import { COMBOS } from '../src/data/combos.ts';
+import { DIFFICULTIES, FIELD } from '../src/data/rules.ts';
+import { MAPS } from '../src/data/maps.ts';
 
 const fmt = (x) => {
   if (!isFinite(x)) return String(x);
@@ -333,7 +333,7 @@ function combosReport() {
   for (const [id, refs] of pairs) console.log(pad(id, 14) + 'vs ' + pad(refs.join('+'), 24) + ['single', 'pack', 'walk'].map((k) => rpad(ratio(id, refs, k), 7)).join(''));
 }
 
-// ------------------------------------------------------------------ greedy bot (adapted from sim-test.mjs)
+// ------------------------------------------------------------------ greedy bot (adapted from sim-test.ts)
 function bestSpots(mapId, count, spacing = 46, radius = 110) {
   const probe = new Game({ mapId, mode: 'sandbox', seed: 1 });
   const road = probe.roadPoints();

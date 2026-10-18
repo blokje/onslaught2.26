@@ -1,5 +1,5 @@
 // Target acquisition and validation (modes, directional cones).
-import { DIRECTIONAL } from '../data/rules.js';
+import { DIRECTIONAL } from '../data/rules.ts';
 
 const TAU = Math.PI * 2;
 

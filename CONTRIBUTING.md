@@ -32,7 +32,7 @@ Setup: `npm install` needs Node.js ^20.19.0 or >=22.12.0 (required by Vite 8).
   in code, sound is synthesized. Ask before adding any asset file.
 - **Layers stay separate:** `src/data` → `src/game` (pure logic, runs in Node) → `src/render` (three.js, read-only)
   and `src/ui` (DOM, input, storage, audio).
-- **Plain JavaScript**, ES modules, no TypeScript, no framework, no new dependencies without discussing first.
+- **TypeScript** (`strict`), ES modules, no framework, no new dependencies without discussing first. Run `npm run typecheck`.
 - **No em dash characters** in code, comments, UI text or docs.
 
 ## Common tasks

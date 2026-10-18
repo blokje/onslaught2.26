@@ -6,8 +6,8 @@
 //   - middle / right button drag (pan), context menu suppressed,
 //   - two touch pointers (pinch zoom + two-finger pan).
 
-import { FIELD } from '../data/rules.js';
-import { clamp } from './util.js';
+import { FIELD } from '../data/rules.ts';
+import { clamp } from './util.ts';
 
 export const ZOOM_MIN = 0.5, ZOOM_MAX = 4;
 

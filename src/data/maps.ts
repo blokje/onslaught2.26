@@ -1,6 +1,8 @@
 // Waypoint data recovered from the original game (plain coordinates in a 720 x 450 field).
 // base = top-left corner of the 126 x 82 base footprint.
-export const MAPS = [
+import type { MapDef } from '../types.ts';
+
+export const MAPS: MapDef[] = [
  {
   "id": "map1",
   "name": "Classic",

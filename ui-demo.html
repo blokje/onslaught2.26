@@ -13,30 +13,6 @@
 <body>
   <div id="game"></div>
   <div id="ui"></div>
-  <script type="module">
-    import { App } from './src/ui/App.js';
-    import { createMockGame, restoreMockGame, MockRenderer } from './src/ui/mock.js';
-
-    const renderer = new MockRenderer(document.getElementById('game'));
-    const app = new App(document.getElementById('ui'), {
-      createGame: (opts) => createMockGame(opts),
-      restoreGame: (save) => restoreMockGame(save),
-      renderer,
-    });
-    // handy in the console: app.game.cheat(1e6, 2000) gives cash and kills (unlocks turrets)
-    window.app = app;
-    window.renderer = renderer;
-
-    let last = performance.now();
-    function frame(now) {
-      const dt = Math.min(now - last, 100);
-      last = now;
-      if (app.game) app.game.update(dt);
-      renderer.render(dt);
-      app.frame(dt);
-      requestAnimationFrame(frame);
-    }
-    requestAnimationFrame(frame);
-  </script>
+  <script type="module" src="/src/ui/ui-demo.ts"></script>
 </body>
 </html>

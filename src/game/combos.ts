@@ -8,11 +8,11 @@
 // State kept here (all JSON-able, saved by serialize/deserialize): black holes, napalm / poison zones and
 // shockwaves. Mines, rockets, plasma balls and bomblets are ordinary projectiles with a `tag` and a `data`
 // object, so the engine already saves them. Only the cached mine road points are dropped.
-import { COMBOS, MINE, COMBO_LOG_MAX } from '../data/combos.js';
-import { COMBO_RANGE } from '../data/turrets.js';
-import { ladderValue } from './modifiers.js';
-import { impact } from './projectiles.js';
-import { applyPoison, laneOffset } from './Attacker.js';
+import { COMBOS, MINE, COMBO_LOG_MAX } from '../data/combos.ts';
+import { COMBO_RANGE } from '../data/turrets.ts';
+import { ladderValue } from './modifiers.ts';
+import { impact } from './projectiles.ts';
+import { applyPoison, laneOffset } from './Attacker.ts';
 
 const COLORS = ['red', 'green', 'blue', 'yellow'];
 const RECIPES = {};

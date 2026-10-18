@@ -1,10 +1,10 @@
 // Test harness: a fake Game (implements the ARCHITECTURE.md section 1 API with fake, simple rules)
 // and a 2D canvas MockRenderer (implements the section 2 API). Used by ui-demo.html only.
-import { MAPS } from '../data/maps.js';
-import { TURRETS, BUILD_ORDER, MODIFIER_RANGE, SELL_REFUND, MOVE_COST, TURRET_SIZE, COMBO_RANGE } from '../data/turrets.js';
-import { DIFFICULTIES, MODES, WAVES, TARGET_MODES, DIRECTIONAL } from '../data/rules.js';
-import { waveHp, waveBounty } from '../game/Attacker.js';
-import { COMBOS, COMBO_LOG_MAX } from '../data/combos.js';
+import { MAPS } from '../data/maps.ts';
+import { TURRETS, BUILD_ORDER, MODIFIER_RANGE, SELL_REFUND, MOVE_COST, TURRET_SIZE, COMBO_RANGE } from '../data/turrets.ts';
+import { DIFFICULTIES, MODES, WAVES, TARGET_MODES, DIRECTIONAL } from '../data/rules.ts';
+import { waveHp, waveBounty } from '../game/Attacker.ts';
+import { COMBOS, COMBO_LOG_MAX } from '../data/combos.ts';
 
 const STATS = ['damage', 'range', 'rate'];
 const DIR_MODES = Object.keys(DIRECTIONAL);

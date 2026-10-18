@@ -1,9 +1,9 @@
 // Per-frame drawing of turrets, attackers and projectiles into the shared batches.
 // Everything is rebuilt each frame from game.state (cheap: a few hundred instances).
 
-import { TURRETS, TURRET_SIZE } from '../data/turrets.js';
-import { KIND_INDEX, KIND_TINT, COMBO_COLOR, MOD_TINT } from './atlas.js';
-import { clamp, hex, hash2, TAU } from './util.js';
+import { TURRETS, TURRET_SIZE } from '../data/turrets.ts';
+import { KIND_INDEX, KIND_TINT, COMBO_COLOR, MOD_TINT } from './atlas.ts';
+import { clamp, hex, hash2, TAU } from './util.ts';
 
 const rgbCache = new Map();
 export function rgb(c) {

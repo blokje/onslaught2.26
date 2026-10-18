@@ -1,9 +1,9 @@
-// Headless simulation tests for src/game. Run: node scripts/sim-test.mjs
-import { Game, STEP_MS } from '../src/game/Game.js';
-import { TURRETS } from '../src/data/turrets.js';
-import { MAPS } from '../src/data/maps.js';
-import { DIFFICULTIES, WAVES, WEAVE } from '../src/data/rules.js';
-import { waveHp, waveBounty, laneOffset } from '../src/game/Attacker.js';
+// Headless simulation tests for src/game. Run: node scripts/sim-test.ts
+import { Game, STEP_MS } from '../src/game/Game.ts';
+import { TURRETS } from '../src/data/turrets.ts';
+import { MAPS } from '../src/data/maps.ts';
+import { DIFFICULTIES, WAVES, WEAVE } from '../src/data/rules.ts';
+import { waveHp, waveBounty, laneOffset } from '../src/game/Attacker.ts';
 
 let failures = 0;
 function check(name, cond, extra = '') {

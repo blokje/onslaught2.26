@@ -1,9 +1,9 @@
 // Main menu screen.
-import { h } from './dom.js';
-import { MAPS } from '../data/maps.js';
-import { DIFFICULTIES, MODES } from '../data/rules.js';
-import { LOCK_SVG } from './icons.js';
-import * as storage from './storage.js';
+import { h } from './dom.ts';
+import { MAPS } from '../data/maps.ts';
+import { DIFFICULTIES, MODES } from '../data/rules.ts';
+import { LOCK_SVG } from './icons.ts';
+import * as storage from './storage.ts';
 
 const FIELD_W = 720;
 const FIELD_H = 450;

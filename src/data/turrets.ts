@@ -4,11 +4,13 @@
 // Ladders: each entry is [cost, newValue]. Level 0 = base stat; level n = ladder[n-1][1].
 // rate is shots per minute (fire interval ms = 60000 / rate).
 
-export const KEYS = ['blue', 'green', 'red', 'yellow'];
+import type { KeyColor, LadderStep, TurretDef } from '../types.ts';
 
-const L = (pairs) => pairs.map(([c, v]) => ({ cost: c, value: v }));
+export const KEYS: KeyColor[] = ['blue', 'green', 'red', 'yellow'];
 
-export const TURRETS = {
+const L = (pairs: [number, number][]): LadderStep[] => pairs.map(([c, v]) => ({ cost: c, value: v }));
+
+export const TURRETS: Record<string, TurretDef> = {
   blue: {
     name: 'Cannon', color: 'blue', category: 'weapon', cost: 10, hotkey: '1',
     base: { damage: 15, range: 130, rate: 100 },
@@ -138,5 +140,5 @@ export const TURRET_SIZE = 44;          // footprint (diameter) for placement ch
 export const COMBO_RANGE = 70;          // centre-to-centre distance for combo partners
 export const FREAKOUT = { warn: 3000, length: 5000, damageMult: 3, rateMult: 4, space: 80000, first: 60000 };
 export const POISON = { minSpeed: 5, recoverPerSec: 2 };
-export const BUILD_ORDER = ['blue', 'green', 'red', 'yellow', 'rangeUp', 'damageUp', 'rateUpEx', 'rangeUpEx',
+export const BUILD_ORDER: string[] = ['blue', 'green', 'red', 'yellow', 'rangeUp', 'damageUp', 'rateUpEx', 'rangeUpEx',
   'rateUp', 'damageUpBig', 'damageUpBigEx', 'targeter', 'sniper', 'fusion', 'railgun', 'comboOnly'];

@@ -1,6 +1,6 @@
 // Per-turret behaviour each simulation step: cooldown, target upkeep, firing, and the weapon kinds.
-import { TURRETS } from '../data/turrets.js';
-import { acquire, targetValid } from './targeting.js';
+import { TURRETS } from '../data/turrets.ts';
+import { acquire, targetValid } from './targeting.ts';
 
 const SHELL = { speed: 900, impact: 8 };
 const ROCKET = { speed: 250, turn: (270 * Math.PI) / 180, impact: 10, ttl: 12000 };

@@ -8,11 +8,13 @@
 // Blast radii: small 40, medium 60, large 80, huge 87.5, bfg 87.5, poison 110.
 
 // How many recent combos each turret remembers (comboLog, shown in the panel's Combos tab).
+import type { BlastSize, ComboRecipe, KeyColor } from '../types.ts';
+
 export const COMBO_LOG_MAX = 5;
 
-export const BLAST_RADIUS = { small: 40, medium: 60, large: 80, huge: 87.5, bfg: 87.5, poison: 110 };
+export const BLAST_RADIUS: Record<BlastSize, number> = { small: 40, medium: 60, large: 80, huge: 87.5, bfg: 87.5, poison: 110 };
 
-export const COMBOS = {
+export const COMBOS: Record<KeyColor, ComboRecipe[]> = {
   red: [
     { id: 'napalm', name: 'Napalm Rocket', isNew: true, needs: { red: 1, blue: 1, yellow: 1 }, recharge: 8000,
       fx: { projectile: 'napalmRocket', speed: 150, hit: 8e6, napalm: { length: 160, duration: 4000, dps: 1.1e7 } } },

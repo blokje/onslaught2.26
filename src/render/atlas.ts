@@ -9,8 +9,8 @@
 //   tWeapon   16 turret weapons, drawn pointing +x (cell = 64 world units)
 
 import * as THREE from 'three';
-import { BUILD_ORDER } from '../data/turrets.js';
-import { mulberry32, TAU } from './util.js';
+import { BUILD_ORDER } from '../data/turrets.ts';
+import { mulberry32, TAU } from './util.ts';
 
 const SIZE = 1024, CELL = 256, COLS = 4;
 

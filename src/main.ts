@@ -1,6 +1,6 @@
-import { Game } from './game/Game.js';
-import { Renderer } from './render/Renderer.js';
-import { App } from './ui/App.js';
+import { Game } from './game/Game.ts';
+import { Renderer } from './render/Renderer.ts';
+import { App } from './ui/App.ts';
 
 let renderer = null;
 let app = null;

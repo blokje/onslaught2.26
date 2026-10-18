@@ -1,9 +1,9 @@
-// Combo tests. Run: node scripts/combo-test.mjs
+// Combo tests. Run: node scripts/combo-test.ts
 // For each of the 20 recipes: build lead + partners (sandbox cash), upgrade everything to max, run the sim and
 // check that the right combo fires, recharge is applied, damage is dealt and the specific behaviour happens.
-import { Game, STEP_MS } from '../src/game/Game.js';
-import { laneOffset } from '../src/game/Attacker.js';
-import { COMBOS, MINE, COMBO_LOG_MAX } from '../src/data/combos.js';
+import { Game, STEP_MS } from '../src/game/Game.ts';
+import { laneOffset } from '../src/game/Attacker.ts';
+import { COMBOS, MINE, COMBO_LOG_MAX } from '../src/data/combos.ts';
 
 let failures = 0;
 function check(name, cond, extra = '') {

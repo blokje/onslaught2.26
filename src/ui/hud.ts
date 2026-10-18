@@ -1,11 +1,11 @@
 // In-game HUD: top bar, build rack, selected turret panel, message log, toasts, feedback effects.
 // Dynamic values are updated through cached setters so the DOM is only touched when something changes.
-import { h, setText, setClass, setProp, show } from './dom.js';
-import { TURRETS, BUILD_ORDER, SELL_REFUND, MOVE_COST, FREAKOUT } from '../data/turrets.js';
-import { SPEEDS, TARGET_MODES } from '../data/rules.js';
-import { iconSvg, LOCK_SVG } from './icons.js';
-import { formatNum, formatCash, formatTime } from './format.js';
-import { COMBOS } from '../data/combos.js';
+import { h, setText, setClass, setProp, show } from './dom.ts';
+import { TURRETS, BUILD_ORDER, SELL_REFUND, MOVE_COST, FREAKOUT } from '../data/turrets.ts';
+import { SPEEDS, TARGET_MODES } from '../data/rules.ts';
+import { iconSvg, LOCK_SVG } from './icons.ts';
+import { formatNum, formatCash, formatTime } from './format.ts';
+import { COMBOS } from '../data/combos.ts';
 
 const TARGET_NAMES = { near: 'Nearest', far: 'Furthest', weak: 'Weakest', strong: 'Strongest', slow: 'Slowest', fast: 'Fastest', oldest: 'Oldest', newest: 'Newest' };
 const DIR_NAMES = { normal: 'All around', wide: 'Wide 180', medium: 'Medium 90', tight: 'Tight 60', small: 'Narrow 45', pinpoint: 'Pinpoint 30' };

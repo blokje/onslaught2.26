@@ -1,10 +1,10 @@
 // Content builders for modal dialogs: settings, how to play, high scores, game over, in-game menu.
-import { h } from './dom.js';
-import { MAPS } from '../data/maps.js';
-import { DIFFICULTIES, MODES } from '../data/rules.js';
-import { formatNum } from './format.js';
-import { TURRETS, FREAKOUT } from '../data/turrets.js';
-import * as storage from './storage.js';
+import { h } from './dom.ts';
+import { MAPS } from '../data/maps.ts';
+import { DIFFICULTIES, MODES } from '../data/rules.ts';
+import { formatNum } from './format.ts';
+import { TURRETS, FREAKOUT } from '../data/turrets.ts';
+import * as storage from './storage.ts';
 
 const kbd = (t) => h('span', { class: 'os-kbd' }, t);
 

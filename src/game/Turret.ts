@@ -1,19 +1,57 @@
 // Turret entity. A plain data object (own fields only, no back references) so it can be
 // JSON-serialised as is. Public fields follow ARCHITECTURE.md 1.1; extras are documented below.
-import { TURRETS } from '../data/turrets.js';
-import { maxLevels, modRangeAt } from './modifiers.js';
+import { TURRETS } from '../data/turrets.ts';
+import { maxLevels, modRangeAt } from './modifiers.ts';
+import type {
+  Category, ComboLogEntry, DirectionalMode, FreakStage, KeyColor, StatValues, TargetMode, TurretState,
+} from '../types.ts';
 
 /** Object.assign that skips keys able to rewrite the prototype (used for untrusted saves). */
-export function assignSafe(target, src) {
+export function assignSafe<T extends object>(target: T, src: object): T {
   for (const k of Object.keys(src)) {
     if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
-    target[k] = src[k];
+    (target as Record<string, unknown>)[k] = (src as Record<string, unknown>)[k];
   }
   return target;
 }
 
-export class Turret {
-  constructor(id, kind, x, y) {
+export class Turret implements TurretState {
+  id: number;
+  kind: string;
+  kills: number;
+  x: number;
+  y: number;
+  angle: number;
+  levels: StatValues;
+  maxLevels: StatValues;
+  stats: StatValues;
+  cashValue: number;
+  comboCapable: boolean;
+  comboReady: boolean;
+  freak: FreakStage;
+  holding: number;
+  links: number[];
+  targetMode: TargetMode;
+  locked: boolean;
+  targetId: number | null;
+  directional: { mode: DirectionalMode; angle: number };
+  joinedTo: number | null;
+  comboColor: KeyColor | null;
+  modRange: number;
+  category: Category;
+  color: KeyColor | null;
+  cd: number;
+  comboNext: number;
+  damageMult: number;
+  freakAt: number;
+  targeterId: number | null;
+  ramp: number;
+  rampTarget: number | null;
+  combosFired: number;
+  combosAssisted: number;
+  comboLog: ComboLogEntry[];
+
+  constructor(id: number, kind: string, x: number, y: number) {
     const def = TURRETS[kind];
     this.id = id;
     this.kind = kind;
@@ -52,11 +90,11 @@ export class Turret {
     this.comboLog = [];               // [{ id, time, role: 'lead'|'partner' }], newest first, max COMBO_LOG_MAX
   }
 
-  static fromJSON(o) {
+  static fromJSON(o: Record<string, any>): Turret {
     const t = new Turret(o.id, o.kind, o.x, o.y);
     assignSafe(t, o);
     return t;
   }
 }
 
-const KEYS_COLOR = { red: 1, green: 1, blue: 1, yellow: 1 };
+const KEYS_COLOR: Record<string, number> = { red: 1, green: 1, blue: 1, yellow: 1 };

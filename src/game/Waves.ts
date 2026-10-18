@@ -1,9 +1,13 @@
 // Wave scheduling: wave n has WAVES.size attackers, WAVES.spacing ms apart.
-import { WAVES } from '../data/rules.js';
-import { createAttacker } from './Attacker.js';
+import { WAVES } from '../data/rules.ts';
+import { createAttacker } from './Attacker.ts';
+import type { Game } from './Game.ts';
+
+/** A wave being spawned: `left` attackers to go, next one in `t` ms. */
+export interface Spawner { wave: number; left: number; t: number }
 
 /** Advances the wave counter and queues a spawner for the new wave. */
-export function startWave(game) {
+export function startWave(game: Game): void {
   const s = game.state;
   s.wave += 1;
   game.spawners.push({ wave: s.wave, left: WAVES.size, t: 0 });
@@ -11,7 +15,7 @@ export function startWave(game) {
 }
 
 /** Spawns due attackers from every active spawner and drops spawners that are finished. */
-export function updateSpawners(game, dt) {
+export function updateSpawners(game: Game, dt: number): void {
   const sp = game.spawners;
   for (let i = 0; i < sp.length; i++) {
     const w = sp[i];

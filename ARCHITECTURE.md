@@ -3,7 +3,8 @@
 Read `SPEC.md` for the rules. This file fixes the interfaces between the three layers so they can be
 built independently. **Do not change these interfaces without the coordinator's OK.** Adding optional fields is fine.
 
-Stack: Vite + plain ES modules (JavaScript, no TypeScript, no framework) + three.js (`three@0.160.0`).
+Stack: Vite + TypeScript (`strict`, ES modules, no framework) + three.js (`three@0.160.0`, types from `@types/three`).
+The shapes in this contract are also declared as TypeScript types in `src/types.ts`; keep both in sync.
 Data lives in `src/data/` (read-only for all layers): `maps.js`, `turrets.js`, `combos.js`, `rules.js`.
 
 ```
