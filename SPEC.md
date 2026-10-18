@@ -192,7 +192,7 @@ Nine maps plus a tutorial layout. Coordinates are waypoint polylines in the 720 
 | 9 | Lyne | a single diagonal line (the famous "Lyne" map) |
 | T | How to Play | simple U-shape |
 
-The exact waypoint lists have been recovered and are in `src/data/maps.js` (plain coordinates).
+The exact waypoint lists have been recovered and are in `src/data/maps.ts` (plain coordinates).
 
 ## 8. Controls [ORIG + SITE]
 

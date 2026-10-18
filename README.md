@@ -21,7 +21,7 @@ No original code is used. The game was rebuilt from how it plays: all code, art 
 
 ## Play
 
-Requires Node.js 20.19 or newer (^20.19.0 or >=22.12.0, needed by Vite 8).
+Requires Node.js 22.18 or newer (runs the TypeScript tests directly by stripping types; Vite 8 also needs 22.12+).
 
 ```bash
 npm install

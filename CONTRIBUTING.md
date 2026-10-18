@@ -5,7 +5,7 @@ A change without documentation updates is not finished and will not be merged.
 
 ## The workflow
 
-Setup: `npm install` needs Node.js ^20.19.0 or >=22.12.0 (required by Vite 8).
+Setup: `npm install` needs Node.js 22.18 or newer (type stripping for the `.ts` tests; Vite 8 needs 22.12+).
 
 1. **Read** [CLAUDE.md](CLAUDE.md) (hard rules, short) and the guide for your area in [docs/claude/](docs/claude/).
 2. **Write the intent first.** Update the doc that describes what you are changing:
@@ -14,8 +14,9 @@ Setup: `npm install` needs Node.js ^20.19.0 or >=22.12.0 (required by Vite 8).
 3. **Build it** against that doc. If you have to deviate, change the doc too.
 4. **Test it.**
    ```bash
-   node scripts/sim-test.mjs
-   node scripts/combo-test.mjs
+   node scripts/sim-test.ts
+   node scripts/combo-test.ts
+   npm run typecheck
    npm run build
    ```
    For anything visual, play it in the browser (`npm run dev`) and check the console for errors.

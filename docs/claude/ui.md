@@ -6,15 +6,15 @@ DOM overlay over the canvas, input, persistence and audio. Contract: `ARCHITECTU
 
 | File | Role |
 |---|---|
-| `App.js` | Orchestrator: screens, input modes (build, move, join, focus), game events, autosave, unlock checks. `main.js` reads `app.game` every frame. |
-| `menu.js` | Main menu with a 2D path preview per map, difficulty, mode, Continue. |
-| `hud.js` | Top bar, build rack, selected-turret panel, message log, toasts, leak flash, error bubble. Values update through cached setters at about 10 Hz. The selected-turret panel is tabbed (see below). |
-| `dialogs.js` | Settings, how to play, high scores, game over, in-game menu. |
-| `storage.js` | All persistence, prefix `os226.`, try/catch with an in-memory fallback. `getSettings()` sanitises: stored values whose type does not match `DEFAULT_SETTINGS` are dropped. Autosave format `{ v, at, meta, data: game.serialize() }` under `os226.save`. |
-| `audio.js` | Web Audio synthesized SFX, created on the first user gesture, rate limited, master gain plus compressor. |
-| `format.js` | Big numbers: 1,234 then 12.3K, 4.56M, 7.89B, 1.23T, then 1.23e15. |
-| `icons.js`, `dom.js`, `ui.css` | SVG icons, tiny DOM helpers, styles. |
-| `mock.js` | Fake Game and 2D MockRenderer for `/ui-demo.html`. |
+| `App.ts` | Orchestrator: screens, input modes (build, move, join, focus), game events, autosave, unlock checks. `main.ts` reads `app.game` every frame. |
+| `menu.ts` | Main menu with a 2D path preview per map, difficulty, mode, Continue. |
+| `hud.ts` | Top bar, build rack, selected-turret panel, message log, toasts, leak flash, error bubble. Values update through cached setters at about 10 Hz. The selected-turret panel is tabbed (see below). |
+| `dialogs.ts` | Settings, how to play, high scores, game over, in-game menu. |
+| `storage.ts` | All persistence, prefix `os226.`, try/catch with an in-memory fallback. `getSettings()` sanitises: stored values whose type does not match `DEFAULT_SETTINGS` are dropped. Autosave format `{ v, at, meta, data: game.serialize() }` under `os226.save`. |
+| `audio.ts` | Web Audio synthesized SFX, created on the first user gesture, rate limited, master gain plus compressor. |
+| `format.ts` | Big numbers: 1,234 then 12.3K, 4.56M, 7.89B, 1.23T, then 1.23e15. |
+| `icons.ts`, `dom.ts`, `ui.css` | SVG icons, tiny DOM helpers, styles. |
+| `mock.ts` | Fake Game and 2D MockRenderer for `/ui-demo.html`. |
 
 ## Selected-turret panel tabs
 
@@ -58,7 +58,7 @@ The panel is docked top right by CSS, which can cover the road on some maps, so 
 
 - Manual pause: P, the Pause/Resume button, or the in-game menu (Esc). A manual pause never resumes by itself.
 - Auto-pause: setting "Pause when tab is hidden" (`settings.autoPause`, default on). When the tab is hidden a running game is paused and flagged `App._autoPaused`; when the tab is visible again it resumes, but only if it is still paused and the flag is still set. Any manual pause action (P, button, menu, leaving the game) clears the flag, so the game then stays paused.
-- With auto-pause off the game is not marked paused, but browsers stop `requestAnimationFrame` in hidden tabs, so it still does not advance while hidden (one frame is capped at 100 ms in `main.js`).
+- With auto-pause off the game is not marked paused, but browsers stop `requestAnimationFrame` in hidden tabs, so it still does not advance while hidden (one frame is capped at 100 ms in `main.ts`).
 - No wave can start while paused: `game.sendWave()` refuses (`'Game is paused'`, no bonus) and the Send wave button is disabled.
 - Pause overlay (`.os-paused`): full-screen dark tint with "PAUSED" and a hint, `pointer-events: none` and placed below the top bar, side panel and rack so Resume stays clickable. Hidden while a modal is open (the modal layer has its own tint).
 

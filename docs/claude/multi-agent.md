@@ -4,7 +4,7 @@ The project was built by one coordinator agent and several worker agents running
 
 ## Roles
 
-- **Coordinator** (the strongest model): owns `ARCHITECTURE.md`, `SPEC.md`, `src/main.js`, docs and commits. Splits work, writes briefs, validates every report by re-running the tests and checking the browser, integrates, commits.
+- **Coordinator** (the strongest model): owns `ARCHITECTURE.md`, `SPEC.md`, `src/main.ts`, docs and commits. Splits work, writes briefs, validates every report by re-running the tests and checking the browser, integrates, commits.
 - **Workers** (cheaper models for the heavy lifting): implement one area inside the files named in their brief. No commits, no branches, no edits outside their scope; they report out-of-scope needs instead.
 
 ## Splitting work

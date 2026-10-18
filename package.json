@@ -4,13 +4,15 @@
   "version": "0.1.0",
   "type": "module",
   "engines": {
-    "node": "^20.19.0 || >=22.12.0"
+    "node": ">=22.18.0"
   },
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "build:single": "vite build --mode single",
-    "preview": "vite preview"
+    "typecheck": "tsc -p .",
+    "build": "tsc -p . && vite build",
+    "build:single": "tsc -p . && vite build --mode single",
+    "preview": "vite preview",
+    "test": "node scripts/sim-test.ts && node scripts/combo-test.ts"
   },
   "dependencies": {
     "three": "^0.160.0"
