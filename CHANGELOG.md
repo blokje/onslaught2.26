@@ -5,6 +5,11 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
 
 ## Unreleased
 
+### Fixed
+- A rate change (rate upgrade, or a rate modifier built or sold nearby) during a combo recharge no longer shortens or
+  lengthens it: the lead and partners now always stay quiet for exactly the recipe's recharge (Nuke 7.4 s). Normal shot
+  intervals still rescale. New checks in `scripts/sim-test.ts` (d). Docs: `SPEC.md` §6, `docs/claude/simulation.md`.
+
 ### Removed
 - Dead code: unused imports, variables, parameters, exports and unreachable branches across `src/` and `scripts/`,
   among them the `rail`/`sniper` projectile cases in the renderer (both are beams), the never-set ghost angle, the unused

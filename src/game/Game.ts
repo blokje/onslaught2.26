@@ -687,7 +687,8 @@ export class Game {
       }
       const ns = computeStats(t, sum);
       const old = t.stats;
-      if (t.category === 'weapon' && old.rate > 0 && ns.rate > 0 && old.rate !== ns.rate && t.cd > 0) t.cd *= old.rate / ns.rate;
+      // rescale a running shot interval, but never a combo recharge (a fixed time, cd and comboNext run together)
+      if (t.category === 'weapon' && old.rate > 0 && ns.rate > 0 && old.rate !== ns.rate && t.cd > 0 && s.time >= t.comboNext) t.cd *= old.rate / ns.rate;
       old.damage = ns.damage; old.range = ns.range; old.rate = ns.rate;
       t.damageMult = ns.damageMult;
       t.comboCapable = t.kind === 'comboOnly' || (t.category === 'weapon' && t.levels.damage >= t.maxLevels.damage);
