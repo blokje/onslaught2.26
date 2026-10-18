@@ -88,10 +88,12 @@ export class Menu {
         h('p', null, 'Hold the line. Upgrade. Combine. Survive.')));
 
     const maps = h('div', { class: 'os-maps' });
+    let extraNo = 0;
     MAPS.forEach((m, i) => {
+      const label = m.extra ? `E${++extraNo}. ${m.name}` : `${i + 1}. ${m.name}`;
       const cv = h('canvas');
       drawMapPreview(cv, m);
-      const b = h('button', { class: 'os-map', type: 'button', onclick: () => this.pickMap(m.id) }, cv, h('span', null, `${i + 1}. ${m.name}`));
+      const b = h('button', { class: 'os-map', type: 'button', onclick: () => this.pickMap(m.id) }, cv, h('span', null, label));
       this.mapBtns.set(m.id, b);
       maps.append(b);
     });

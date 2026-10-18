@@ -21,6 +21,11 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
   Docs: `CLAUDE.md`, `ARCHITECTURE.md`, `CONTRIBUTING.md`, `README.md`, all `docs/claude/*.md`, the skills in `.claude/skills/`.
 
 ### Added
+- 8 extra maps (`map10` to `map17`, [NEW]): Switchback, Comb, Junction, Perimeter, Staircase, Lightning, Maelstrom and Doorstep,
+  each built around one placement idea. They follow the tutorial in `src/data/maps.ts` (optional `extra` flag on `MapDef`)
+  and appear in the menu as E1 to E8; the map picker is now a 6 x 3 grid. `scripts/sim-test.ts` checks each one: path from a field edge to the
+  base edge, road clear of the base, a 5-turret combo cluster within reach of the road, and a greedy player holding 10 waves on Medium.
+  Docs: `SPEC.md` (7a), `ARCHITECTURE.md`, `README.md`, `docs/claude/data-and-balance.md`, `docs/claude/ui.md`, `docs/claude/testing.md`, `.claude/skills/add-map/SKILL.md`.
 - GitHub Pages deploy: `.github/workflows/pages.yml` runs `npm test` and `npm run build` (typecheck included) on every push to
   `main` and publishes `dist/` to <https://blokje.github.io/ontslaught2.26/>, so the game is playable from a URL.
   Docs: `README.md`, `docs/claude/testing.md`, `.claude/skills/release-build/SKILL.md`.

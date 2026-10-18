@@ -7,7 +7,7 @@ DOM overlay over the canvas, input, persistence and audio. Contract: `ARCHITECTU
 | File | Role |
 |---|---|
 | `App.ts` | Orchestrator: screens, input modes (build, move, join, focus), game events, autosave, unlock checks. `main.ts` reads `app.game` every frame. |
-| `menu.ts` | Main menu with a 2D path preview per map, difficulty, mode, Continue. |
+| `menu.ts` | Main menu with a 2D path preview per map (6 x 3 grid of all 18 maps, extra maps labelled E1 to E8; the grid scrolls if the window is too short), difficulty, mode, Continue. |
 | `hud.ts` | Top bar, build rack, selected-turret panel, message log, toasts, leak flash, error bubble. Values update through cached setters at about 10 Hz. The selected-turret panel is tabbed (see below). |
 | `dialogs.ts` | Settings, how to play, high scores, game over, in-game menu. |
 | `storage.ts` | All persistence, prefix `os226.`, try/catch with an in-memory fallback. `getSettings()` sanitises: stored values whose type does not match `DEFAULT_SETTINGS` are dropped. Autosave format `{ v, at, meta, data: game.serialize() }` under `os226.save`. Exports the types `Settings`, `Unlocks`, `ScoreEntry`, `SaveWrapper`: a new setting goes into both `Settings` and `DEFAULT_SETTINGS`. |

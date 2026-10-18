@@ -423,6 +423,63 @@ function makePlayer(game: Game, spots: Spot[]): () => void {
   if (a) { const c = gm.state.cash; gm.damageAttacker(a, a.hp + 1, null); check('(late) kill pays the late bounty', gm.state.cash - c === waveBounty(130) && paid === waveBounty(130)); }
 }
 
+// ------------------------------------------------------------------ (m) extra maps (SPEC.md section 7a)
+{
+  const extras = MAPS.filter((m) => m.extra);
+  check('(m) 8 extra maps after the original 9 and the tutorial', extras.length === 8 && MAPS.indexOf(extras[0]) === 10
+    && MAPS.slice(0, 10).every((m) => !m.extra));
+  const W = 720, H = 450, BW = 126, BH = 82;
+  /** Distance from (x, y) to the base rectangle (0 inside). */
+  const toBase = (b: [number, number], x: number, y: number): number =>
+    Math.hypot(Math.max(b[0] - x, 0, x - (b[0] + BW)), Math.max(b[1] - y, 0, y - (b[1] + BH)));
+  for (const m of extras) {
+    const p = m.path, b = m.base;
+    const [sx, sy] = p[0], [ex, ey] = p[p.length - 1];
+    const onEdge = sx <= 0 || sx >= W || sy <= 0 || sy >= H;
+    const onBase = toBase(b, ex, ey) <= 1 && (Math.abs(ex - b[0]) <= 1 || Math.abs(ex - b[0] - BW) <= 1
+      || Math.abs(ey - b[1]) <= 1 || Math.abs(ey - b[1] - BH) <= 1);
+    // walk the road (except its last 40 units) and keep it off the base footprint
+    let len = 0, minBase = Infinity;
+    for (let i = 1; i < p.length; i++) len += Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]);
+    let walked = 0;
+    for (let i = 1; i < p.length; i++) {
+      const seg = Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]);
+      for (let d = 0; d < seg; d += 4) {
+        if (walked + d > len - 40) break;
+        const t = d / seg;
+        minBase = Math.min(minBase, toBase(b, p[i - 1][0] + (p[i][0] - p[i - 1][0]) * t, p[i - 1][1] + (p[i][1] - p[i - 1][1]) * t));
+      }
+      walked += seg;
+    }
+    // a plus- or X-shaped 5-turret combo cluster must fit within reach of the road
+    const probe = new Game({ mapId: m.id, mode: 'sandbox', seed: 1 });
+    const road = probe.roadPoints();
+    const shapes = [[[50, 0], [-50, 0], [0, 50], [0, -50]], [[36, 36], [-36, 36], [36, -36], [-36, -36]]];
+    let cover = 0;
+    for (let x = 22; x <= 698; x += 6) for (let y = 22; y <= 428; y += 6) {
+      if (!probe.canBuild('blue', x, y).ok) continue;
+      if (!shapes.some((o) => o.every(([dx, dy]) => probe.canBuild('blue', x + dx, y + dy).ok))) continue;
+      let c = 0;
+      for (const r of road) if ((r.x - x) ** 2 + (r.y - y) ** 2 <= 120 * 120) c++;
+      cover = Math.max(cover, c);
+    }
+    check(`(m) ${m.name}: starts on a field edge, ends on the base edge`, onEdge && onBase, `start ${sx},${sy} end ${ex},${ey}`);
+    check(`(m) ${m.name}: road stays clear of the base until it arrives`, minBase >= 14, `closest ${minBase.toFixed(1)}`);
+    check(`(m) ${m.name}: 5-turret combo cluster fits near the road`, cover >= 60, `cover ${cover} road points`);
+    // a greedy player holds the first 10 waves on Medium
+    const g = new Game({ mapId: m.id, difficulty: 'medium', seed: 11 });
+    const act = makePlayer(g, bestSpots(m.id, 16));
+    g.setSpeed(8);
+    let frames = 0;
+    while (g.state.wave < 11 && !g.state.over && frames < 200000) {
+      g.update(1000 / 60);
+      if (frames % 10 === 0) act();
+      frames++;
+    }
+    check(`(m) ${m.name}: greedy player survives 10 waves on Medium`, !g.state.over && g.state.wave >= 11, `wave ${g.state.wave}, lives ${g.state.lives}`);
+  }
+}
+
 // ------------------------------------------------------------------ (e) serialize round trip
 {
   const mk = () => {

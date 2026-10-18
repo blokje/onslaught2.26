@@ -81,6 +81,8 @@ export interface MapDef {
   name: string;
   base: Point;
   path: Point[];
+  /** [NEW] extra map (SPEC.md 7a): listed after the tutorial, labelled E1, E2, ... in the menu. */
+  extra?: boolean;
 }
 
 export interface DifficultyDef {
