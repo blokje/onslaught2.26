@@ -429,6 +429,51 @@ function makePlayer(game, spots) {
   check('(e) identical via update() at speed 4', JSON.stringify(g1.serialize()) === JSON.stringify(g2.serialize()));
 }
 
+// ------------------------------------------------------------------ (v) input validation
+{
+  const throws = (fn) => { try { fn(); return false; } catch (e) { return /^Invalid save: /.test(e.message); } };
+  const g = new Game({ mapId: 'map1', difficulty: 'medium', seed: 5 });
+  g.state.cash = 1000;
+  const spot = bestSpots('map1', 2);
+  const placed = g.build('blue', spot[0].x, spot[0].y);
+  check('(v) setup turret built', placed.ok === true);
+  const good = g.serialize();
+  const clone = () => JSON.parse(JSON.stringify(good));
+  check('(v) deserialize rejects {}', throws(() => Game.deserialize({})));
+  check('(v) deserialize rejects null', throws(() => Game.deserialize(null)));
+  check('(v) deserialize rejects a wrong version', throws(() => Game.deserialize({ ...clone(), version: 999 })));
+  check('(v) deserialize rejects non-array turrets', throws(() => Game.deserialize({ ...clone(), turrets: {} })));
+  const badKind = clone(); badKind.turrets[0].kind = 'constructor';
+  check('(v) deserialize rejects an unknown turret kind', throws(() => Game.deserialize(badKind)));
+  const nan = clone(); nan.state.cash = 'lots';
+  check('(v) deserialize rejects a non-finite cash', throws(() => Game.deserialize(nan)));
+  const proto = JSON.parse(JSON.stringify(good).replace('"kind":"blue"', '"kind":"blue","__proto__":{"evil":1}'));
+  const gp = Game.deserialize(proto);
+  const tp = gp.state.turrets[0];
+  check('(v) a __proto__ key does not change the restored turret prototype',
+    Object.getPrototypeOf(tp) === Object.getPrototypeOf(g.state.turrets[0]) && tp.evil === undefined);
+  const rt = Game.deserialize(clone());
+  check('(v) normal round trip still works', JSON.stringify(rt.serialize()) === JSON.stringify(good));
+
+  const cash0 = g.state.cash, n0 = g.state.turrets.length;
+  for (const k of ['constructor', 'toString', '__proto__']) {
+    const r = g.build(k, spot[1].x, spot[1].y);
+    check(`(v) build('${k}') fails`, r.ok === false && g.state.cash === cash0 && g.state.turrets.length === n0);
+  }
+  check('(v) build with string coordinates fails', g.build('blue', '300', '300').ok === false && g.state.cash === cash0);
+  check('(v) build with NaN coordinates fails', g.build('blue', NaN, 300).ok === false && g.state.cash === cash0);
+  check('(v) move with non-number coordinates fails', g.move(g.state.turrets[0].id, '350', 300).ok === false && g.state.cash === cash0);
+
+  const wi = g.waveInterval;
+  for (const bad of [0, -5, NaN, Infinity, 999, '5000', undefined]) {
+    check(`(v) setWaveInterval(${String(bad)}) fails and changes nothing`, g.setWaveInterval(bad).ok === false && g.waveInterval === wi);
+  }
+  check('(v) setWaveInterval(5000) works', g.setWaveInterval(5000).ok === true && g.waveInterval === 5000);
+
+  const d1 = new Game({ mapId: 'map1' }), d2 = new Game({ mapId: 'map1' });
+  check('(v) default seed is fixed', d1.rng.s === d2.rng.s);
+}
+
 // ------------------------------------------------------------------ (e2) no early wave while paused
 {
   const g = new Game({ mapId: 'map1', difficulty: 'medium', seed: 5 });

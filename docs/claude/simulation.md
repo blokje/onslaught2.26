@@ -9,7 +9,7 @@ Pure logic, runs in Node and the browser. Contract: `ARCHITECTURE.md` section 1.
 | `Game.js` | Core: state, commands, events, unlocks, placement, economy, modifier/link recompute, freak-out scheduler, serialize/deserialize. The comment block at the top documents the helper API used by combos. |
 | `Path.js` | Polyline road: length, `at(d)`, `place(obj, d, lateral = 0)` (O(1) cursor per attacker; `lateral` shifts left of the travel direction, normal blended over up to 20 units either side of a waypoint (at most half of each neighbouring segment, precomputed in `blend[]`) so corners stay smooth), `distanceTo(x, y)`, `samples(4)` road points. |
 | `Waves.js` | Wave start and the spawner (10 per wave, 700 ms apart). Waves may overlap. |
-| `Attacker.js` | Creation, `waveHp(n, growth) = 10 * growth^n`, movement, sideways weave (`laneOffset(a)`, a pure function of `progress` and the spawn-time `weave` params, so knockback and saves stay consistent; anything that calls `path.place` on an attacker must pass it), poison and recovery, leak detection. |
+| `Attacker.js` | Creation, `waveHp(n, growth) = 10 * growth^n` up to `WAVES.lateWave`, then the slower late growth (see `data-and-balance.md`), movement, sideways weave (`laneOffset(a)`, a pure function of `progress` and the spawn-time `weave` params, so knockback and saves stay consistent; anything that calls `path.place` on an attacker must pass it), poison and recovery, leak detection. |
 | `Turret.js` | Plain data class (JSON-able, no back references). |
 | `modifiers.js` | Ladders, `maxLevels`, upgrade costs, effective-stat formula. |
 | `targeting.js` | 8 target modes, directional cones, `acquire` / `targetValid`. |
@@ -24,6 +24,7 @@ Pure logic, runs in Node and the browser. Contract: `ARCHITECTURE.md` section 1.
 
 - `update(realDtMs)` runs fixed 1/60 s steps scaled by `speed`, at most 8 x speed steps per call; any backlog beyond that is dropped.
 - `advance(steps)` runs exact steps: use it in tests.
+- `Game.deserialize(save)` validates its input and throws `Error('Invalid save: ...')` on a malformed save (callers must catch it, `App` does). The constructor's default `seed` is a fixed constant; pass `opts.seed` for a random game.
 - Order inside `step(dt)`: wave timer, spawners, move attackers (stop if game over), grid rebuild, `combos.update`, freak-out tick, every turret (`stepTurret`, includes the combo hook), projectiles, age beams and effects, remove dead attackers. Score is refreshed on each kill.
 
 ## Key formulas

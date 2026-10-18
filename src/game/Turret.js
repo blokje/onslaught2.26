@@ -3,6 +3,15 @@
 import { TURRETS } from '../data/turrets.js';
 import { maxLevels, modRangeAt } from './modifiers.js';
 
+/** Object.assign that skips keys able to rewrite the prototype (used for untrusted saves). */
+export function assignSafe(target, src) {
+  for (const k of Object.keys(src)) {
+    if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
+    target[k] = src[k];
+  }
+  return target;
+}
+
 export class Turret {
   constructor(id, kind, x, y) {
     const def = TURRETS[kind];
@@ -45,7 +54,7 @@ export class Turret {
 
   static fromJSON(o) {
     const t = new Turret(o.id, o.kind, o.x, o.y);
-    Object.assign(t, o);
+    assignSafe(t, o);
     return t;
   }
 }

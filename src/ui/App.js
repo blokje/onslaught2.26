@@ -143,7 +143,7 @@ export class App {
           this.restart();
         } },
         { label: 'Settings', cls: '', onClick: () => this.openSettings() },
-        { label: 'Quit to menu', cls: 'danger', onClick: (hd) => { this._pausedByMenu = false; hd.close(); this.toMenu(); } },
+        { label: 'Quit to menu', cls: 'danger', onClick: (hd) => { hd.close(); this.toMenu(); } }, // close() resumes a menu pause, so the autosave is not paused
       ],
     });
     m.kind = 'gamemenu';
@@ -244,6 +244,9 @@ export class App {
     this.handlers = [];
     this.game = null;
     this.resetInput();
+    // the menu must not keep drawing the old game, selection rings or build ghost
+    try { this.renderer.setGame(null); } catch (e) { console.error(e); }
+    this.pushOverlay();
   }
 
   resetInput() {
@@ -266,7 +269,10 @@ export class App {
     if (!g || g.state.over) return;
     try {
       const s = g.state;
-      storage.saveGame({ v: 1, at: Date.now(), meta: { mapId: s.mapId, difficulty: s.difficulty, mode: s.mode, wave: s.wave }, data: g.serialize() });
+      const data = g.serialize();
+      // the Esc menu pauses the game only while it is open, so never save that pause
+      if (this._pausedByMenu && data && data.state) data.state.paused = false;
+      storage.saveGame({ v: 1, at: Date.now(), meta: { mapId: s.mapId, difficulty: s.difficulty, mode: s.mode, wave: s.wave }, data });
     } catch (e) { /* never break the game over a failed save */ }
   }
 
@@ -790,7 +796,7 @@ export class App {
     const typing = tag === 'TEXTAREA' || tag === 'SELECT' || (tag === 'INPUT' && tg.type !== 'range' && tg.type !== 'checkbox') || (tg && tg.isContentEditable);
     if (typing) { if (e.key === 'Escape' && tg.blur) tg.blur(); return; }
 
-    if (e.key === 'Escape') { e.preventDefault(); this.escapeAction(); return; }
+    if (e.key === 'Escape') { e.preventDefault(); if (!e.repeat) this.escapeAction(); return; }
     const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     if (k === 'g' && !e.repeat) { e.preventDefault(); this.toggleSettings(); return; }
     if (!this.game || this.modalOpen()) return;

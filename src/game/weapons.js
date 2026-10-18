@@ -11,6 +11,7 @@ const MUZZLE = 12;
 
 export const fireInterval = (t) => (t.stats.rate > 0 ? 60000 / t.stats.rate : Infinity);
 
+/** True when the turret has the range and rate levels that unlock its holding behaviour. */
 export function holdingEnabled(t) {
   const h = TURRETS[t.kind].holding;
   return !!h && t.levels.range >= h.range && t.levels.rate >= h.rate;
@@ -31,6 +32,7 @@ function origin(game, t, out) {
 
 const ORIGIN = { x: 0, y: 0, range: 0 };
 
+/** Advances one turret by dt ms: cooldown, target acquisition and firing its weapon. */
 export function stepTurret(game, t, dt) {
   const s = game.state;
   if (t.category !== 'weapon') {
@@ -245,6 +247,7 @@ function fire(game, t, target, ox, oy, range, def) {
       const len = Math.max(range + Math.hypot(ox - t.x, oy - t.y), Math.hypot(target.x - t.x, target.y - t.y) + 1);
       game.addBeam('rail', t.x, t.y, t.x + ux * len, t.y + uy * len, 300);
       const list = game.state.attackers;
+      // Like blast(), this intentionally also hits black-hole-swallowed attackers.
       for (let i = 0; i < list.length; i++) {
         const e = list[i];
         if (e.dead) continue;

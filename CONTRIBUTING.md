@@ -5,6 +5,8 @@ A change without documentation updates is not finished and will not be merged.
 
 ## The workflow
 
+Setup: `npm install` needs Node.js ^20.19.0 or >=22.12.0 (required by Vite 8).
+
 1. **Read** [CLAUDE.md](CLAUDE.md) (hard rules, short) and the guide for your area in [docs/claude/](docs/claude/).
 2. **Write the intent first.** Update the doc that describes what you are changing:
    game rules and numbers in [SPEC.md](SPEC.md), interfaces in [ARCHITECTURE.md](ARCHITECTURE.md), how a module works in the area guide.

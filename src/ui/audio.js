@@ -68,7 +68,7 @@ export class AudioEngine {
         this.noiseBuf = buf;
         this.apply();
       }
-      if (this.ctx.state === 'suspended') this.ctx.resume();
+      if (this.ctx.state !== 'running') this.ctx.resume().catch(() => {});
     } catch (e) { /* audio unavailable */ }
   }
 
@@ -80,7 +80,8 @@ export class AudioEngine {
 
   play(name, gapKey) {
     const ctx = this.ctx;
-    if (!ctx || ctx.state !== 'running' || this.muted || this.volume <= 0) return;
+    if (!ctx || this.muted || this.volume <= 0) return;
+    if (ctx.state !== 'running') { try { ctx.resume().catch(() => {}); } catch (e) { /* ignore */ } return; }
     if (this.voices > 36) return;
     const key = gapKey || name;
     const base = 1000 / 12;

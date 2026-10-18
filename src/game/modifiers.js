@@ -5,6 +5,7 @@ import { TURRETS, MODIFIER_RANGE, FREAKOUT } from '../data/turrets.js';
 
 export const STATS = ['damage', 'range', 'rate'];
 
+/** Maximum upgrade level per stat for a turret kind (modifiers only have one range upgrade). */
 export function maxLevels(kind) {
   const d = TURRETS[kind];
   if (d.category === 'modifier') return { damage: 0, range: 1, rate: 0 };
@@ -32,14 +33,17 @@ export function nextUpgradeCost(kind, stat, level) {
   return level < lad.length ? lad[level].cost : null;
 }
 
+/** Modifier aura radius at a range level (base, or upgraded from level 1). */
 export function modRangeAt(level) {
   return level >= 1 ? MODIFIER_RANGE.upgraded : MODIFIER_RANGE.base;
 }
 
+/** A fresh, all-zero modifier bonus sum for addMod. */
 export function emptyMods() {
   return { damageAdd: 0, rangeAdd: 0, rateAdd: 0, damageMult: 0, rangeMult: 0, rateMult: 0 };
 }
 
+/** Adds one modifier's bonuses into a running sum (mutates sum). */
 export function addMod(sum, mod) {
   if (mod.damageAdd) sum.damageAdd += mod.damageAdd;
   if (mod.rangeAdd) sum.rangeAdd += mod.rangeAdd;

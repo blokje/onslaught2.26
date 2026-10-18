@@ -2,6 +2,7 @@
 import { WAVES } from '../data/rules.js';
 import { createAttacker } from './Attacker.js';
 
+/** Advances the wave counter and queues a spawner for the new wave. */
 export function startWave(game) {
   const s = game.state;
   s.wave += 1;
@@ -9,6 +10,7 @@ export function startWave(game) {
   game.emit('wave', { wave: s.wave });
 }
 
+/** Spawns due attackers from every active spawner and drops spawners that are finished. */
 export function updateSpawners(game, dt) {
   const sp = game.spawners;
   for (let i = 0; i < sp.length; i++) {

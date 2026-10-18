@@ -10,7 +10,7 @@ DOM overlay over the canvas, input, persistence and audio. Contract: `ARCHITECTU
 | `menu.js` | Main menu with a 2D path preview per map, difficulty, mode, Continue. |
 | `hud.js` | Top bar, build rack, selected-turret panel, message log, toasts, leak flash, error bubble. Values update through cached setters at about 10 Hz. The selected-turret panel is tabbed (see below). |
 | `dialogs.js` | Settings, how to play, high scores, game over, in-game menu. |
-| `storage.js` | All persistence, prefix `os226.`, try/catch with an in-memory fallback. Autosave format `{ v, at, meta, data: game.serialize() }` under `os226.save`. |
+| `storage.js` | All persistence, prefix `os226.`, try/catch with an in-memory fallback. `getSettings()` sanitises: stored values whose type does not match `DEFAULT_SETTINGS` are dropped. Autosave format `{ v, at, meta, data: game.serialize() }` under `os226.save`. |
 | `audio.js` | Web Audio synthesized SFX, created on the first user gesture, rate limited, master gain plus compressor. |
 | `format.js` | Big numbers: 1,234 then 12.3K, 4.56M, 7.89B, 1.23T, then 1.23e15. |
 | `icons.js`, `dom.js`, `ui.css` | SVG icons, tiny DOM helpers, styles. |
@@ -50,7 +50,9 @@ The panel is docked top right by CSS, which can cover the road on some maps, so 
 ## Unlocks and saves
 
 - Extreme: reach wave 100 on Medium. Sandbox: reach wave 50 on any difficulty. Both only from Normal mode. "Unlock all" in settings opens everything.
-- Autosave every 10 s and on page hide; cleared on game over.
+- Autosave every 10 s and on page hide; cleared on game over. When the pause comes from the Esc menu the save stores `paused: false` (the menu pause is temporary), so Continue never starts paused for no reason.
+- Quitting to the menu clears the renderer (`renderer.setGame(null)`).
+- Audio resumes from any non-running context state (not only `suspended`), which fixes silence after an iOS interruption.
 
 ## Pause
 

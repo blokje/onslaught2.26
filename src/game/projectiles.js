@@ -32,6 +32,7 @@ function nearestAttacker(game, x, y) {
   return best;
 }
 
+/** Resolves a projectile hit: marks it dead, damages the target, applies blast or visual blast, notifies combos. */
 export function impact(game, p, x, y, target) {
   p.dead = true;
   const src = p.sourceId != null ? game.turretMap.get(p.sourceId) || null : null;
@@ -41,6 +42,7 @@ export function impact(game, p, x, y, target) {
   if (p.tag && game.combos && game.combos.projectileImpact) game.combos.projectileImpact(p, x, y, target);
 }
 
+/** Moves every projectile by one step according to its mode and resolves impacts and expiry. */
 export function updateProjectiles(game, dt) {
   const dtS = dt / 1000;
   const list = game.state.projectiles;

@@ -84,7 +84,7 @@ export class Renderer {
     mk('tBase', new SpriteBatch(TB, 400, { order: 4 }));
     mk('tWeap', new SpriteBatch(TW, 400, { order: 5 }));
     mk('tWeapAdd', new SpriteBatch(TW, 800, { additive: true, order: 5.1 }));
-    mk('tIcon', new SpriteBatch(TI, 100, { order: 5.2 }));
+    mk('tIcon', new SpriteBatch(TI, 400, { order: 5.2 }));
     mk('tTop', new SpriteBatch(FXT, 1400, { order: 5.5 }));
     mk('groundRing', new RingBatch(200, { order: 6 }));
     mk('groundFx', new SpriteBatch(FXT, 1200, { order: 6.2 }));
@@ -96,7 +96,7 @@ export class Renderer {
     mk('smoke', new SpriteBatch(FXT, 3600, { order: 7.8 }));
     mk('proj', new SpriteBatch(FXT, 1500, { order: 8 }));
     mk('projAdd', new SpriteBatch(FXT, 4500, { additive: true, order: 8.2 }));
-    mk('beams', new SpriteBatch(FXT, 5000, { additive: true, order: 9 }));
+    mk('beams', new SpriteBatch(FXT, 12000, { additive: true, order: 9 }));
     mk('blastAdd', new SpriteBatch(FXT, 800, { additive: true, order: 10 }));
     mk('ringAdd', new RingBatch(1200, { additive: true, order: 10.2 }));
     mk('text', new SpriteBatch(TT, 400, { order: 11 }));
@@ -125,6 +125,7 @@ export class Renderer {
   }
 
   // ------------------------------------------------------------------ public API
+  /** Pass null to detach: nothing is drawn and the road is cleared until the next game. */
   setGame(game) {
     this.game = game || null;
     this.res.game = this.game;
