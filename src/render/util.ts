@@ -3,7 +3,6 @@
 export type RGB = [number, number, number];
 
 export const clamp = (v: number, a: number, b: number): number => (v < a ? a : v > b ? b : v);
-export const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 export const TAU = Math.PI * 2;
 
 /** '#rrggbb' or 0xrrggbb -> [r, g, b] floats 0..1 (raw values, no colour management). */

@@ -92,12 +92,10 @@ export const FX = {
   white: 0, glow: 1, puff: 2, flame: 3, beam: 4, swirl: 5, star: 6, rocket: 7,
   bomb: 8, mine: 9, flag: 10, spark: 11, ring: 12, dish: 13,
 };
-export const FX_UNITS = 32; // fx cell size in world units when drawn at scale 1 (callers pass their own sizes)
 
 export function buildFxAtlas(): { canvas: HTMLCanvasElement; texture: THREE.CanvasTexture } {
   const canvas = newCanvas(SIZE, SIZE);
   const ctx = ctx2d(canvas);
-  const P = 1; // px drawing; helpers below use raw pixel space (cell = 256 px)
 
   // white (solid)
   beginCell(ctx, FX.white, CELL); ctx.fillStyle = '#fff'; ctx.fillRect(-120, -120, 240, 240); ctx.restore();

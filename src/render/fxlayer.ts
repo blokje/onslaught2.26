@@ -4,7 +4,7 @@ import { TURRETS, MODIFIER_RANGE, COMBO_RANGE } from '../data/turrets.ts';
 import { BLAST_RADIUS } from '../data/combos.ts';
 import type { BlastSize } from '../types.ts';
 import { DIRECTIONAL } from '../data/rules.ts';
-import { KIND_INDEX, KIND_TINT, MOD_TINT } from './atlas.ts';
+import { KIND_INDEX, MOD_TINT } from './atlas.ts';
 import { clamp, hash2, fmtCompact, TAU } from './util.ts';
 import { rgb, rangeOf, turretColor } from './entities.ts';
 import type { RGB } from './util.ts';
@@ -390,14 +390,11 @@ export function drawOverlay(R: Res, f: Frame): void {
       b.ringTop.add(gh.x, gh.y, rng, px(2), 0.1, 0.3, 0, col[0], col[1], col[2], 0.75);
     }
     b.ghostBase.add(gh.x, gh.y, 0, 64, 64, c.tb[idx], tint[0], tint[1], tint[2], 0.78);
-    // Overlay.ghost has no angle in src/types.ts; kept for callers that add one (nobody does today)
-    let rot = (gh as { angle?: number }).angle || 0;
-    if (isMod) rot = t * 0.8;
+    const rot = isMod ? t * 0.8 : 0;
     const gws = isMod ? 50 : 64;
     b.ghostWeap.add(gh.x, gh.y, rot, gws, gws, c.tw[idx], tint[0], tint[1], tint[2], 0.78);
     const gIcon = c.ti[gh.kind];
     if (isMod && gIcon) b.ghostIcon.add(gh.x, gh.y, 0, 32, 32, gIcon, tint[0], tint[1], tint[2], 0.9);
     b.ringTop.add(gh.x, gh.y, 22, px(2.4), 0, 0.15, 14, col[0], col[1], col[2], 0.95);
   }
-  void KIND_TINT;
 }

@@ -1,6 +1,6 @@
 import { Renderer } from './Renderer.ts';
 import { createDemoGame } from './demo.ts';
-import { TURRETS, BUILD_ORDER } from '../data/turrets.ts';
+import { BUILD_ORDER } from '../data/turrets.ts';
 import type { DemoGame } from './demo.ts';
 import type { Overlay } from '../types.ts';
 

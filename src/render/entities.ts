@@ -2,7 +2,7 @@
 // Everything is rebuilt each frame from game.state (cheap: a few hundred instances).
 
 import { TURRETS, TURRET_SIZE } from '../data/turrets.ts';
-import { KIND_INDEX, KIND_TINT, COMBO_COLOR, MOD_TINT } from './atlas.ts';
+import { KIND_INDEX, KIND_TINT, COMBO_COLOR } from './atlas.ts';
 import { clamp, hex, hash2, TAU } from './util.ts';
 import type { RGB } from './util.ts';
 import type { TurretState } from '../types.ts';
@@ -207,8 +207,7 @@ export function drawProjectiles(R: Res, f: Frame): void {
       }
       continue;
     }
-    // 'rail' and 'sniper' are drawn for completeness although ProjectileKind does not list them (the demo/older code may emit them)
-    switch (p.kind as string) {
+    switch (p.kind) {
       case 'shell':
         b.projAdd.add(x - cs * 2.5, y - sn * 2.5, ang, 10, 3.6, c.fx.spark, 0.65, 0.85, 1, 0.8);
         b.projAdd.add(x, y, 0, 4.4, 4.4, c.fx.spark, 1, 1, 1, 1);
@@ -242,15 +241,6 @@ export function drawProjectiles(R: Res, f: Frame): void {
         const on = armed && Math.sin(t * 7 + p.id * 1.7) > 0.55;
         b.projAdd.add(x, y, 0, 11, 11, c.fx.glow, 1, 0.15, 0.1, armed ? (on ? 0.95 : 0.2) : 0.3);
         break; }
-      case 'sniper':
-        b.projAdd.add(x - cs * 8, y - sn * 8, ang, 26, 2.2, c.fx.beam, 0.85, 0.93, 1, 0.95);
-        b.projAdd.add(x, y, 0, 5, 5, c.fx.spark, 1, 1, 1, 1);
-        break;
-      case 'rail':
-        b.projAdd.add(x - cs * 10, y - sn * 10, ang, 34, 4, c.fx.beam, 0.7, 1, 1, 0.95);
-        b.projAdd.add(x - cs * 10, y - sn * 10, ang, 40, 11, c.fx.beam, 0.3, 0.85, 1, 0.4);
-        b.projAdd.add(x, y, 0, 8, 8, c.fx.spark, 0.9, 1, 1, 1);
-        break;
       default:
         b.projAdd.add(x, y, 0, 6, 6, c.fx.spark, 1, 1, 1, 1);
     }
@@ -259,4 +249,3 @@ export function drawProjectiles(R: Res, f: Frame): void {
   if (seen.size > f.state.projectiles.length + 16) for (const [id, tr] of seen) if (tr.s !== stamp) seen.delete(id);
 }
 
-export { MOD_TINT };
