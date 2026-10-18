@@ -6,6 +6,7 @@ const SHELL = { speed: 900, impact: 8 };
 const ROCKET = { speed: 250, turn: (270 * Math.PI) / 180, impact: 10, ttl: 12000 };
 const HOLD = { radius: 35, omega: 3.2 };
 const RAIL_WIDTH = 8;
+const LASER_WIDTH = 4; // half-width of the piercing laser line, half the Railgun's
 const MUZZLE = 12;
 
 export const fireInterval = (t) => (t.stats.rate > 0 ? 60000 / t.stats.rate : Infinity);
@@ -136,6 +137,53 @@ export function chainBonus(game, lead, visited, consume) {
   return sum;
 }
 
+const PIERCE_HITS = [];
+const PIERCE_ALONG = [];
+
+/**
+ * Piercing laser: spend `energy` along the line from `t` through `target`, nearest attacker first.
+ * An attacker with hp <= energy dies and costs its hp; the first stronger one takes the rest and stops the beam.
+ */
+function pierceLaser(game, t, target, energy, reach) {
+  const dx = target.x - t.x, dy = target.y - t.y;
+  const dist = Math.hypot(dx, dy);
+  const a = dist > 0 ? Math.atan2(dy, dx) : t.angle;
+  const ux = Math.cos(a), uy = Math.sin(a);
+  const len = Math.max(reach, dist + 1);
+  const hits = PIERCE_HITS, along = PIERCE_ALONG;
+  hits.length = 0; along.length = 0;
+  const list = game.state.attackers;
+  for (let i = 0; i < list.length; i++) {
+    const e = list[i];
+    if (e.dead || e.swallowed) continue;
+    const rx = e.x - t.x, ry = e.y - t.y;
+    const d = rx * ux + ry * uy;
+    if (d < 0 || d > len) continue;
+    if (e !== target && Math.abs(rx * uy - ry * ux) > LASER_WIDTH) continue;
+    // insertion sort by distance along the line (ties by id, so the order is deterministic)
+    let j = hits.length;
+    while (j > 0 && (along[j - 1] > d || (along[j - 1] === d && hits[j - 1].id > e.id))) {
+      hits[j] = hits[j - 1]; along[j] = along[j - 1]; j--;
+    }
+    hits[j] = e; along[j] = d;
+  }
+  let endX = t.x + ux * len, endY = t.y + uy * len;
+  for (let i = 0; i < hits.length && energy > 0; i++) {
+    const e = hits[i];
+    if (e.hp <= energy) {
+      energy -= e.hp;
+      game.damageAttacker(e, e.hp, t, 0);
+      if (energy <= 0) { endX = e.x; endY = e.y; }
+    } else {
+      game.damageAttacker(e, energy, t, 0);
+      energy = 0;
+      endX = e.x; endY = e.y;
+    }
+  }
+  hits.length = 0;
+  game.addBeam('laser', t.x, t.y, endX, endY, 140);
+}
+
 function fire(game, t, target, ox, oy, range, def) {
   const dmg = t.stats.damage;
   const interval = fireInterval(t);
@@ -169,8 +217,7 @@ function fire(game, t, target, ox, oy, range, def) {
     case 'laser': {
       const visited = new Set([t.id]);
       const total = dmg + chainBonus(game, t, visited, true);
-      game.addBeam('laser', t.x, t.y, target.x, target.y, 140);
-      game.damageAttacker(target, total, t, 0);
+      pierceLaser(game, t, target, total, range + Math.hypot(ox - t.x, oy - t.y));
       break;
     }
     case 'spark': {

@@ -85,7 +85,7 @@ export function buildHelp() {
     h('h3', null, 'Turrets'),
     h('ul', null,
       h('li', null, 'Cannon (blue): cheap, fast shells, short reach.'),
-      h('li', null, 'Laser (green): instant beam. Lasers near each other link up and pass beams along, each link adding extra damage.'),
+      h('li', null, 'Laser (green): instant beam. If it kills an attacker, the leftover energy goes on through the next attackers in a straight line. Lasers near each other link up and pass beams along, each link adding extra damage.'),
       h('li', null, 'Rocket (red): homing rockets with the longest reach. Upgraded ones can keep rockets circling overhead.'),
       h('li', null, 'Tazer (yellow): its sparks slow attackers down. Great for buying other turrets more time.'),
       h('li', null, 'Cannons and Tazers with ' + TURRETS.blue.freakout.damage + ' damage and ' + TURRETS.blue.freakout.rate +

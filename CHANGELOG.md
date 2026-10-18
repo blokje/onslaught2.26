@@ -18,6 +18,13 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
   Docs: `ARCHITECTURE.md`, `docs/claude/rendering.md`, `docs/claude/gotchas.md`.
 
 ### Changed
+- Linked lasers pierce (approved deviation from the original): the Green's shot total (own damage plus chain bonus) is
+  energy spent along a straight line through its target, half-width 4 (Railgun 8). Each attacker with HP at most the
+  remaining energy dies and costs its HP; the first stronger one takes the rest and stops the beam. Before, overkill was
+  wasted. Combos that use the laser chain are unchanged. Balance bots (greedy and combo late report) moved only within
+  noise, because late walls are attackers far stronger than one shot. New `pierceLaser` in `src/game/weapons.js`,
+  sim-test checks (c) pierce. Docs: `SPEC.md` 4.1, `docs/claude/simulation.md`, `docs/claude/data-and-balance.md`,
+  `docs/claude/testing.md`, `README.md`, How to play, Laser blurb.
 - Late-game wall softened (approved deviation from the original after wave 100; waves 1 to 100 unchanged): HP growth per
   wave after wave 100 is 1 + (growth - 1) x 0.4 (Medium x1.05 instead of x1.125) and bounty is round(wave x 1.03^(wave - 100)).
   Before, even unlimited money stopped at about wave 143 and a strong combo player at about 125; now the strongest bot
