@@ -11,6 +11,7 @@
 
 - **Frozen ([ORIG] in `SPEC.md`):** Blue, Green, Red and Yellow, the 7 modifiers, the 16 original combos, wave and economy rules, Medium, the 9 original maps. They come from analysis of the original game. Change them only when the user explicitly asks to deviate.
 - **Tunable ([NEW]):** Targeter, Sniper, Fusion, Railgun, Combo-only; Napalm Rocket, Tazer Rockets, Shockwave, Tazer BFG; Easy, Hard, Extreme; the early-wave bonus.
+- **Piercing laser ([NEW], approved deviation):** the Green's own shot carries its leftover energy through attackers on a straight line (`SPEC.md` 4.1). The Green numbers and the chain x1.25 stay original; tune the beam half-width (`LASER_WIDTH` in `src/game/weapons.js`) if it is too strong.
 - **Late-game curve ([NEW], approved deviation):** after `WAVES.lateWave` (100) HP growth and bounty follow `WAVES.lateGrowthFactor` and `WAVES.lateBountyGrowth` (`src/data/rules.js`, used by `waveHp` / `waveBounty` in `src/game/Attacker.js`). Waves 1 to 100 stay original; tune these two numbers, not the original growth.
 
 ## Balance targets

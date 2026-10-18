@@ -29,7 +29,7 @@ export const TURRETS = {
       rate: L([[30, 65], [75, 70], [180, 80], [300, 90], [450, 105], [600, 120], [800, 135], [900, 160], [1000, 190]]),
     },
     weapon: 'laser', target: 'near', link: { mult: 1.25 },
-    blurb: 'Instant beam. Lasers in range chain together, each link adds its beam x1.25.',
+    blurb: 'Piercing beam: leftover energy goes on through attackers in line. Lasers in range chain, each link adds x1.25.',
   },
   red: {
     name: 'Rocket', color: 'red', category: 'weapon', cost: 20, hotkey: '3',

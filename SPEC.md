@@ -89,6 +89,12 @@ Build cost, base stats and the upgrade ladders (cost → new value per level).
 - **Laser chain (Green)**: a Green links to every other Green inside its *effective* range. When it fires,
   every linked Green that is ready to fire hands its beam over; each link adds its own (recursive) beam damage × **1.25**.
   No chain length cap. The original needs no line of sight.
+- **Piercing beam (Green) [NEW, deliberate deviation]:** the shot's total (own damage plus chain bonus) is the beam's
+  *energy*. The beam runs in a straight line from the Green through its target to the end of its range (from a joined
+  Targeter: that range plus the distance to it, like the Railgun) and hits attackers within **4** of the line (half the
+  Railgun's 8), nearest first. An attacker whose HP is at most the remaining energy dies and the energy drops by that
+  HP; the first attacker with more HP takes the remaining energy as damage and stops the beam. With a single attacker
+  this is the original shot; the original wasted any overkill.
 - **Holding pattern (Red)**: after **3 range + 3 rate** upgrades, the Red keeps up to **4** rockets circling
   in the air that dive at the next target. Selling the turret sends the circling rockets at the weakest attacker within 720.
 - **Freak-out (Blue, Yellow)**: after **4 damage + 4 rate** upgrades. About every 40 to 80 s (sooner with more rate
