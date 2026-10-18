@@ -35,7 +35,7 @@ payloads are typed locally in `combos.ts` (`ComboProjData`).
 ## Key formulas
 
 - Effective stat = (ladder value + flat adds) x max(0.2, 1 + sum of multiplier bonuses). Freak-out adds +3 to the damage multiplier sum and +4 to the rate sum (so x4 and x5).
-- Fire interval ms = 60000 / rate. Turrets rescale their remaining cooldown when the rate changes.
+- Fire interval ms = 60000 / rate. Turrets rescale their remaining cooldown when the rate changes, except during a combo recharge (`time < comboNext`): that pause is a fixed time and is never rescaled.
 - Laser chain: contribution = (own effective damage + contributions) x 1.25, recursive with a visited set; contributors must be ready and reset their timer.
 - Piercing laser (`pierceLaser` in `weapons.ts`): the chain total is energy spent along a line from the Green through its target (half-width `LASER_WIDTH` 4, Railgun is 8), nearest first: each attacker with HP <= energy dies and costs its HP, the first stronger one takes the rest and stops the beam. Combos that use `chainLaserDamage` are not affected.
 - Score = kills x spent. `spent` only grows (sell refunds do not lower it; the $500 move cost is added).

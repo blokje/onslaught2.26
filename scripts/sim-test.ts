@@ -203,6 +203,19 @@ function makePlayer(game: Game, spots: Spot[]): () => void {
   const sp = must(g.build('rateUp', 410, 60));
   check('(d) Speed: rate 170', near(st().rate, 170));
   g.sell(sp.id);
+  // a running shot interval rescales with the rate, a combo recharge does not
+  const rt = tur(g, red);
+  rt.cd = 600; rt.comboNext = 0;
+  const sp2 = must(g.build('rateUp', 410, 60));
+  check('(d) rate change rescales a shot interval (600 * 50 / 170)', near(rt.cd, 600 * 50 / 170), `${rt.cd}`);
+  g.sell(sp2.id);
+  g.startRecharge(rt, 7400);
+  const cn = rt.comboNext;
+  const sp3 = must(g.build('rateUp', 410, 60));
+  check('(d) rate up does not shorten a combo recharge', rt.cd === 7400 && rt.comboNext === cn, `${rt.cd}`);
+  g.sell(sp3.id);
+  check('(d) rate down does not lengthen a combo recharge', rt.cd === 7400 && rt.comboNext === cn, `${rt.cd}`);
+  rt.cd = 0; rt.comboNext = 0;
   const bbx = must(g.build('damageUpBigEx', 410, 60));
   check('(d) BigBangEx: 100, 140, 35', near(st().damage, 100) && near(st().range, 140) && near(st().rate, 35), JSON.stringify(st()));
   // influence radius: far modifier not applied until upgraded to 130

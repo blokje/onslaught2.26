@@ -141,6 +141,8 @@ The SWF has none of them. You chose "all 16", so these 5 need original designs [
 - Partners must be within **70 units** (centre to centre) of the lead turret.
 - The **lead** is whichever eligible turret fires first; its colour picks the combo family.
   Partners must be off cooldown, and they inherit the lead's recharge time as their cooldown.
+  During the recharge the lead and its partners fire no normal shots. Rate changes (upgrades, modifiers) do not
+  shorten or lengthen a running recharge [NEW: the remake used to rescale it like a normal shot interval].
 - If no recipe matches, the lead fires a normal shot.
 
 **Recipes, checked top to bottom** (partners = turrets besides the lead). Damage values are base values,
