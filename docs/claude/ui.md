@@ -13,7 +13,7 @@ DOM overlay over the canvas, input, persistence and audio. Contract: `ARCHITECTU
 | `storage.ts` | All persistence, prefix `os226.`, try/catch with an in-memory fallback. `getSettings()` sanitises: stored values whose type does not match `DEFAULT_SETTINGS` are dropped. Autosave format `{ v, at, meta, data: game.serialize() }` under `os226.save`. Exports the types `Settings`, `Unlocks`, `ScoreEntry`, `SaveWrapper`: a new setting goes into both `Settings` and `DEFAULT_SETTINGS`. |
 | `audio.ts` | Web Audio synthesized SFX, created on the first user gesture, rate limited, master gain plus compressor. |
 | `format.ts` | Big numbers: 1,234 then 12.3K, 4.56M, 7.89B, 1.23T, then 1.23e15. |
-| `icons.ts`, `dom.ts`, `ui.css` | SVG icons, tiny DOM helpers, styles. |
+| `icons.ts`, `dom.ts`, `ui.css` | SVG icons, tiny DOM helpers, styles. `h(tag, attrs, ...kids)` returns the matching element type; the `setText`/`setClass`/`setProp`/`show` caches live in a `WeakMap`. |
 | `mock.ts` | Fake Game and 2D MockRenderer for `/ui-demo.html` (via `ui-demo.ts`); its objects satisfy the real state types. |
 | `appTypes.ts` | Types only: `AppGame`, `AppRenderer`, `AppOptions`, `CommandResult`. `App` depends on these, not on `Game` or `Renderer`, so the real objects and the mocks must both satisfy them; a new command that `App` calls goes here too. |
 
