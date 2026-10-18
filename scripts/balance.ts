@@ -22,8 +22,24 @@ import { TURRETS } from '../src/data/turrets.ts';
 import { COMBOS } from '../src/data/combos.ts';
 import { DIFFICULTIES, FIELD } from '../src/data/rules.ts';
 import { MAPS } from '../src/data/maps.ts';
+import type { Turret } from '../src/game/Turret.ts';
+import type { Attacker, ComboRecipe, GameEvents, KeyColor, Result, Stat } from '../src/types.ts';
 
-const fmt = (x) => {
+interface Pos { x: number; y: number }
+interface Build { d: number; r: number; t: number; cost: number; score: number }
+type Scen = { type: 'single'; D: number; place?: undefined } | { type: 'stream'; place: 'side' | 'head'; D?: undefined };
+interface PlanOpt { minRange?: number; weightRange?: boolean }
+interface Plan { dps: number; dpsAvg: number; spent: number; desc: string }
+type BotAct = () => void;
+const STATS: Stat[] = ['damage', 'range', 'rate'];
+
+/** Unwrap a command result that must have succeeded (throws with the failure reason otherwise). */
+function must<T extends object>(r: Result<T>): { ok: true } & T {
+  if (!r.ok) throw new Error(r.reason);
+  return r;
+}
+
+const fmt = (x: number): string => {
   if (!isFinite(x)) return String(x);
   const a = Math.abs(x);
   if (a >= 1e9) return (x / 1e9).toFixed(2) + 'G';
@@ -31,18 +47,18 @@ const fmt = (x) => {
   if (a >= 1e3) return (x / 1e3).toFixed(1) + 'k';
   return x.toFixed(a < 10 ? 2 : 0);
 };
-const pad = (s, n) => String(s).padEnd(n);
-const rpad = (s, n) => String(s).padStart(n);
+const pad = (s: string | number, n: number): string => String(s).padEnd(n);
+const rpad = (s: string | number, n: number): string => String(s).padStart(n);
 
 // ------------------------------------------------------------------ builds (level triples)
-const lad = (k, s) => TURRETS[k].ladders[s];
-const cum = (k, s, n) => { let c = 0; for (let i = 0; i < n; i++) c += lad(k, s)[i].cost; return c; };
-const val = (k, s, n) => (n === 0 ? TURRETS[k].base[s] : lad(k, s)[n - 1].value);
-const maxCost = (k) => TURRETS[k].cost + ['damage', 'range', 'rate'].reduce((c, s) => c + cum(k, s, lad(k, s).length), 0);
+const lad = (k: string, s: Stat) => TURRETS[k].ladders![s];
+const cum = (k: string, s: Stat, n: number): number => { let c = 0; for (let i = 0; i < n; i++) c += lad(k, s)[i].cost; return c; };
+const val = (k: string, s: Stat, n: number): number => (n === 0 ? TURRETS[k].base![s] : lad(k, s)[n - 1].value);
+const maxCost = (k: string): number => TURRETS[k].cost + STATS.reduce((c, s) => c + cum(k, s, lad(k, s).length), 0);
 
-function bestBuild(k, budget, { minRange = 0, weightRange = false } = {}) {
+function bestBuild(k: string, budget: number, { minRange = 0, weightRange = false }: PlanOpt = {}): Build | null {
   const def = TURRETS[k];
-  let best = null;
+  let best: Build | null = null;
   for (let d = 0; d <= lad(k, 'damage').length; d++) {
     for (let r = 0; r <= lad(k, 'range').length; r++) {
       for (let t = 0; t <= lad(k, 'rate').length; t++) {
@@ -59,7 +75,7 @@ function bestBuild(k, budget, { minRange = 0, weightRange = false } = {}) {
 }
 
 /** Expected freak-out multiplier (damage x rate) averaged over time, for Blue / Yellow with 4+4 upgrades. */
-function freakFactor(k, b) {
+function freakFactor(k: string, b: Build): number {
   const def = TURRETS[k];
   if (!def.freakout || b.d < def.freakout.damage || b.t < def.freakout.rate) return 1;
   const F = { warn: 3000, length: 5000, space: 80000, damageMult: 3, rateMult: 4 };
@@ -74,20 +90,20 @@ const UX = 590 / Math.hypot(590, 410), UY = 410 / Math.hypot(590, 410);       //
 const NX = -UY, NY = UX;
 const ROAD_LEN = Math.hypot(590, 410);
 
-function levelUp(g, id, b) {
-  for (const [s, n] of [['damage', b.d], ['range', b.r], ['rate', b.t]]) for (let i = 0; i < n; i++) g.upgrade(id, s);
+function levelUp(g: Game, id: number, b: Build): void {
+  for (const [s, n] of [['damage', b.d], ['range', b.r], ['rate', b.t]] as [Stat, number][]) for (let i = 0; i < n; i++) g.upgrade(id, s);
 }
 
 /** scen: {type:'single', D} frozen target with turrets on an arc at distance D; {type:'stream', place:'side'|'head'}. */
-function measure(kind, b, count, scen) {
+function measure(kind: string, b: Build, count: number, scen: Scen): number {
   const g = new Game({ mapId: 'map9', mode: 'sandbox', seed: 1, waveInterval: 1e12 });
   g.state.lives = 1e12;
   g.combos.tryFire = () => false;
   g._placementProblem = () => null;
-  const ids = [];
+  const ids: number[] = [];
   const T = { x: 300, y: 200 };
   for (let i = 0; i < count; i++) {
-    let x, y;
+    let x: number, y: number;
     if (scen.type === 'single') {
       const th = Math.PI + (i - (count - 1) / 2) * (12 / scen.D);
       x = T.x + Math.cos(th) * scen.D; y = T.y + Math.sin(th) * scen.D;
@@ -107,8 +123,8 @@ function measure(kind, b, count, scen) {
   let dmg = 0, t0 = Infinity;
   const orig = g.damageAttacker.bind(g);
   g.damageAttacker = (a, d, s, p) => { if (g.state.time >= t0) dmg += d; return orig(a, d, s, p); };
-  let target = null;
-  let warm, win;
+  let target: Attacker | null = null;
+  let warm: number, win: number;
   if (scen.type === 'single') {
     target = g.spawnAttacker(1, 1e30);
     target.blackholed = true; target.x = T.x; target.y = T.y;
@@ -124,18 +140,19 @@ function measure(kind, b, count, scen) {
   return dmg / win;
 }
 
-const cache = new Map();
-function dpsOf(kind, b, count, scen) {
+const cache = new Map<string, number>();
+function dpsOf(kind: string, b: Build, count: number, scen: Scen): number {
   const key = [kind, b.d, b.r, b.t, count, scen.type, scen.D || scen.place].join('|');
   if (!cache.has(key)) cache.set(key, measure(kind, b, count, scen));
-  return cache.get(key);
+  return cache.get(key)!;
 }
 
 /** Plan the builds a budget buys and sum their DPS. Green is always built as chains of 4. */
-function planDps(kind, B, scen, opt = {}) {
+function planDps(kind: string, B: number, scen: Scen, opt: PlanOpt = {}): Plan {
   const unit = kind === 'green' ? 4 : 1;
   const def = TURRETS[kind];
-  let rem = B, dps = 0, dpsAvg = 0, spent = 0, desc = [];
+  let rem = B, dps = 0, dpsAvg = 0, spent = 0;
+  const desc: string[] = [];
   for (let guard = 0; guard < 40 && rem >= unit * def.cost; guard++) {
     const per = Math.min(rem / unit, maxCost(kind));
     const b = bestBuild(kind, per, opt);
@@ -158,17 +175,17 @@ const NEW = ['sniper', 'fusion', 'railgun'];
 function dpsReport() {
   console.log('\n=== DPS per investment (rows: kind, columns: budget). dps raw / avg incl. expected freak-out (Blue, Yellow)');
   console.log('Level triples are damage/range/rate levels of the (largest) build. Green = chains of 4.');
-  const scenarios = [
+  const scenarios: { name: string; scen: Scen; opt: PlanOpt }[] = [
     { name: 'S1 stream, turret beside the road (spaced 42 u, 60 u/s)', scen: { type: 'stream', place: 'side' }, opt: {} },
     { name: 'S2 sustained single target at 40 u (frozen)', scen: { type: 'single', D: 40 }, opt: {} },
     { name: 'S3 single target at long range 320 u (needs range >= 320)', scen: { type: 'single', D: 320 }, opt: { minRange: 320 } },
     { name: 'S4 head-on straight stretch: turret on the road axis, stream walks away along the line (railgun niche)', scen: { type: 'stream', place: 'head' }, opt: {} },
   ];
-  const summary = {};
+  const summary: Record<string, unknown> = {};
   for (const sc of scenarios) {
     console.log(`\n--- ${sc.name}`);
     console.log(pad('kind', 9) + BUDGETS.map((B) => rpad('$' + B / 1000 + 'K', 14)).join('') + '   (ratio to best original, avg column)');
-    const rows = {};
+    const rows: Record<string, (Plan | null)[]> = {};
     for (const k of [...ORIG, ...NEW]) {
       rows[k] = BUDGETS.map((B) => {
         if (TURRETS[k].cost * (k === 'green' ? 4 : 1) > B) return null;
@@ -181,7 +198,7 @@ function dpsReport() {
       const line = rows[k].map((p) => rpad(p ? fmt(p.dps) + (p.dpsAvg > p.dps * 1.01 ? '/' + fmt(p.dpsAvg) : '') : '-', 14)).join('');
       console.log(pad(k, 9) + line);
     }
-    const ratios = {};
+    const ratios: Record<string, ({ avg: number; raw: number; spent: number } | null)[]> = {};
     for (const k of NEW) {
       ratios[k] = BUDGETS.map((B, i) => {
         const p = rows[k][i];
@@ -197,24 +214,24 @@ function dpsReport() {
   // builds chosen for ONE turret at each budget (damage/range/rate levels)
   console.log('\n--- level triples (damage/range/rate) of the best single build at each budget');
   for (const k of [...ORIG, ...NEW]) {
-    console.log(pad(k, 9) + BUDGETS.map((B) => rpad(TURRETS[k].cost > B ? '-' : (() => { const b = bestBuild(k, Math.min(B, maxCost(k)), { weightRange: k === 'railgun' }); return `${b.d}/${b.r}/${b.t}`; })(), 10)).join(''));
+    console.log(pad(k, 9) + BUDGETS.map((B) => rpad(TURRETS[k].cost > B ? '-' : (() => { const b = bestBuild(k, Math.min(B, maxCost(k)), { weightRange: k === 'railgun' }); return `${b!.d}/${b!.r}/${b!.t}`; })(), 10)).join(''));
   }
   console.log('\n--- maxed single-turret cost: ' + [...ORIG, ...NEW, 'targeter', 'comboOnly'].map((k) => `${k} ${fmt(maxCost(k))}`).join(', '));
   // damage-maxed cost (what a combo partner needs)
   // Support turrets: price of the same reach on the turret itself vs a Targeter
   console.log('\n--- Targeter: cost of reach R (Targeter base + range ladder) vs the turret reaching R on its own ladder');
-  const reachCost = (k, R) => { if (k === 'targeter') { let c = TURRETS.targeter.cost; for (let i = 0; i < lad(k, 'range').length && val(k, 'range', i) < R; i++) c += lad(k, 'range')[i].cost; return val(k, 'range', lad(k, 'range').length) >= R ? c : null; } let c = 0; for (let i = 0; i < lad(k, 'range').length && val(k, 'range', i) < R; i++) c += lad(k, 'range')[i].cost; return val(k, 'range', lad(k, 'range').length) >= R ? c : null; };
+  const reachCost = (k: string, R: number): number | null => { if (k === 'targeter') { let c = TURRETS.targeter.cost; for (let i = 0; i < lad(k, 'range').length && val(k, 'range', i) < R; i++) c += lad(k, 'range')[i].cost; return val(k, 'range', lad(k, 'range').length) >= R ? c : null; } let c = 0; for (let i = 0; i < lad(k, 'range').length && val(k, 'range', i) < R; i++) c += lad(k, 'range')[i].cost; return val(k, 'range', lad(k, 'range').length) >= R ? c : null; };
   console.log(pad('reach', 8) + ['targeter', ...ORIG].map((k) => rpad(k, 10)).join(''));
-  for (const R of [150, 200, 250, 300, 350]) console.log(pad(R, 8) + ['targeter', ...ORIG].map((k) => rpad(reachCost(k, R) == null ? 'n/a' : fmt(reachCost(k, R)), 10)).join(''));
+  for (const R of [150, 200, 250, 300, 350]) console.log(pad(R, 8) + ['targeter', ...ORIG].map((k) => rpad(reachCost(k, R) == null ? 'n/a' : fmt(reachCost(k, R)!), 10)).join(''));
   console.log('--- combo-capable cost (build + damage ladder only): ' + [...ORIG, ...NEW].map((k) => `${k} ${fmt(TURRETS[k].cost + cum(k, 'damage', lad(k, 'damage').length))}`).join(', ') + `, comboOnly ${fmt(TURRETS.comboOnly.cost)}`);
 }
 
 // ------------------------------------------------------------------ combos
-const RECIPES = [];
-for (const [colour, list] of Object.entries(COMBOS)) for (const r of list) RECIPES.push({ colour, r });
+const RECIPES: { colour: KeyColor; r: ComboRecipe }[] = [];
+for (const [colour, list] of Object.entries(COMBOS) as [KeyColor, ComboRecipe[]][]) for (const r of list) RECIPES.push({ colour, r });
 
-function slotsFor(probe, x, y) {
-  const out = [];
+function slotsFor(probe: Game, x: number, y: number): Pos[] {
+  const out: Pos[] = [];
   for (let r = 46; r <= 68; r += 6) {
     for (let a = 0; a < 360; a += 10) {
       const sx = x + Math.cos((a * Math.PI) / 180) * r, sy = y + Math.sin((a * Math.PI) / 180) * r;
@@ -224,10 +241,11 @@ function slotsFor(probe, x, y) {
   }
   return out;
 }
-function comboSpot() {
+interface ComboSpot extends Pos { slots: Pos[] }
+function comboSpot(): ComboSpot {
   // beside the middle of the straight map9 road
   const probe = new Game({ mapId: 'map9', mode: 'sandbox', seed: 1 });
-  let best = null;
+  let best: ComboSpot | null = null;
   for (let off = 40; off <= 60; off += 5) {
     const s = ROAD_LEN / 2;
     for (const sign of [1, -1]) {
@@ -237,28 +255,35 @@ function comboSpot() {
       if (!best || slots.length > best.slots.length) best = { x, y, slots };
     }
   }
+  if (!best) throw new Error('no combo spot');
   return best;
 }
 
-function comboSetup(r, colour, spot, seed = 5) {
+function tur(g: Game, id: number): Turret {
+  const t = g.turretMap.get(id);
+  if (!t) throw new Error('no turret ' + id);
+  return t;
+}
+
+function comboSetup(r: ComboRecipe, colour: string, spot: ComboSpot, seed: number = 5): { g: Game; lead: Turret; partners: Turret[] } {
   const g = new Game({ mapId: 'map9', mode: 'sandbox', seed, waveInterval: 1e12 });
   g.state.lives = 1e12;
-  const need = [];
-  for (const [c, n] of Object.entries(r.needs)) for (let i = 0; i < n; i++) need.push(c);
-  const lead = g.turretMap.get(g.build(colour, spot.x, spot.y).id);
+  const need: KeyColor[] = [];
+  for (const [c, n] of Object.entries(r.needs) as [KeyColor, number][]) for (let i = 0; i < n; i++) need.push(c);
+  const lead = tur(g, must(g.build(colour, spot.x, spot.y)).id);
   const partners = need.map((c, i) => {
-    const o = g.turretMap.get(g.build(c, spot.slots[i].x, spot.slots[i].y).id);
+    const o = tur(g, must(g.build(c, spot.slots[i].x, spot.slots[i].y)).id);
     return o;
   });
   for (const t of [lead, ...partners]) {
-    for (const st of ['range', 'rate']) g.upgrade(t.id, st, true);
+    for (const st of ['range', 'rate'] as const) g.upgrade(t.id, st, true);
     g.upgrade(t.id, 'damage', true);
   }
   return { g, lead, partners };
 }
 
 /** After the first combo fires, lock every turret so exactly one combo is measured (no normal shots, no second combo). */
-function lockAfterFirst(g, onFire) {
+function lockAfterFirst(g: Game, onFire: (e: GameEvents['combo']) => void): void {
   g.on('combo', (e) => {
     onFire(e);
     for (const t of g.state.turrets) { t.cd = 1e9; t.comboNext = 1e12; }
@@ -270,15 +295,15 @@ function lockAfterFirst(g, onFire) {
  * (attackers keep marching, a continuous stream of 700 ms spacing, 8 of them already around the turrets).
  * Returns the total damage dealt by that single combo within 22 s, and the id of the combo that fired.
  */
-function comboOneShot(r, colour, spot, layout, seed = 5) {
+function comboOneShot(r: ComboRecipe, colour: string, spot: ComboSpot, layout: 'single' | 'pack' | 'walk', seed: number = 5): { dmg: number; fired: string | null; hit: number } {
   const { g, lead } = comboSetup(r, colour, spot, seed);
-  g.combos.dbg = true;
+  (g.combos as unknown as { dbg?: boolean }).dbg = true; // legacy debug flag, nothing reads it (kept to leave the run identical)
   const road = g.roadPoints();
   let c = road[0];
   for (const q of road) if (Math.hypot(q.x - lead.x, q.y - lead.y) < Math.hypot(c.x - lead.x, c.y - lead.y)) c = q;
   const n = layout === 'single' ? 1 : layout === 'pack' ? 6 : 8;
   const frozen = layout !== 'walk';
-  const atts = [];
+  const atts: Attacker[] = [];
   for (let i = 0; i < n; i++) {
     const a = g.spawnAttacker(1, 1e15);
     const d = c.d + (i - (n - 1) / 2) * 42;
@@ -286,7 +311,7 @@ function comboOneShot(r, colour, spot, layout, seed = 5) {
     atts.push(a);
   }
   g.grid.rebuild(g.state.attackers);
-  let dmg = 0, fired = null;
+  let dmg = 0, fired = null as string | null;
   const orig = g.damageAttacker.bind(g);
   g.damageAttacker = (a, d, s, p) => { dmg += d; return orig(a, d, s, p); };
   lockAfterFirst(g, (e) => { if (!fired) fired = e.id; });
@@ -300,20 +325,21 @@ function comboOneShot(r, colour, spot, layout, seed = 5) {
   return { dmg, fired, hit };
 }
 
-const mean = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
+const mean = (xs: number[]): number => xs.reduce((a, b) => a + b, 0) / xs.length;
 
 function combosReport() {
   console.log('\n=== Combos (real implementation, one combo per run, all turrets fully upgraded, no modifiers).');
   console.log('    value = total damage of ONE combo / recharge seconds. single/pack: frozen attackers (1 / 6 spaced 42 u);');
   console.log('    walk: marching stream, mean of 10 seeds (mines land on random road points, napalm burns walkers ~2.7 s).');
   const spot = comboSpot();
-  const rows = [];
+  interface ComboRow { id: string; isNew: boolean; n: number; recharge: number; single: number; pack: number; packHit: number; walk: number; wrong: number; firedPack: string | null }
+  const rows: ComboRow[] = [];
   for (const { colour, r } of RECIPES) {
     const n = 1 + Object.values(r.needs).reduce((a, b) => a + b, 0);
     const sec = r.recharge / 1000;
     const one = comboOneShot(r, colour, spot, 'single');
     const pack = comboOneShot(r, colour, spot, 'pack');
-    const walks = [];
+    const walks: number[] = [];
     let wrong = 0;
     for (let seed = 1; seed <= 10; seed++) { const w = comboOneShot(r, colour, spot, 'walk', seed); walks.push(w.dmg / sec); if (w.fired !== r.id) wrong++; }
     rows.push({ id: r.id, isNew: !!r.isNew, n, recharge: r.recharge, single: one.dmg / sec, pack: pack.dmg / sec, packHit: pack.hit, walk: mean(walks), wrong, firedPack: pack.fired });
@@ -324,20 +350,21 @@ function combosReport() {
       + (x.firedPack !== x.id ? `  pack fired ${x.firedPack}` : '') + (x.wrong ? `  walk: other recipe in ${x.wrong}/10` : ''));
   }
   const by = Object.fromEntries(rows.map((x) => [x.id, x]));
-  const ratio = (id, refs, key) => (by[id][key] / (refs.reduce((s, i) => s + by[i][key], 0) / refs.length)).toFixed(2);
-  const pairs = [
+  type RatioKey = 'single' | 'pack' | 'walk';
+  const ratio = (id: string, refs: string[], key: RatioKey): string => (by[id][key] / (refs.reduce((s, i) => s + by[i][key], 0) / refs.length)).toFixed(2);
+  const pairs: [string, string[]][] = [
     ['napalm', ['nuke', 'bigMine']], ['tazerRocket', ['laserRocket', 'clusterBomb']],
     ['shockwave', ['bfg']], ['tazerBfg', ['bfg']],
   ];
   console.log('\nRatio new / mean(reference): single, pack, walk');
-  for (const [id, refs] of pairs) console.log(pad(id, 14) + 'vs ' + pad(refs.join('+'), 24) + ['single', 'pack', 'walk'].map((k) => rpad(ratio(id, refs, k), 7)).join(''));
+  for (const [id, refs] of pairs) console.log(pad(id, 14) + 'vs ' + pad(refs.join('+'), 24) + (['single', 'pack', 'walk'] as RatioKey[]).map((k) => rpad(ratio(id, refs, k), 7)).join(''));
 }
 
 // ------------------------------------------------------------------ greedy bot (adapted from sim-test.ts)
-function bestSpots(mapId, count, spacing = 46, radius = 110) {
+function bestSpots(mapId: string, count: number, spacing: number = 46, radius: number = 110): Pos[] {
   const probe = new Game({ mapId, mode: 'sandbox', seed: 1 });
   const road = probe.roadPoints();
-  const cand = [];
+  const cand: (Pos & { score: number })[] = [];
   for (let x = 22; x <= 698; x += 11) {
     for (let y = 22; y <= 428; y += 11) {
       if (!probe.canBuild('blue', x, y).ok) continue;
@@ -347,7 +374,7 @@ function bestSpots(mapId, count, spacing = 46, radius = 110) {
     }
   }
   cand.sort((a, b) => b.score - a.score);
-  const out = [];
+  const out: Pos[] = [];
   for (const c of cand) {
     if (out.every((o) => Math.hypot(o.x - c.x, o.y - c.y) >= spacing)) out.push(c);
     if (out.length >= count) break;
@@ -356,7 +383,7 @@ function bestSpots(mapId, count, spacing = 46, radius = 110) {
 }
 
 /** Same policy as sim-test: more turrets over time (4 + wave/2), then cheapest upgrade first. */
-function makePlayer(game, spots, kinds = ['blue', 'green', 'red', 'yellow']) {
+function makePlayer(game: Game, spots: Pos[], kinds: string[] = ['blue', 'green', 'red', 'yellow']): BotAct {
   let next = 0;
   return function act() {
     const s = game.state;
@@ -369,8 +396,9 @@ function makePlayer(game, spots, kinds = ['blue', 'green', 'red', 'yellow']) {
         if (r.reason === 'Not enough cash') break;
         next++; continue;
       }
-      let best = null;
-      for (const t of s.turrets) for (const st of ['damage', 'rate', 'range']) {
+      let best: { id: number; st: Stat; c: number } | null = null;
+      const stats: Stat[] = ['damage', 'rate', 'range'];
+      for (const t of s.turrets) for (const st of stats) {
         const c = game.upgradeCost(t.id, st);
         if (c != null && (!best || c < best.c)) best = { id: t.id, st, c };
       }
@@ -380,7 +408,7 @@ function makePlayer(game, spots, kinds = ['blue', 'green', 'red', 'yellow']) {
   };
 }
 
-function playGame(mapId, difficulty, seed, maxWave = 400) {
+function playGame(mapId: string, difficulty: string, seed: number, maxWave: number = 400) {
   const g = new Game({ mapId, difficulty, seed });
   const act = makePlayer(g, bestSpots(mapId, 40));
   let frames = 0;
@@ -392,13 +420,13 @@ function playGame(mapId, difficulty, seed, maxWave = 400) {
   return { wave: g.state.wave, kills: g.state.kills, over: g.state.over, spent: g.state.spent, turrets: g.state.turrets.length };
 }
 
-function difficultyReport(maps = ['map1', 'map4', 'map9'], seeds = [11, 12, 13]) {
+function difficultyReport(maps: string[] = ['map1', 'map4', 'map9'], seeds: number[] = [11, 12, 13]): void {
   console.log('\n=== Greedy bot: wave reached at game over (mean of seeds ' + seeds.join(',') + ')');
   const diffs = Object.keys(DIFFICULTIES);
   console.log(pad('map', 8) + diffs.map((d) => rpad(d, 10)).join('') + rpad('ext/med', 9) + rpad('hard/med', 9) + rpad('easy/med', 9));
   const tot = Object.fromEntries(diffs.map((d) => [d, 0]));
   for (const m of maps) {
-    const row = {};
+    const row: Record<string, number> = {};
     for (const d of diffs) {
       const w = seeds.map((s) => playGame(m, d, s).wave);
       row[d] = w.reduce((a, b) => a + b, 0) / w.length;
@@ -412,8 +440,8 @@ function difficultyReport(maps = ['map1', 'map4', 'map9'], seeds = [11, 12, 13])
 }
 
 // ------------------------------------------------------------------ unlock thresholds
-function clusterSlots(probe, x, y, n) {
-  const out = [];
+function clusterSlots(probe: Game, x: number, y: number, n: number): Pos[] | null {
+  const out: Pos[] = [];
   for (let r = 46; r <= 62; r += 8) {
     for (let a = 0; a < 360; a += 15) {
       const sx = x + Math.cos((a * Math.PI) / 180) * r, sy = y + Math.sin((a * Math.PI) / 180) * r;
@@ -428,11 +456,11 @@ function clusterSlots(probe, x, y, n) {
  * Combo bot: concentrate money on one cluster of 3 to 4 turrets at a time, damage ladder first, so combos
  * (Nuke or BFG) fire; the next cluster is only started when every turret has its damage maxed.
  */
-function makeComboBot(game, mapId, pattern) {
+function makeComboBot(game: Game, mapId: string, pattern: string[]): BotAct {
   const probe = new Game({ mapId, mode: 'sandbox', seed: 1 });
-  const clusters = bestSpots(mapId, 14, 130).map((c) => ({ c, s: clusterSlots(probe, c.x, c.y, pattern.length) })).filter((k) => k.s);
+  const clusters = bestSpots(mapId, 14, 130).map((c) => ({ c, s: clusterSlots(probe, c.x, c.y, pattern.length) })).filter((k): k is { c: Pos; s: Pos[] } => !!k.s);
   let ci = 0;
-  const built = {};
+  const built: Record<number, number> = {};
   return function act() {
     const st = game.state;
     for (let guard = 0; guard < 50; guard++) {
@@ -449,8 +477,9 @@ function makeComboBot(game, mapId, pattern) {
         if (ok) { ci++; continue; }
         break;
       }
-      let best = null;
-      for (const t of st.turrets) for (const stat of ['damage', 'rate', 'range']) {
+      let best: { id: number; stat: Stat; c: number; key: number } | null = null;
+      const stats: Stat[] = ['damage', 'rate', 'range'];
+      for (const t of st.turrets) for (const stat of stats) {
         const c = game.upgradeCost(t.id, stat);
         if (c == null) continue;
         const key = (stat === 'damage' ? 0 : stat === 'rate' ? 1 : 2) * 1e9 + c;
@@ -462,12 +491,12 @@ function makeComboBot(game, mapId, pattern) {
   };
 }
 
-function unlockReport(maps = ['map1', 'map4', 'map9'], seed = 11) {
-  const names = Object.entries(TURRETS).filter(([, d]) => d.unlockKills != null).map(([k, d]) => [k, d.unlockKills]).sort((a, b) => a[1] - b[1]);
+function unlockReport(maps: string[] = ['map1', 'map4', 'map9'], seed: number = 11): void {
+  const names = Object.entries(TURRETS).filter(([, d]) => d.unlockKills != null).map(([k, d]): [string, number] => [k, d.unlockKills!]).sort((a, b) => a[1] - b[1]);
   console.log('\n=== Medium game: wave at which each unlock threshold is reached ("-" = never before game over).');
   console.log('    Kills accrue at most 10 per wave, so wave >= kills / 10 + 1 (upper bound on speed).');
   console.log('    new weapons: ' + names.filter(([k]) => ['targeter', 'sniper', 'fusion', 'railgun', 'comboOnly'].includes(k)).map(([k, u]) => `${k} ${u} (wave >= ${Math.floor(u / 10) + 1})`).join(', '));
-  const bots = [
+  const bots: [string, (g: Game, m: string) => BotAct][] = [
     ['greedy', (g, m) => makePlayer(g, bestSpots(m, 40))],
     ['combo red+blue+blue', (g, m) => makeComboBot(g, m, ['red', 'blue', 'blue'])],
     ['combo green+red+blue', (g, m) => makeComboBot(g, m, ['green', 'red', 'blue'])],
@@ -476,7 +505,7 @@ function unlockReport(maps = ['map1', 'map4', 'map9'], seed = 11) {
     for (const m of maps) {
       const g = new Game({ mapId: m, difficulty: 'medium', seed });
       const act = mk(g, m);
-      const when = {};
+      const when: Record<string, number> = {};
       g.on('unlock', (e) => { when[e.kind] = g.state.wave; });
       let n = 0;
       while (!g.state.over && g.state.wave < 300 && n < 400000) { g.advance(10); act(); n++; }
@@ -488,13 +517,13 @@ function unlockReport(maps = ['map1', 'map4', 'map9'], seed = 11) {
 
 // ------------------------------------------------------------------ late game
 /** Strongest bot we have (Green+Red+Blue combo clusters, damage first): where the late-game wall is per difficulty. */
-function lateReport(maps = ['map1', 'map4', 'map9'], seeds = [11, 12, 13]) {
+function lateReport(maps: string[] = ['map1', 'map4', 'map9'], seeds: number[] = [11, 12, 13]): void {
   console.log('\n=== Combo bot (green+red+blue clusters): wave reached at game over (mean of seeds ' + seeds.join(',') + ')');
   const diffs = Object.keys(DIFFICULTIES);
   console.log(pad('map', 8) + diffs.map((d) => rpad(d, 10)).join(''));
   const tot = Object.fromEntries(diffs.map((d) => [d, 0]));
   for (const m of maps) {
-    const row = {};
+    const row: Record<string, number> = {};
     for (const d of diffs) {
       const w = seeds.map((seed) => {
         const g = new Game({ mapId: m, difficulty: d, seed });

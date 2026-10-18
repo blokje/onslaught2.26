@@ -18,12 +18,38 @@ import { Particles } from './particles.ts';
 import { drawTurrets, drawAttackers, drawProjectiles } from './entities.ts';
 import { drawBeams, drawEffects, drawOverlay } from './fxlayer.ts';
 import { clamp } from './util.ts';
+import type { Overlay, ViewInsets } from '../types.ts';
+import type { RenderGame, Res, Batches, Frame, FxCells } from './context.ts';
+import type { TurretState, Effect } from '../types.ts';
 
-const DEFAULT_OVERLAY = { ghost: null, selectedId: null, hoverId: null, showRanges: 'selected', showCombo: false, joinFromId: null };
+export type { RenderGame } from './context.ts';
+
+const DEFAULT_OVERLAY: Overlay = { ghost: null, selectedId: null, hoverId: null, showRanges: 'selected', showCombo: false, joinFromId: null };
 const CLEAR = 0x120e0b;
 
 export class Renderer {
-  constructor(container) {
+  container: HTMLElement;
+  game: RenderGame | null;
+  t: number;
+  frame: number;
+  overlay: Overlay;
+  _cursorClient: { x: number; y: number } | null;
+  _dpr: number;
+  renderer: THREE.WebGLRenderer;
+  canvas: HTMLCanvasElement;
+  scene: THREE.Scene;
+  camera: THREE.OrthographicCamera;
+  text: TextAtlas;
+  res: Res;
+  terrain: Terrain;
+  sprites: SpriteBatch[];
+  rings: RingBatch[];
+  view: CameraController;
+  _onPointerMove: (e: PointerEvent) => void;
+  _onPointerLeave: () => void;
+  _onWinResize: () => void;
+  _ro?: ResizeObserver;
+  constructor(container: HTMLElement) {
     this.container = container;
     this.game = null;
     this.t = 0;          // animation clock, seconds (real time, always runs)
@@ -42,7 +68,7 @@ export class Renderer {
     cs.display = 'block'; cs.width = '100%'; cs.height = '100%'; cs.touchAction = 'none'; cs.outline = 'none';
     cs.userSelect = 'none'; cs.webkitUserSelect = 'none';
     container.appendChild(this.canvas);
-    this.canvas.addEventListener('webglcontextlost', (e) => e.preventDefault());
+    this.canvas.addEventListener('webglcontextlost', (e: Event) => e.preventDefault());
 
     this.scene = new THREE.Scene();
     this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 20);
@@ -51,7 +77,7 @@ export class Renderer {
     // --- art
     const fxA = buildFxAtlas(), unitA = buildUnitAtlas(), turA = buildTurretAtlases();
     this.text = new TextAtlas();
-    const fxC = {
+    const fxC: FxCells = {
       white: cellUV(FX.white, 30), whiteSolid: cellUV(FX.white, 80),
       glow: cellUV(FX.glow), puff: cellUV(FX.puff), flame: cellUV(FX.flame), beam: cellUV(FX.beam),
       swirl: cellUV(FX.swirl), star: cellUV(FX.star), rocket: cellUV(FX.rocket), bomb: cellUV(FX.bomb),
@@ -66,7 +92,7 @@ export class Renderer {
         tw: Array.from({ length: nKinds }, (_, i) => cellUV(i)),
         ti: Object.fromEntries(MOD_KINDS.map((k) => [k, modIconUV(k)])),
       },
-      b: {},
+      b: null as unknown as Batches, // filled right below, once the batches exist
       particles: new Particles(2600),
       text: this.text,
       overlay: this.overlay,
@@ -75,42 +101,44 @@ export class Renderer {
       trailSeen: new Map(),
       fxSeen: new Map(),
     };
-    const b = this.res.b;
-    const mk = (name, batch) => { b[name] = batch; this.scene.add(batch.mesh); return batch; };
+    const mk = <T extends SpriteBatch | RingBatch>(batch: T): T => { this.scene.add(batch.mesh); return batch; };
     const FXT = fxA.texture, UT = unitA.texture, TB = turA.base, TW = turA.weapon, TI = turA.icon, TT = this.text.texture;
     this.terrain = new Terrain(this.scene, FXT);
-    mk('ringUnder', new RingBatch(600, { order: 3 }));
-    mk('tGlow', new SpriteBatch(FXT, 600, { additive: true, order: 3.5 }));
-    mk('tBase', new SpriteBatch(TB, 400, { order: 4 }));
-    mk('tWeap', new SpriteBatch(TW, 400, { order: 5 }));
-    mk('tWeapAdd', new SpriteBatch(TW, 800, { additive: true, order: 5.1 }));
-    mk('tIcon', new SpriteBatch(TI, 400, { order: 5.2 }));
-    mk('tTop', new SpriteBatch(FXT, 1400, { order: 5.5 }));
-    mk('groundRing', new RingBatch(200, { order: 6 }));
-    mk('groundFx', new SpriteBatch(FXT, 1200, { order: 6.2 }));
-    mk('groundFxAdd', new SpriteBatch(FXT, 3000, { additive: true, order: 6.3 }));
-    mk('attSh', new SpriteBatch(UT, 1200, { order: 6.8 }));
-    mk('attGlow', new SpriteBatch(FXT, 1200, { additive: true, order: 6.9 }));
-    mk('att', new SpriteBatch(UT, 1200, { order: 7 }));
-    mk('attTop', new SpriteBatch(FXT, 2600, { order: 7.2 }));
-    mk('smoke', new SpriteBatch(FXT, 3600, { order: 7.8 }));
-    mk('proj', new SpriteBatch(FXT, 1500, { order: 8 }));
-    mk('projAdd', new SpriteBatch(FXT, 4500, { additive: true, order: 8.2 }));
-    mk('beams', new SpriteBatch(FXT, 12000, { additive: true, order: 9 }));
-    mk('blastAdd', new SpriteBatch(FXT, 800, { additive: true, order: 10 }));
-    mk('ringAdd', new RingBatch(1200, { additive: true, order: 10.2 }));
-    mk('text', new SpriteBatch(TT, 400, { order: 11 }));
-    mk('ghostBase', new SpriteBatch(TB, 4, { order: 12 }));
-    mk('ghostWeap', new SpriteBatch(TW, 4, { order: 12.1 }));
-    mk('ghostIcon', new SpriteBatch(TI, 4, { order: 12.2 }));
-    mk('ringTop', new RingBatch(500, { order: 12.5 }));
-    mk('ovAdd', new SpriteBatch(FXT, 800, { additive: true, order: 12.6 }));
-    this.sprites = ['tGlow', 'tBase', 'tWeap', 'tWeapAdd', 'tIcon', 'tTop', 'groundFx', 'groundFxAdd', 'attSh', 'attGlow', 'att', 'attTop', 'smoke', 'proj', 'projAdd', 'beams', 'blastAdd', 'text', 'ghostBase', 'ghostWeap', 'ghostIcon', 'ovAdd'].map((n) => b[n]);
-    this.rings = ['ringUnder', 'groundRing', 'ringAdd', 'ringTop'].map((n) => b[n]);
+    const b: Batches = {
+      ringUnder: mk(new RingBatch(600, { order: 3 })),
+      tGlow: mk(new SpriteBatch(FXT, 600, { additive: true, order: 3.5 })),
+      tBase: mk(new SpriteBatch(TB, 400, { order: 4 })),
+      tWeap: mk(new SpriteBatch(TW, 400, { order: 5 })),
+      tWeapAdd: mk(new SpriteBatch(TW, 800, { additive: true, order: 5.1 })),
+      tIcon: mk(new SpriteBatch(TI, 400, { order: 5.2 })),
+      tTop: mk(new SpriteBatch(FXT, 1400, { order: 5.5 })),
+      groundRing: mk(new RingBatch(200, { order: 6 })),
+      groundFx: mk(new SpriteBatch(FXT, 1200, { order: 6.2 })),
+      groundFxAdd: mk(new SpriteBatch(FXT, 3000, { additive: true, order: 6.3 })),
+      attSh: mk(new SpriteBatch(UT, 1200, { order: 6.8 })),
+      attGlow: mk(new SpriteBatch(FXT, 1200, { additive: true, order: 6.9 })),
+      att: mk(new SpriteBatch(UT, 1200, { order: 7 })),
+      attTop: mk(new SpriteBatch(FXT, 2600, { order: 7.2 })),
+      smoke: mk(new SpriteBatch(FXT, 3600, { order: 7.8 })),
+      proj: mk(new SpriteBatch(FXT, 1500, { order: 8 })),
+      projAdd: mk(new SpriteBatch(FXT, 4500, { additive: true, order: 8.2 })),
+      beams: mk(new SpriteBatch(FXT, 12000, { additive: true, order: 9 })),
+      blastAdd: mk(new SpriteBatch(FXT, 800, { additive: true, order: 10 })),
+      ringAdd: mk(new RingBatch(1200, { additive: true, order: 10.2 })),
+      text: mk(new SpriteBatch(TT, 400, { order: 11 })),
+      ghostBase: mk(new SpriteBatch(TB, 4, { order: 12 })),
+      ghostWeap: mk(new SpriteBatch(TW, 4, { order: 12.1 })),
+      ghostIcon: mk(new SpriteBatch(TI, 4, { order: 12.2 })),
+      ringTop: mk(new RingBatch(500, { order: 12.5 })),
+      ovAdd: mk(new SpriteBatch(FXT, 800, { additive: true, order: 12.6 })),
+    };
+    this.res.b = b;
+    this.sprites = ['tGlow', 'tBase', 'tWeap', 'tWeapAdd', 'tIcon', 'tTop', 'groundFx', 'groundFxAdd', 'attSh', 'attGlow', 'att', 'attTop', 'smoke', 'proj', 'projAdd', 'beams', 'blastAdd', 'text', 'ghostBase', 'ghostWeap', 'ghostIcon', 'ovAdd'].map((n) => b[n as keyof Batches] as SpriteBatch);
+    this.rings = (['ringUnder', 'groundRing', 'ringAdd', 'ringTop'] as const).map((n) => b[n]);
 
     // --- camera + input
     this.view = new CameraController(this.canvas);
-    this._onPointerMove = (e) => { this._cursorClient = { x: e.clientX, y: e.clientY }; };
+    this._onPointerMove = (e: PointerEvent) => { this._cursorClient = { x: e.clientX, y: e.clientY }; };
     this._onPointerLeave = () => { /* keep last cursor: join lines stay where they were */ };
     this.canvas.addEventListener('pointermove', this._onPointerMove, { passive: true });
     this.canvas.addEventListener('pointerleave', this._onPointerLeave, { passive: true });
@@ -126,7 +154,7 @@ export class Renderer {
 
   // ------------------------------------------------------------------ public API
   /** Pass null to detach: nothing is drawn and the road is cleared until the next game. */
-  setGame(game) {
+  setGame(game: RenderGame | null): void {
     this.game = game || null;
     this.res.game = this.game;
     this.res.particles.clear();
@@ -135,19 +163,19 @@ export class Renderer {
     this.terrain.mapKey = '__reset__'; // force the next frame to rebuild road + base for this game's map
   }
 
-  screenToWorld(clientX, clientY) { return this.view.screenToWorld(clientX, clientY); }
-  worldToScreen(x, y) { return this.view.worldToScreen(x, y); }
+  screenToWorld(clientX: number, clientY: number): { x: number; y: number } { return this.view.screenToWorld(clientX, clientY); }
+  worldToScreen(x: number, y: number): { x: number; y: number } { return this.view.worldToScreen(x, y); }
 
   /** Merge overlay settings (full or partial objects both work). */
-  setOverlay(o) { Object.assign(this.overlay, o || {}); }
+  setOverlay(o?: Partial<Overlay> | null): void { Object.assign(this.overlay, o || {}); }
 
-  resetView() { this.view.reset(); }
+  resetView(): void { this.view.reset(); }
 
   /** Optional: reserve screen space covered by HUD panels (CSS px) so the fitted field avoids it. */
-  setViewInsets(insets) { this.view.setInsets(insets || {}); }
-  getZoom() { return this.view.zoom; }
+  setViewInsets(insets?: Partial<ViewInsets> | null): void { this.view.setInsets(insets || {}); }
+  getZoom(): number { return this.view.zoom; }
 
-  render(realDtMs = 16) {
+  render(realDtMs: number = 16): void {
     this._resize();
     const dt = clamp(realDtMs || 0, 0, 100);
     this.t += dt / 1000;
@@ -175,11 +203,11 @@ export class Renderer {
     this.text.beginFrame();
 
     if (st) {
-      const turretById = new Map();
+      const turretById = new Map<number, TurretState>();
       for (const tr of st.turrets) turretById.set(tr.id, tr);
-      const holes = [];
+      const holes: Effect[] = [];
       for (const e of st.effects) if (e.kind === 'blackHole') holes.push(e);
-      const f = {
+      const f: Frame = {
         state: st, t: this.t, dtMs, wpp, frame: this.frame, turretById, holes,
         textScale: clamp(1 / Math.sqrt(view.zoom), 0.7, 1.4),
       };
@@ -199,7 +227,7 @@ export class Renderer {
     this.renderer.render(this.scene, cam);
   }
 
-  dispose() {
+  dispose(): void {
     if (this._ro) this._ro.disconnect();
     window.removeEventListener('resize', this._onWinResize);
     this.canvas.removeEventListener('pointermove', this._onPointerMove);
@@ -210,7 +238,7 @@ export class Renderer {
   }
 
   // ------------------------------------------------------------------ internals
-  _resize(force) {
+  _resize(force?: boolean): void {
     const cont = this.container;
     const w = Math.max(1, cont.clientWidth || window.innerWidth), h = Math.max(1, cont.clientHeight || window.innerHeight);
     const dpr = Math.min(window.devicePixelRatio || 1, 2);

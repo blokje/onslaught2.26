@@ -9,8 +9,23 @@
 import * as THREE from 'three';
 import { FIELD } from '../data/rules.ts';
 import { SpriteBatch } from './batches.ts';
-import { FX, cellUV } from './atlas.ts';
+import { FX, cellUV, newCanvas, ctx2d } from './atlas.ts';
 import { mulberry32, clamp, TAU } from './util.ts';
+import type { Cell } from './batches.ts';
+import type { MapState, Point } from '../types.ts';
+
+type Ctx = CanvasRenderingContext2D;
+
+/** Layout facts about the base compound that the per-frame animation needs. */
+interface CompoundInfo {
+  canvas: HTMLCanvasElement;
+  pad: number;
+  side: string;
+  flag: [number, number, boolean];
+  beacon: [number, number];
+  gate: [number, number];
+  gateLights: [number, number][];
+}
 
 const PPU = 2;          // texels per world unit (ground + distance field)
 const MARGIN = 100;     // backdrop extends this far beyond the field on every side
@@ -62,14 +77,12 @@ void main() {
   gl_FragColor = vec4(col, 1.0);
 }`;
 
-function newCanvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
-
 // ---------------------------------------------------------------- ground texture
-function valueNoise(rnd, gw, gh) {
+function valueNoise(rnd: () => number, gw: number, gh: number): (u: number, v: number) => number {
   const g = new Float32Array((gw + 2) * (gh + 2));
   for (let i = 0; i < g.length; i++) g[i] = rnd();
   const stride = gw + 2;
-  return (u, v) => { // u in 0..gw, v in 0..gh
+  return (u: number, v: number): number => { // u in 0..gw, v in 0..gh
     const x0 = Math.floor(u), y0 = Math.floor(v);
     let fx = u - x0, fy = v - y0;
     fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy);
@@ -78,10 +91,10 @@ function valueNoise(rnd, gw, gh) {
   };
 }
 
-function buildGroundTexture() {
+function buildGroundTexture(): THREE.CanvasTexture {
   const W = REG.w * PPU, H = REG.h * PPU;
   const canvas = newCanvas(W, H);
-  const ctx = canvas.getContext('2d');
+  const ctx = ctx2d(canvas);
   const rnd = mulberry32(20261017);
   const img = ctx.createImageData(W, H);
   const d = img.data;
@@ -104,7 +117,7 @@ function buildGroundTexture() {
   const r = mulberry32(777);
   const grid = 15;
   const DIRS = [[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]];
-  const snap = (v) => Math.round(v / grid) * grid;
+  const snap = (v: number): number => Math.round(v / grid) * grid;
   const line = 'rgba(120,84,44,0.17)', lineStrong = 'rgba(110,76,40,0.22)';
   for (let i = 0; i < 190; i++) {
     let x = snap(r() * REG.w - MARGIN), y = snap(r() * REG.h - MARGIN), dir = Math.floor(r() * 8);
@@ -146,12 +159,12 @@ function buildGroundTexture() {
   tex.needsUpdate = true;
   return tex;
 }
-function circle(ctx, x, y, r) { ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); }
+function circle(ctx: Ctx, x: number, y: number, r: number): void { ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); }
 
 // ---------------------------------------------------------------- road
 /** Path with a lead-in segment when the first point sits on the field border. */
-function extendedPath(path) {
-  const p = path.map((q) => [q[0], q[1]]);
+function extendedPath(path: Point[]): Point[] {
+  const p: Point[] = path.map((q): Point => [q[0], q[1]]);
   const [x, y] = p[0], [nx, ny] = p[1] || [x + 1, y];
   const onBorder = x <= 1 || x >= FIELD.width - 1 || y <= 1 || y >= FIELD.height - 1;
   if (onBorder) {
@@ -161,7 +174,7 @@ function extendedPath(path) {
   return p;
 }
 
-function buildSdf(path, data) {
+function buildSdf(path: Point[], data: Uint8Array): void {
   const W = REG.w * PPU, H = REG.h * PPU;
   const dist = new Float32Array(W * H).fill(DMAX);
   for (let i = 0; i + 1 < path.length; i++) {
@@ -184,14 +197,14 @@ function buildSdf(path, data) {
 }
 
 // ---------------------------------------------------------------- compound
-function drawCompound(base, pathEnd) {
+function drawCompound(base: MapState['base'], pathEnd: Point | undefined): CompoundInfo {
   const S = 4, pad = 20, w = base.w, h = base.h;
   const canvas = newCanvas((w + pad * 2) * S, (h + pad * 2) * S);
-  const ctx = canvas.getContext('2d');
+  const ctx = ctx2d(canvas);
   ctx.scale(S, S); ctx.translate(pad, pad);
   // entry side + gate position
   const e = pathEnd || [base.x - 1, base.y + h / 2];
-  const dists = { left: Math.abs(e[0] - base.x), right: Math.abs(e[0] - (base.x + w)), top: Math.abs(e[1] - base.y), bottom: Math.abs(e[1] - (base.y + h)) };
+  const dists: Record<string, number> = { left: Math.abs(e[0] - base.x), right: Math.abs(e[0] - (base.x + w)), top: Math.abs(e[1] - base.y), bottom: Math.abs(e[1] - (base.y + h)) };
   const side = Object.keys(dists).sort((a, b) => dists[a] - dists[b])[0];
   const gate = (side === 'left' || side === 'right') ? clamp(e[1] - base.y, 18, h - 18) : clamp(e[0] - base.x, 18, w - 18);
   const GAP = 16; // half width of the gate opening
@@ -233,8 +246,8 @@ function drawCompound(base, pathEnd) {
     { n: 'top', x0: I, y0: I, x1: w - I, y1: I }, { n: 'right', x0: w - I, y0: I, x1: w - I, y1: h - I },
     { n: 'bottom', x0: w - I, y0: h - I, x1: I, y1: h - I }, { n: 'left', x0: I, y0: h - I, x1: I, y1: I },
   ];
-  const horizontal = (n) => n === 'top' || n === 'bottom';
-  const posts = [];
+  const horizontal = (n: string): boolean => n === 'top' || n === 'bottom';
+  const posts: [number, number, boolean][] = [];
   ctx.lineCap = 'round';
   for (const ed of edges) {
     const len = Math.hypot(ed.x1 - ed.x0, ed.y1 - ed.y0);
@@ -272,7 +285,7 @@ function drawCompound(base, pathEnd) {
   circle(ctx, fx, fy, 2.3); ctx.fillStyle = '#9aa3ad'; ctx.fill(); ctx.restore();
   circle(ctx, fx, fy, 1.3); ctx.fillStyle = '#e8edf2'; ctx.fill();
 
-  const gateAbs = horizontal(side) ? [base.x + gate, side === 'top' ? base.y + I : base.y + h - I] : [side === 'left' ? base.x + I : base.x + w - I, base.y + gate];
+  const gateAbs: [number, number] = horizontal(side) ? [base.x + gate, side === 'top' ? base.y + I : base.y + h - I] : [side === 'left' ? base.x + I : base.x + w - I, base.y + gate];
   return {
     canvas, pad, side,
     flag: [base.x + fx, base.y + fy, fx > w / 2],
@@ -280,7 +293,7 @@ function drawCompound(base, pathEnd) {
     gate: gateAbs, gateLights: horizontal(side) ? [[gateAbs[0] - GAP, gateAbs[1]], [gateAbs[0] + GAP, gateAbs[1]]] : [[gateAbs[0], gateAbs[1] - GAP], [gateAbs[0], gateAbs[1] + GAP]],
   };
 }
-function rrect(ctx, x, y, w, h, r) {
+function rrect(ctx: Ctx, x: number, y: number, w: number, h: number, r: number): void {
   r = Math.min(r, w / 2, h / 2);
   ctx.beginPath();
   ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y); ctx.arcTo(x + w, y, x + w, y + r, r);
@@ -290,9 +303,28 @@ function rrect(ctx, x, y, w, h, r) {
 }
 
 // ---------------------------------------------------------------- Terrain
+type TerrainUniforms = {
+  uGround: { value: THREE.Texture }; uSdf: { value: THREE.Texture }; uRegion: { value: THREE.Vector4 };
+  uHalfRoad: { value: number }; uWpp: { value: number }; uDmax: { value: number }; uHasRoad: { value: number };
+};
+
 export class Terrain {
+  mapKey: string | null;
+  groundTex: THREE.CanvasTexture;
+  sdfData: Uint8Array<ArrayBuffer>;
+  sdfTex: THREE.DataTexture;
+  uniforms: TerrainUniforms;
+  mesh: THREE.Mesh;
+  white: Cell;
+  dashes: SpriteBatch;
+  compoundTex: THREE.CanvasTexture | null;
+  compound: SpriteBatch;
+  dyn: SpriteBatch;
+  dynAdd: SpriteBatch;
+  fxCells: { flag: Cell; glow: Cell };
+  info: CompoundInfo | null;
   /** @param fxTexture the shared fx atlas texture */
-  constructor(scene, fxTexture) {
+  constructor(scene: THREE.Scene, fxTexture: THREE.Texture) {
     this.mapKey = null;
     this.groundTex = buildGroundTexture();
     const W = REG.w * PPU, H = REG.h * PPU;
@@ -330,7 +362,7 @@ export class Terrain {
     this.info = null;
   }
 
-  setMap(map) {
+  setMap(map: MapState | null): void {
     const key = map ? map.id + '|' + map.path.length + '|' + map.roadWidth + '|' + (map.base ? map.base.x + ',' + map.base.y : '') : null;
     if (key === this.mapKey) return;
     this.mapKey = key;
@@ -377,7 +409,7 @@ export class Terrain {
   }
 
   /** Per-frame: animate flag and beacons, update AA width. */
-  update(t, wpp) {
+  update(t: number, wpp: number): void {
     this.uniforms.uWpp.value = wpp;
     const i = this.info;
     this.dyn.begin(); this.dynAdd.begin();

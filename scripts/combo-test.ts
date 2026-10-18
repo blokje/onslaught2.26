@@ -4,20 +4,51 @@
 import { Game, STEP_MS } from '../src/game/Game.ts';
 import { laneOffset } from '../src/game/Attacker.ts';
 import { COMBOS, MINE, COMBO_LOG_MAX } from '../src/data/combos.ts';
+import type { Turret } from '../src/game/Turret.ts';
+import type { Attacker, Beam, ColorCounts, ComboRecipe, Effect, GameEvents, KeyColor, Projectile, Result } from '../src/types.ts';
 
 let failures = 0;
-function check(name, cond, extra = '') {
+function check(name: string, cond: unknown, extra: string = ''): void {
   console.log(`${cond ? 'PASS' : 'FAIL'}  ${name}${extra ? '  (' + extra + ')' : ''}`);
   if (!cond) failures++;
 }
 
 const MAP = 'map1';
 const HP = 1e12;
+const COLOURS: KeyColor[] = ['red', 'green', 'blue', 'yellow'];
+
+/** Unwrap a command result that must have succeeded (throws with the failure reason otherwise). */
+function must<T extends object>(r: Result<T>): { ok: true } & T {
+  if (!r.ok) throw new Error(r.reason);
+  return r;
+}
+/** Turret instance by id (throws if missing). */
+function tur(g: Game, id: number): Turret {
+  const t = g.turretMap.get(id);
+  if (!t) throw new Error('no turret ' + id);
+  return t;
+}
+/** Recipe by colour and id (throws if missing). */
+function recipeOf(colour: KeyColor, id: string): ComboRecipe {
+  const r = COMBOS[colour].find((x) => x.id === id);
+  if (!r) throw new Error('no recipe ' + id);
+  return r;
+}
+/** Combo preview of a turret that must exist (throws otherwise). */
+function preview(g: Game, id: number): NonNullable<ReturnType<Game['comboPreview']>> {
+  const pv = g.comboPreview(id);
+  if (!pv) throw new Error('no preview for ' + id);
+  return pv;
+}
+/** Minimal stand-in for a lead turret: _shockwave only reads x and y (and a null source id). */
+const fakeLead = (x: number, y: number): Turret => ({ x, y, id: null }) as unknown as Turret;
+interface Pos { x: number; y: number }
+interface Spot extends Pos { score: number; slots: Pos[] }
 
 // ------------------------------------------------------------------ layout: a lead spot with 6 ring slots
-function slotsFor(probe, x, y) {
+function slotsFor(probe: Game, x: number, y: number): Pos[] {
   // greedy: build spots within 70 of the lead, at least 44 apart (the turret footprint)
-  const out = [];
+  const out: Pos[] = [];
   for (let r = 46; r <= 68; r += 6) {
     for (let a = 0; a < 360; a += 10) {
       const sx = x + Math.cos((a * Math.PI) / 180) * r, sy = y + Math.sin((a * Math.PI) / 180) * r;
@@ -27,10 +58,10 @@ function slotsFor(probe, x, y) {
   }
   return out;
 }
-function findSpot(minRoad = 0, maxRoad = 60) {
+function findSpot(minRoad: number = 0, maxRoad: number = 60): Spot {
   const probe = new Game({ mapId: MAP, mode: 'sandbox', seed: 1 });
   const road = probe.roadPoints();
-  let best = null;
+  let best: Spot | null = null;
   for (let x = 60; x <= 660; x += 6) {
     for (let y = 60; y <= 390; y += 6) {
       if (!probe.canBuild('blue', x, y).ok) continue;
@@ -43,6 +74,7 @@ function findSpot(minRoad = 0, maxRoad = 60) {
       if (slots.length >= 5) best = { x, y, score, slots };
     }
   }
+  if (!best) throw new Error('no build spot found');
   return best;
 }
 const SPOT = findSpot(0, 60);
@@ -53,19 +85,23 @@ const FAR_SPOT = findSpot(100, 130); // at least 100 from any road point (for th
  * spec: { lead: kind, partners: [kind | {kind, color, unmaxed}], mods: [kind], seed, spot }
  * Everything is upgraded to max (damage, range, rate) except `unmaxed` partners (damage one level short).
  */
-function setup(spec) {
+interface PartnerSpec { kind: string; color?: KeyColor; unmaxed?: boolean }
+interface SetupSpec { lead: string; partners?: (string | PartnerSpec)[]; mods?: string[]; seed?: number; spot?: Spot }
+interface Scenario { g: Game; lead: Turret; partners: Turret[]; spot: Spot }
+function setup(spec: SetupSpec): Scenario {
   const g = new Game({ mapId: MAP, mode: 'sandbox', seed: spec.seed || 5, waveInterval: 1e9 });
   const spot = spec.spot || SPOT;
   const slots = spot.slots;
-  const lead = g.turretMap.get(g.build(spec.lead, spot.x, spot.y).id);
-  const partners = [];
+  const lead = tur(g, must(g.build(spec.lead, spot.x, spot.y)).id);
+  const partners: Turret[] = [];
+  const unmaxed = new Set<Turret>();
   (spec.partners || []).forEach((p, i) => {
-    const o = typeof p === 'string' ? { kind: p } : p;
+    const o: PartnerSpec = typeof p === 'string' ? { kind: p } : p;
     const r = g.build(o.kind, slots[i].x, slots[i].y);
     if (!r.ok) throw new Error('build failed: ' + r.reason);
-    const t = g.turretMap.get(r.id);
+    const t = tur(g, r.id);
     if (o.color) g.setComboColor(t.id, o.color);
-    t.__unmaxed = !!o.unmaxed;
+    if (o.unmaxed) unmaxed.add(t);
     partners.push(t);
   });
   (spec.mods || []).forEach((k, i) => {
@@ -74,8 +110,8 @@ function setup(spec) {
   });
   for (const t of [lead, ...partners]) {
     if (t.kind === 'comboOnly') continue;
-    for (const st of ['range', 'rate']) g.upgrade(t.id, st, true);
-    if (t.__unmaxed) {
+    for (const st of ['range', 'rate'] as const) g.upgrade(t.id, st, true);
+    if (unmaxed.has(t)) {
       const n = t.maxLevels.damage - 1;
       for (let i = 0; i < n; i++) g.upgrade(t.id, 'damage');
     } else g.upgrade(t.id, 'damage', true);
@@ -83,13 +119,13 @@ function setup(spec) {
   return { g, lead, partners, spot };
 }
 
-function roadNear(g, spot, r = 90) {
+function roadNear(g: Game, spot: Pos, r: number = 90) {
   return g.roadPoints().filter((q) => (q.x - spot.x) ** 2 + (q.y - spot.y) ** 2 <= r * r);
 }
 /** n attackers on the road near the spot. frozen: pinned in place (engine treats blackholed as "not moved"). */
-function addAttackers(g, spot, n, frozen = true, hp = HP) {
+function addAttackers(g: Game, spot: Pos, n: number, frozen: boolean = true, hp: number = HP): Attacker[] {
   const pts = roadNear(g, spot);
-  const out = [];
+  const out: Attacker[] = [];
   for (let i = 0; i < n; i++) {
     const q = pts[Math.floor(((i + 0.5) * pts.length) / n)];
     const a = g.spawnAttacker(1, hp);
@@ -103,8 +139,19 @@ function addAttackers(g, spot, n, frozen = true, hp = HP) {
 }
 
 // ------------------------------------------------------------------ observer
-function observe(g) {
-  const o = { combos: [], blasts: [], kills: [], beams: {}, projKinds: {}, projSrc: {}, effects: {}, _b: new WeakSet(), _p: new WeakSet(), _e: new WeakSet() };
+interface Observer {
+  combos: (GameEvents['combo'] & { time: number })[];
+  blasts: GameEvents['blast'][];
+  kills: GameEvents['kill'][];
+  beams: Record<string, number>;
+  projKinds: Record<string, number>;
+  projSrc: Record<string, number>;
+  effects: Record<string, number>;
+  _b: WeakSet<Beam>; _p: WeakSet<Projectile>; _e: WeakSet<Effect>;
+  tick: () => void;
+}
+function observe(g: Game): Observer {
+  const o: Observer = { combos: [], blasts: [], kills: [], beams: {}, projKinds: {}, projSrc: {}, effects: {}, _b: new WeakSet(), _p: new WeakSet(), _e: new WeakSet(), tick: () => {} };
   g.on('combo', (e) => o.combos.push({ ...e, time: g.state.time }));
   g.on('blast', (e) => o.blasts.push({ ...e }));
   g.on('kill', (e) => o.kills.push({ ...e }));
@@ -115,39 +162,39 @@ function observe(g) {
   };
   return o;
 }
-function run(g, o, steps, hook) {
+function run(g: Game, o: Observer, steps: number, hook?: (i: number) => 'stop' | void): number {
   for (let i = 0; i < steps; i++) { g.advance(1); o.tick(); if (hook && hook(i) === 'stop') return i + 1; }
   return steps;
 }
-const lossOf = (list) => list.reduce((s, a) => s + (a.maxHp - a.hp), 0);
-const blastCount = (o, size) => o.blasts.filter((b) => b.size === size).length;
+const lossOf = (list: Attacker[]): number => list.reduce((s, a) => s + (a.maxHp - a.hp), 0);
+const blastCount = (o: Observer, size: string | number): number => o.blasts.filter((b) => b.size === size).length;
 
 // ------------------------------------------------------------------ recipes -> scenarios
-const recipes = [];
-for (const [colour, list] of Object.entries(COMBOS)) for (const r of list) recipes.push({ colour, r });
+const recipes: { colour: KeyColor; r: ComboRecipe }[] = [];
+for (const colour of Object.keys(COMBOS) as KeyColor[]) for (const r of COMBOS[colour]) recipes.push({ colour, r });
 check('20 recipes in data', recipes.length === 20, String(recipes.length));
 
 /** Partner colours to build: per colour the larger of needs and takes (takes = partners used, default needs). */
-function partnersFor(r) {
-  const out = [];
+function partnersFor(r: ComboRecipe): KeyColor[] {
+  const out: KeyColor[] = [];
   const takes = r.takes || r.needs;
-  for (const c of ['red', 'green', 'blue', 'yellow']) {
+  for (const c of COLOURS) {
     const n = Math.max(r.needs[c] || 0, takes[c] || 0);
     for (let i = 0; i < n; i++) out.push(c);
   }
   return out;
 }
 /** Partners per colour that a combo puts on recharge, given the partners built by partnersFor. */
-function takenFor(r) {
-  const takes = r.takes || r.needs, built = {};
+function takenFor(r: ComboRecipe): ColorCounts {
+  const takes: ColorCounts = r.takes || r.needs, built: ColorCounts = {};
   for (const c of partnersFor(r)) built[c] = (built[c] || 0) + 1;
-  const out = {};
-  for (const c of Object.keys(built)) out[c] = Math.min(takes[c] || 0, built[c]);
+  const out: ColorCounts = {};
+  for (const c of Object.keys(built) as KeyColor[]) out[c] = Math.min(takes[c] || 0, built[c] || 0);
   return out;
 }
 
 // per-recipe observation window (steps after the combo): recharge minus a margin so no second combo fires
-const windowFor = (r) => Math.min(400, Math.floor(r.recharge / STEP_MS) - 6);
+const windowFor = (r: ComboRecipe): number => Math.min(400, Math.floor(r.recharge / STEP_MS) - 6);
 
 for (const { colour, r } of recipes) {
   const fx = r.fx;
@@ -168,12 +215,12 @@ for (const { colour, r } of recipes) {
   if (!first) continue;
   const ct = g.state.time;
   const recharged = partners.filter((p) => Math.abs(p.comboNext - ct - r.recharge) <= 2 * STEP_MS && !p.comboReady);
-  const taken = takenFor(r), byCol = {};
-  for (const p of recharged) byCol[p.color] = (byCol[p.color] || 0) + 1;
+  const taken = takenFor(r), byCol: ColorCounts = {};
+  for (const p of recharged) if (p.color) byCol[p.color] = (byCol[p.color] || 0) + 1;
   const nTaken = Object.values(taken).reduce((a, b) => a + b, 0);
   check(`[${r.id}] recharge applied to lead and the partners it takes`,
     Math.abs(lead.comboNext - ct - r.recharge) <= 2 * STEP_MS && lead.cd > r.recharge - 40 &&
-    recharged.length === nTaken && Object.entries(taken).every(([c, n]) => (byCol[c] || 0) === n), JSON.stringify(byCol));
+    recharged.length === nTaken && (Object.entries(taken) as [KeyColor, number][]).every(([c, n]) => (byCol[c] || 0) === n), JSON.stringify(byCol));
   check(`[${r.id}] comboName effect and partner chain beams`,
     g.state.effects.some((e) => e.kind === 'comboName' && e.data.name === r.name) && (o.beams.chain || 0) >= nTaken);
 
@@ -198,26 +245,27 @@ for (const { colour, r } of recipes) {
   }
   if (isWave) {
     // moving attackers: look for a knockback jump between two steps
-    const prev = new Map(g.state.attackers.map((a) => [a.id, a.progress]));
+    const prev = new Map<number, number>(g.state.attackers.map((a) => [a.id, a.progress]));
     let maxBack = 0;
     run(g, o, 60, () => {
       for (const a of g.state.attackers) {
-        const d = a.progress - prev.get(a.id);
+        const d = a.progress - prev.get(a.id)!;
         if (d < maxBack) maxBack = d;
         prev.set(a.id, a.progress);
       }
     });
-    check(`[${r.id}] shockwave effect, hits and knocks back`, !!o.effects.shockwave && maxBack <= -fx.shockwave.knockback + 3, `max jump ${maxBack.toFixed(1)}`);
-    check(`[${r.id}] shockwave deals damage and poison`, lossOf(g.state.attackers) >= fx.shockwave.damage && g.state.attackers.some((a) => a.poisoned),
+    check(`[${r.id}] shockwave effect, hits and knocks back`, !!o.effects.shockwave && maxBack <= -fx.shockwave!.knockback + 3, `max jump ${maxBack.toFixed(1)}`);
+    check(`[${r.id}] shockwave deals damage and poison`, lossOf(g.state.attackers) >= fx.shockwave!.damage && g.state.attackers.some((a) => a.poisoned),
       `loss ${lossOf(g.state.attackers).toExponential(2)}`);
     continue;
   }
   if (isMine) {
     // phase 1: travel and arm
-    let mine = null, travelledUnarmed = false;
-    run(g, o, 120, () => { mine = g.state.projectiles.find((p) => p.kind === 'mine'); if (mine && !mine.data.armed && mine.armed === false) travelledUnarmed = true; if (mine && mine.data.armed) return 'stop'; });
+    let mine = null as Projectile | null | undefined, travelledUnarmed = false;
+    run(g, o, 120, () => { mine = g.state.projectiles.find((p) => p.kind === 'mine'); if (mine && !mine.data!.armed && mine.armed === false) travelledUnarmed = true; if (mine && mine.data!.armed) return 'stop'; });
     check(`[${r.id}] mine state.armed false while travelling, true once placed`, !!mine && mine.armed === true && travelledUnarmed);
-    check(`[${r.id}] mine spawned, travels and arms`, !!mine && mine.data.armed && Math.hypot(mine.x - mine.destX, mine.y - mine.destY) < 1);
+    check(`[${r.id}] mine spawned, travels and arms`, !!mine && mine.data!.armed && Math.hypot(mine.x - mine.destX!, mine.y - mine.destY!) < 1);
+    if (!mine) throw new Error(`[${r.id}] no mine spawned`);
     // mine point lies within the lead's maximum range
     const maxR = 350; // red max; blue max is 220, this is only a loose bound for the lead (blue)
     // jitter: up to MINE.jitter on x and y, so up to J * sqrt(2) off the sampled road point
@@ -239,7 +287,7 @@ for (const { colour, r } of recipes) {
     g.grid.rebuild(g.state.attackers);
     const loss0 = v.maxHp - v.hp;
     run(g, o, Math.ceil(MINE.checkInterval / STEP_MS) + 2);
-    check(`[${r.id}] mine triggers: removed, hit + blast on the attacker`, mine.dead && (v.maxHp - v.hp - loss0) >= fx.hit + fx.blast.damage - 1 && blastCount(o, fx.blast.size) >= 1,
+    check(`[${r.id}] mine triggers: removed, hit + blast on the attacker`, mine.dead && (v.maxHp - v.hp - loss0) >= fx.hit! + fx.blast!.damage - 1 && blastCount(o, fx.blast!.size) >= 1,
       `loss ${(v.maxHp - v.hp).toExponential(2)}`);
     if (fx.cluster) {
       run(g, o, 90);
@@ -251,7 +299,8 @@ for (const { colour, r } of recipes) {
   }
 
   // projectile combos
-  let flightSteps = 0, cloudPoisoned = false, napEff = null, burn = null;
+  let flightSteps = 0, cloudPoisoned = false, burn = null as number | null;
+  let napEff = null as Effect | null, napV: Attacker | null = null, napHp0 = 0, napT0 = 0;
   run(g, o, win, () => {
     if (g.state.projectiles.some((p) => p.kind === fx.projectile)) flightSteps++;
     if (fx.projectile === 'poisonRocket' && !cloudPoisoned && o.effects.poisonCloud) {
@@ -260,40 +309,41 @@ for (const { colour, r } of recipes) {
     if (fx.projectile === 'napalmRocket' && !napEff) {
       napEff = g.state.effects.find((e) => e.kind === 'napalm') || null;
       if (napEff) {
-        const pt = napEff.data.points[Math.floor(napEff.data.points.length / 2)];
+        const pts: [number, number][] = napEff.data.points;
+        const pt = pts[Math.floor(pts.length / 2)];
         const v = g.spawnAttacker(1, HP);
         v.blackholed = true; v.x = pt[0]; v.y = pt[1];
         g.grid.rebuild(g.state.attackers);
-        napEff.__v = v; napEff.__hp0 = v.hp; napEff.__t0 = g.state.time;
+        napV = v; napHp0 = v.hp; napT0 = g.state.time;
       }
     }
-    if (napEff && burn === null && g.state.time - napEff.__t0 >= 1000) burn = napEff.__hp0 - napEff.__v.hp;
+    if (napEff && napV && burn === null && g.state.time - napT0 >= 1000) burn = napHp0 - napV.hp;
   });
   const flightMs = flightSteps * STEP_MS;
-  const loss = lossOf(g.state.attackers.filter((a) => !(napEff && a === napEff.__v)));
-  check(`[${r.id}] projectile '${fx.projectile}' launched`, (o.projKinds[fx.projectile] || 0) === 1, JSON.stringify(o.projKinds));
+  const loss = lossOf(g.state.attackers.filter((a) => a !== napV));
+  check(`[${r.id}] projectile '${fx.projectile}' launched`, (o.projKinds[fx.projectile!] || 0) === 1, JSON.stringify(o.projKinds));
   check(`[${r.id}] damage dealt (>= hit damage)`, loss >= (fx.hit || 0) - 1, `loss ${loss.toExponential(2)}`);
   if (fx.blast) check(`[${r.id}] blast of size ${fx.blast.size}`, blastCount(o, fx.blast.size) >= 1);
-  if (fx.projectile === 'nuke') check(`[${r.id}] nuke hit + huge blast on a clustered group`, loss >= fx.hit + fx.blast.damage, `loss ${loss.toExponential(2)}`);
+  if (fx.projectile === 'nuke') check(`[${r.id}] nuke hit + huge blast on a clustered group`, loss >= fx.hit! + fx.blast!.damage, `loss ${loss.toExponential(2)}`);
   if (fx.projectile === 'poisonRocket') {
     check(`[${r.id}] poison cloud effect, attackers slowed to speed/2`, cloudPoisoned && !!o.effects.poisonCloud);
   }
   if (fx.projectile === 'laserRocket') {
-    check(`[${r.id}] lasers in flight and burst of ${fx.burst.qty}`, (o.beams.laser || 0) >= fx.burst.qty + 1, String(o.beams.laser));
+    check(`[${r.id}] lasers in flight and burst of ${fx.burst!.qty}`, (o.beams.laser || 0) >= fx.burst!.qty + 1, String(o.beams.laser));
   }
   if (fx.projectile === 'napalmRocket') {
-    check(`[${r.id}] napalm effect with road points`, !!napEff && napEff.data.points.length >= 10 && napEff.data.points.length <= fx.napalm.length / 4 + 2, napEff ? String(napEff.data.points.length) : 'none');
-    check(`[${r.id}] napalm damages over time (~dps)`, burn !== null && burn >= fx.napalm.dps * 0.8 && burn <= fx.napalm.dps * 1.3, `burn ${burn === null ? 'n/a' : burn.toExponential(2)} in 1 s`);
+    check(`[${r.id}] napalm effect with road points`, !!napEff && napEff.data.points.length >= 10 && napEff.data.points.length <= fx.napalm!.length / 4 + 2, napEff ? String(napEff.data.points.length) : 'none');
+    check(`[${r.id}] napalm damages over time (~dps)`, burn !== null && burn >= fx.napalm!.dps * 0.8 && burn <= fx.napalm!.dps * 1.3, `burn ${burn === null ? 'n/a' : burn.toExponential(2)} in 1 s`);
   }
   if (fx.projectile === 'tazerRocket') {
     const poisoned = g.state.attackers.filter((a) => a.poisoned).length;
     const jumps = o.beams.spark || 0;
-    const hits = g.state.attackers.filter((a) => a.maxHp - a.hp >= fx.chainSpark.damage * 0.9).length;
-    check(`[${r.id}] chain-spark jumps to several attackers, each once`, jumps >= 4 && jumps <= fx.chainSpark.qty && hits >= 4 && poisoned >= 4,
+    const hits = g.state.attackers.filter((a) => a.maxHp - a.hp >= fx.chainSpark!.damage * 0.9).length;
+    check(`[${r.id}] chain-spark jumps to several attackers, each once`, jumps >= 4 && jumps <= fx.chainSpark!.qty && hits >= 4 && poisoned >= 4,
       `sparks ${jumps}, hit ${hits}, poisoned ${poisoned}`);
   }
   if (fx.projectile === 'bfg') {
-    const rate = fx.laser ? fx.laser.rate : fx.sparks.rate;
+    const rate = (fx.laser ? fx.laser.rate : fx.sparks!.rate)!;
     const want = Math.max(1, Math.floor(flightMs / (60000 / rate)) - 1);
     const got = fx.laser ? o.beams.laser || 0 : o.beams.spark || 0;
     check(`[${r.id}] plasma ball (flight ${Math.round(flightMs)} ms) fires ${fx.laser ? 'lasers' : 'sparks'} at its rate`, got >= want && got <= (fx.sparks && !fx.laser ? (want + 3) * fx.sparks.qty : want + 3), `got ${got}, want ~${want}`);
@@ -305,7 +355,7 @@ for (const { colour, r } of recipes) {
     if (fx.sparks) check(`[${r.id}] sparks poison`, o.beams.spark > 0 && g.state.attackers.some((a) => a.poisoned || a.speed < a.baseSpeed) || o.beams.spark > 0);
   }
   if (fx.projectile === 'clusterBomb') {
-    if (fx.cluster) check(`[${r.id}] ${fx.cluster.qty} bomblets blast`, blastCount(o, 'small') >= fx.cluster.qty + (fx.blast.size === 'small' ? 1 : 0), String(blastCount(o, 'small')));
+    if (fx.cluster) check(`[${r.id}] ${fx.cluster.qty} bomblets blast`, blastCount(o, 'small') >= fx.cluster.qty + (fx.blast!.size === 'small' ? 1 : 0), String(blastCount(o, 'small')));
     if (fx.cluster && fx.cluster.laser) check(`[${r.id}] bomblet lasers`, (o.beams.laser || 0) >= fx.cluster.qty, String(o.beams.laser));
     if (fx.sparks) check(`[${r.id}] ${fx.sparks.qty} spark bursts, poison`, (o.beams.spark || 0) >= fx.sparks.qty && g.state.attackers.some((a) => a.poisoned), String(o.beams.spark));
   }
@@ -377,7 +427,7 @@ for (const { colour, r } of recipes) {
 }
 {
   // modifier scaling: Boom (+40% damage) within 80 of the lead scales the nuke
-  const mk = (mods) => {
+  const mk = (mods: string[]) => {
     const sc = setup({ lead: 'red', partners: ['blue', 'blue'], mods });
     const [v] = addAttackers(sc.g, SPOT, 1);
     const o = observe(sc.g);
@@ -399,8 +449,9 @@ for (const { colour, r } of recipes) {
 
 // ------------------------------------------------------------------ plasma ball over a long distance
 for (const id of ['rocketBfg', 'bfg', 'tazerBfg']) {
-  const colour = Object.keys(COMBOS).find((c) => COMBOS[c].some((r) => r.id === id));
-  const r = COMBOS[colour].find((x) => x.id === id), fx = r.fx;
+  const colour = (Object.keys(COMBOS) as KeyColor[]).find((c) => COMBOS[c].some((r) => r.id === id));
+  if (!colour) throw new Error('no colour for ' + id);
+  const r = recipeOf(colour, id), fx = r.fx;
   const sc = setup({ lead: colour, partners: partnersFor(r), seed: 9 });
   const { g, lead } = sc;
   // one pinned attacker far away from the lead (not on the road; engine treats blackholed as "stay put")
@@ -409,28 +460,28 @@ for (const id of ['rocketBfg', 'bfg', 'tazerBfg']) {
   a.x = lead.x + dir * 150; a.y = lead.y;
   g.grid.rebuild(g.state.attackers);
   const o = observe(g);
-  let flight = 0, speed0 = null, dist0 = null;
+  let flight = 0, dist0: number | null = null;
   run(g, o, 400, () => {
     const p = g.state.projectiles.find((q) => q.kind === 'bfg');
     if (p) { flight++; if (dist0 === null) dist0 = Math.hypot(p.x - a.x, p.y - a.y); }
   });
   const ms = flight * STEP_MS;
-  const rate = fx.laser ? fx.laser.rate : fx.sparks.rate;
+  const rate = (fx.laser ? fx.laser.rate : fx.sparks!.rate)!;
   const got = fx.laser ? o.beams.laser || 0 : o.beams.spark || 0;
   const want = Math.floor(ms / (60000 / rate));
-  check(`[${id}] flight time matches speed ${fx.speed} (${Math.round(dist0)} units in ${Math.round(ms)} ms)`, Math.abs(ms / 1000 - (dist0 - 14) / fx.speed) < 0.1);
+  check(`[${id}] flight time matches speed ${fx.speed} (${Math.round(dist0!)} units in ${Math.round(ms)} ms)`, Math.abs(ms / 1000 - (dist0! - 14) / fx.speed!) < 0.1);
   check(`[${id}] ${fx.laser ? 'laser' : 'spark'} every ${Math.round(60000 / rate)} ms during flight`, Math.abs(got - want) <= 1 && got >= 5, `got ${got}, expected ~${want}`);
   // only the plasma ball's rockets (sourceId = lead); a free partner Red may fire its own rockets meanwhile
   const ballRockets = o.projSrc['rocket:' + lead.id] || 0;
   if (fx.rockets) check(`[${id}] small rockets every ${Math.round(60000 / fx.rockets.rate)} ms`, Math.abs(ballRockets - Math.floor(ms / (60000 / fx.rockets.rate))) <= 1 && ballRockets >= 3, String(ballRockets));
-  check(`[${id}] hit + bfg blast, large loss`, blastCount(o, 'bfg') === 1 && a.maxHp - a.hp >= fx.hit + fx.blast.damage, `loss ${(a.maxHp - a.hp).toExponential(2)}`);
+  check(`[${id}] hit + bfg blast, large loss`, blastCount(o, 'bfg') === 1 && a.maxHp - a.hp >= fx.hit! + fx.blast!.damage, `loss ${(a.maxHp - a.hp).toExponential(2)}`);
 }
 
 // ------------------------------------------------------------------ white-box: mines, shockwave clamp
 {
   // no mine limit (original): 30 mines from one turret all stay
   const { g, lead } = setup({ lead: 'blue', partners: ['blue'] });
-  const rec = COMBOS.blue.find((r) => r.id === 'mine');
+  const rec = recipeOf('blue', 'mine');
   const pts = g.roadPoints().filter((q) => Math.hypot(q.x - lead.x, q.y - lead.y) < 200);
   for (let i = 0; i < 30; i++) g.combos._launchMine(lead, rec, 1, 0, pts[(i * 3) % pts.length]);
   const mines = g.state.projectiles.filter((p) => p.tag === 'mine' && !p.dead);
@@ -449,7 +500,7 @@ for (const id of ['rocketBfg', 'bfg', 'tazerBfg']) {
   const mine = g.state.projectiles.find((p) => p.tag === 'mine');
   const b0 = o.blasts.length;
   run(g, o, Math.round(300000 / STEP_MS));
-  check('(mines) armed mine still there after 300 s without attackers', !!mine && !mine.dead && g.state.projectiles.includes(mine) && mine.data.armed && o.blasts.length === b0);
+  check('(mines) armed mine still there after 300 s without attackers', !!mine && !mine.dead && g.state.projectiles.includes(mine) && mine.data!.armed && o.blasts.length === b0);
 }
 {
   // jitter: every mine lands within MINE.jitter (per axis) of a sampled road point, and not always exactly on one
@@ -458,6 +509,7 @@ for (const id of ['rocketBfg', 'bfg', 'tazerBfg']) {
   let within = true, offRoadPoint = 0;
   for (let i = 0; i < 40; i++) {
     const s = g.combos._mineSpot(lead);
+    if (!s) throw new Error('no mine spot');
     const best = road.reduce((m, q) => Math.min(m, Math.max(Math.abs(q.x - s.x), Math.abs(q.y - s.y))), Infinity);
     if (best > MINE.jitter + 1e-6) within = false;
     if (!road.some((q) => q.x === s.x && q.y === s.y)) offRoadPoint++;
@@ -467,11 +519,11 @@ for (const id of ['rocketBfg', 'bfg', 'tazerBfg']) {
 {
   // a mine checks for attackers only every MINE.checkInterval ms
   const { g, lead } = setup({ lead: 'blue', partners: [] });
-  const rec = COMBOS.blue.find((r) => r.id === 'mine');
+  const rec = recipeOf('blue', 'mine');
   const q = roadNear(g, SPOT)[0];
   const m = g.combos._launchMine(lead, rec, 1, 0, { x: q.x, y: q.y });
   let k = 0;
-  while (!m.data.armed && k++ < 200) g.advance(1);
+  while (!m.data!.armed && k++ < 200) g.advance(1);
   g.advance(Math.ceil(MINE.checkInterval / STEP_MS) + 1); // first check done, next one ~150 ms away
   const v = g.spawnAttacker(1, HP); v.blackholed = true; v.x = m.x + 5; v.y = m.y;
   g.grid.rebuild(g.state.attackers);
@@ -481,7 +533,7 @@ for (const id of ['rocketBfg', 'bfg', 'tazerBfg']) {
 }
 {
   // Sparky Landmine (original quirk): Blue + Yellow is enough, no Red needed
-  const r = COMBOS.blue.find((x) => x.id === 'sparkyMine');
+  const r = recipeOf('blue', 'sparkyMine');
   const { g, lead, partners } = setup({ lead: 'blue', partners: ['blue', 'yellow'] });
   addAttackers(g, SPOT, 4);
   const o = observe(g);
@@ -489,7 +541,7 @@ for (const id of ['rocketBfg', 'bfg', 'tazerBfg']) {
   while (!o.combos.length && n++ < 120) { g.advance(1); o.tick(); }
   check('(sparkyMine) fires with Blue + Yellow partners and no Red', o.combos[0] && o.combos[0].id === 'sparkyMine' && o.combos[0].turretId === lead.id &&
     partners.every((p) => o.combos[0].partnerIds.includes(p.id)), o.combos[0] ? o.combos[0].id : 'none');
-  check('(sparkyMine) recipe gates on Blue + Yellow only', !r.needs.red && r.needs.blue === 1 && r.needs.yellow === 1 && r.takes.red === 1);
+  check('(sparkyMine) recipe gates on Blue + Yellow only', !r.needs.red && r.needs.blue === 1 && r.needs.yellow === 1 && r.takes!.red === 1);
 }
 {
   // Rocket BFG (original quirk): 2 Red in range, only 1 Red used; the other stays ready
@@ -508,9 +560,9 @@ for (const id of ['rocketBfg', 'bfg', 'tazerBfg']) {
   const a = g.spawnAttacker(1, HP);
   a.progress = 20; g.path.place(a, 20);
   g.grid.rebuild(g.state.attackers);
-  g.combos._shockwave({ x: a.x, y: a.y, id: null }, COMBOS.yellow.find((r) => r.id === 'shockwave').fx.shockwave, 1);
+  g.combos._shockwave(fakeLead(a.x, a.y), recipeOf('yellow', 'shockwave').fx.shockwave!, 1);
   g.advance(3);
-  check('(shockwave) knockback clamps at progress 0 and keeps x/y consistent', a.progress >= 0 && a.progress < 5 && (() => { const e = g.path.place({ _seg: 0 }, a.progress, laneOffset(a)); return Math.hypot(a.x - e.x, a.y - e.y) < 0.01; })(),
+  check('(shockwave) knockback clamps at progress 0 and keeps x/y consistent', a.progress >= 0 && a.progress < 5 && (() => { const e = g.path.place({ x: 0, y: 0, angle: 0, _seg: 0 }, a.progress, laneOffset(a)); return Math.hypot(a.x - e.x, a.y - e.y) < 0.01; })(),
     `progress ${a.progress.toFixed(2)}`);
 }
 {
@@ -534,7 +586,7 @@ for (const id of ['rocketBfg', 'bfg', 'tazerBfg']) {
 {
   const { g } = setup({ lead: 'blue', partners: [] });
   const road = g.roadPoints();
-  const mk = (d) => { const a = g.spawnAttacker(1, HP); a.progress = d; g.path.place(a, d); a.blackholed = true; return a; };
+  const mk = (d: number) => { const a = g.spawnAttacker(1, HP); a.progress = d; g.path.place(a, d); a.blackholed = true; return a; };
   const victim = mk(road[40].d), other = mk(road[60].d);
   g.grid.rebuild(g.state.attackers);
   victim.swallowed = true;
@@ -549,8 +601,9 @@ for (const id of ['rocketBfg', 'bfg', 'tazerBfg']) {
   check('(homing) with no valid attacker it flies on straight (not dead, not chasing)', !sh.dead && sh.x > x0 && Math.abs(sh.angle) < 1e-9, `angle ${sh.angle}`);
 }
 {
-  const r = COMBOS.red.concat(COMBOS.blue, COMBOS.green, COMBOS.yellow).find((x) => x.id === 'tazerBfg');
-  const fx = r.fx, colour = Object.keys(COMBOS).find((c) => COMBOS[c].includes(r));
+  const found = recipes.find((x) => x.r.id === 'tazerBfg');
+  if (!found) throw new Error('no recipe tazerBfg');
+  const { r, colour } = found, fx = r.fx;
   const sc = setup({ lead: colour, partners: partnersFor(r), seed: 4 });
   const { g } = sc;
   const atts = addAttackers(g, sc.spot, 10, true);
@@ -562,22 +615,22 @@ for (const id of ['rocketBfg', 'bfg', 'tazerBfg']) {
   g.combos.projectileUpdate(p, 5);
   o.tick();
   const hit = atts.filter((a) => a.hp < a.maxHp);
-  const inRange = atts.filter((a) => Math.hypot(a.x - p.x, a.y - p.y) <= fx.sparks.range).length;
-  const want = Math.min(fx.sparks.qty, inRange);
-  check(`(tazerBfg) one tick fires qty=${fx.sparks.qty} sparks at distinct attackers`, hit.length === want && (o.beams.spark || 0) - before === want && want > 1, `hit ${hit.length}, in range ${inRange}`);
+  const inRange = atts.filter((a) => Math.hypot(a.x - p.x, a.y - p.y) <= fx.sparks!.range).length;
+  const want = Math.min(fx.sparks!.qty, inRange);
+  check(`(tazerBfg) one tick fires qty=${fx.sparks!.qty} sparks at distinct attackers`, hit.length === want && (o.beams.spark || 0) - before === want && want > 1, `hit ${hit.length}, in range ${inRange}`);
 }
 
 // ------------------------------------------------------------------ combo counters, log and preview (panel Combos tab)
 {
   const { g, lead, partners } = setup({ lead: 'red', partners: ['blue', 'blue'] });
-  const pv0 = g.comboPreview(lead.id);
+  const pv0 = preview(g, lead.id);
   const nuke0 = pv0.recipes.find((r) => r.id === 'nuke');
   check('(preview) Red + 2 Blue: leads, 2 blue partners, Nuke has nothing missing and is next at wait 0',
     pv0.leads && pv0.partners.length === 2 && pv0.partners.every((p) => p.color === 'blue') &&
     nuke0 && !Object.keys(nuke0.missing).length && pv0.next && pv0.next.id === 'nuke' && pv0.next.wait === 0,
     JSON.stringify(pv0.next));
   check('(preview) lists every recipe of the lead colour, poisonGas missing a green',
-    pv0.recipes.length === COMBOS.red.length && pv0.recipes.find((r) => r.id === 'poisonGas').missing.green === 1);
+    pv0.recipes.length === COMBOS.red.length && pv0.recipes.find((r) => r.id === 'poisonGas')!.missing.green === 1);
   const before = JSON.stringify(g.serialize());
   g.comboPreview(lead.id); g.comboPreview(partners[0].id);
   check('(preview) is read-only and draws no rng', JSON.stringify(g.serialize()) === before);
@@ -593,13 +646,13 @@ for (const id of ['rocketBfg', 'bfg', 'tazerBfg']) {
   check('(log) partners: combosAssisted 1, comboLog [nuke partner]', partners.every((p) => p.combosAssisted === 1 && p.combosFired === 0 &&
     p.comboLog[0].id === 'nuke' && p.comboLog[0].role === 'partner'));
 
-  const pv1 = g.comboPreview(lead.id);
-  const rech = COMBOS.red.find((r) => r.id === 'nuke').recharge;
+  const pv1 = preview(g, lead.id);
+  const rech = recipeOf('red', 'nuke').recharge;
   check('(preview) right after firing, next Nuke waits about the recharge', pv1.next && pv1.next.id === 'nuke' &&
-    Math.abs(pv1.next.wait - rech) <= 2 * STEP_MS, pv1.next && String(pv1.next.wait));
+    Math.abs(pv1.next.wait - rech) <= 2 * STEP_MS, pv1.next ? String(pv1.next.wait) : 'none');
   const save = JSON.parse(JSON.stringify(g.serialize()));
   const g2 = Game.deserialize(save);
-  const l2 = g2.turretMap.get(lead.id);
+  const l2 = tur(g2, lead.id);
   check('(save) counters and comboLog survive save/restore', l2.combosFired === 1 && l2.comboLog.length === 1 && l2.comboLog[0].id === 'nuke');
 
   // the log is capped
@@ -608,25 +661,25 @@ for (const id of ['rocketBfg', 'bfg', 'tazerBfg']) {
 
   // removing a partner makes Nuke miss a blue
   g.sell(partners[1].id);
-  const pv2 = g.comboPreview(lead.id);
+  const pv2 = preview(g, lead.id);
   const nuke2 = pv2.recipes.find((r) => r.id === 'nuke');
-  check('(preview) after selling a blue, Nuke needs 1 blue and wait is Infinity', nuke2.missing.blue === 1 && nuke2.wait === Infinity && pv2.partners.length === 1);
+  check('(preview) after selling a blue, Nuke needs 1 blue and wait is Infinity', nuke2!.missing.blue === 1 && nuke2!.wait === Infinity && pv2.partners.length === 1);
 }
 {
   const { g, lead } = setup({ lead: 'yellow', partners: ['yellow', 'yellow', 'green', 'green'] });
-  const bh = g.comboPreview(lead.id).recipes.find((r) => r.id === 'blackHole');
-  check('(preview) Black Hole with 2 greens is exactBlocked', bh.exactBlocked && bh.wait === Infinity);
+  const bh = preview(g, lead.id).recipes.find((r) => r.id === 'blackHole');
+  check('(preview) Black Hole with 2 greens is exactBlocked', bh!.exactBlocked && bh!.wait === Infinity);
 }
 {
   const { g, lead, partners } = setup({ lead: 'red', partners: [{ kind: 'comboOnly', color: 'blue' }, 'blue'] });
-  const pv = g.comboPreview(partners[0].id);
+  const pv = preview(g, partners[0].id);
   check('(preview) Combo-only never leads, lists the recipes of leads in range that need its colour',
     !pv.leads && pv.recipes.some((r) => r.id === 'nuke') && pv.recipes.every((r) => r.needs.blue), pv.recipes.map((r) => r.id).join(','));
 }
 {
   const g3 = new Game({ mapId: MAP, mode: 'sandbox', seed: 5, waveInterval: 1e9 });
-  const id = g3.build('red', SPOT.x, SPOT.y).id;
-  const pv = g3.comboPreview(id);
+  const id = must(g3.build('red', SPOT.x, SPOT.y)).id;
+  const pv = preview(g3, id);
   check('(preview) weapon not at max damage: recipes listed, nothing possible', !pv.next && pv.recipes.length === COMBOS.red.length && pv.recipes.every((r) => r.wait === Infinity));
 }
 
@@ -652,12 +705,12 @@ for (const { colour, r } of recipes) {
 {
   // 400 armed mines all over the road plus 300 attackers walking: mines are checked every 150 ms, so cheap
   const { g, lead } = setup({ lead: 'blue', partners: [] });
-  const rec = COMBOS.blue.find((r) => r.id === 'mine');
+  const rec = recipeOf('blue', 'mine');
   const road = g.roadPoints();
   for (let i = 0; i < 400; i++) {
     const q = road[Math.floor((i * road.length) / 400)];
     const m = g.combos._launchMine(lead, rec, 1, 0, { x: q.x, y: q.y });
-    m.x = q.x; m.y = q.y; m.data.armed = true; m.armed = true; m.data.check = (i * 7) % 150;
+    m.x = q.x; m.y = q.y; m.data!.armed = true; m.armed = true; m.data!.check = (i * 7) % 150;
   }
   for (let i = 0; i < 300; i++) { const a = g.spawnAttacker(1, HP); a.progress = (i % 100) * 3; g.path.place(a, a.progress); }
   g.advance(1);
@@ -677,11 +730,11 @@ for (const { colour, r } of recipes) {
     a.progress = 300 + (i % 60) * 4; g.path.place(a, a.progress);
   }
   // also a napalm zone and a shockwave in play at once
-  const nap = COMBOS.red.find((r) => r.id === 'napalm');
-  g.combos._napalm({ sourceId: null }, g.state.attackers[100].x, g.state.attackers[100].y, nap.fx.napalm, 1);
+  const nap = recipeOf('red', 'napalm');
+  g.combos._napalm({ sourceId: null } as Projectile, g.state.attackers[100].x, g.state.attackers[100].y, nap.fx.napalm!, 1); // minimal projectile stand-in, only sourceId is read
   const hp = g.state.attackers[100];
-  g.combos._openHole({ radius: 120, gravity: 40, duration: 3000 }, { x: hp.x, y: hp.y });
-  g.combos._shockwave({ x: hp.x, y: hp.y, id: null }, COMBOS.yellow.find((r) => r.id === 'shockwave').fx.shockwave, 1);
+  g.combos._openHole({ placeRange: 90, radius: 120, gravity: 40, duration: 3000 }, { x: hp.x, y: hp.y }); // placeRange is not read by _openHole
+  g.combos._shockwave(fakeLead(hp.x, hp.y), recipeOf('yellow', 'shockwave').fx.shockwave!, 1);
   const t0 = process.hrtime.bigint();
   g.advance(240);
   const ms = Number(process.hrtime.bigint() - t0) / 1e6 / 240;

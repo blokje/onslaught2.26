@@ -12,12 +12,23 @@ import * as THREE from 'three';
 import { BUILD_ORDER } from '../data/turrets.ts';
 import { mulberry32, TAU } from './util.ts';
 
+import type { Cell } from './batches.ts';
+
+type Ctx = CanvasRenderingContext2D;
+type Stops = [number, string][];
+
 const SIZE = 1024, CELL = 256, COLS = 4;
 
 // ---------- small canvas helpers (all in "unit" space after setup) ----------
-function newCanvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
-function circle(ctx, x, y, r) { ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); }
-function rrect(ctx, x, y, w, h, r) {
+export function newCanvas(w: number, h: number): HTMLCanvasElement { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+/** 2D context of a canvas we just created (never null for a fresh canvas). */
+export function ctx2d(c: HTMLCanvasElement): Ctx {
+  const x = c.getContext('2d');
+  if (!x) throw new Error('2D canvas context unavailable');
+  return x;
+}
+function circle(ctx: Ctx, x: number, y: number, r: number): void { ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); }
+function rrect(ctx: Ctx, x: number, y: number, w: number, h: number, r: number): void {
   r = Math.min(r, w / 2, h / 2);
   ctx.beginPath();
   ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y); ctx.arcTo(x + w, y, x + w, y + r, r);
@@ -26,44 +37,44 @@ function rrect(ctx, x, y, w, h, r) {
   ctx.lineTo(x, y + r); ctx.arcTo(x, y, x + r, y, r);
   ctx.closePath();
 }
-function lin(ctx, x0, y0, x1, y1, stops) {
+function lin(ctx: Ctx, x0: number, y0: number, x1: number, y1: number, stops: Stops): CanvasGradient {
   const g = ctx.createLinearGradient(x0, y0, x1, y1);
   for (const [o, c] of stops) g.addColorStop(o, c);
   return g;
 }
-function rad(ctx, x0, y0, r0, x1, y1, r1, stops) {
+function rad(ctx: Ctx, x0: number, y0: number, r0: number, x1: number, y1: number, r1: number, stops: Stops): CanvasGradient {
   const g = ctx.createRadialGradient(x0, y0, r0, x1, y1, r1);
   for (const [o, c] of stops) g.addColorStop(o, c);
   return g;
 }
 const OUT = 'rgba(12,14,20,0.85)';
-function fillStroke(ctx, fill, lw = 0.5, stroke = OUT) {
+function fillStroke(ctx: Ctx, fill: string | CanvasGradient, lw: number = 0.5, stroke: string = OUT): void {
   ctx.fillStyle = fill; ctx.fill();
   if (lw > 0) { ctx.lineWidth = lw; ctx.strokeStyle = stroke; ctx.lineJoin = 'round'; ctx.stroke(); }
 }
-function metalDisc(ctx, x, y, r, c0, c1, c2, lw = 0.6) {
+function metalDisc(ctx: Ctx, x: number, y: number, r: number, c0: string, c1: string, c2: string, lw: number = 0.6): void {
   circle(ctx, x, y, r);
   fillStroke(ctx, rad(ctx, x - r * 0.35, y - r * 0.4, r * 0.1, x, y, r, [[0, c0], [0.55, c1], [1, c2]]), lw);
 }
-function glowDot(ctx, x, y, r, color, blur = 8) {
+function glowDot(ctx: Ctx, x: number, y: number, r: number, color: string, blur: number = 8): void {
   ctx.save(); ctx.shadowColor = color; ctx.shadowBlur = blur; circle(ctx, x, y, r);
   ctx.fillStyle = rad(ctx, x, y, 0, x, y, r, [[0, '#ffffff'], [0.45, color], [1, color]]); ctx.fill(); ctx.restore();
 }
 
 /** Begin drawing in cell i: origin at cell centre, scaled to `unitsPerCell`, clipped to the cell. */
-function beginCell(ctx, i, unitsPerCell, cell = CELL) {
+function beginCell(ctx: Ctx, i: number, unitsPerCell: number, cell: number = CELL): void {
   ctx.save();
   ctx.translate((i % COLS) * cell + cell / 2, Math.floor(i / COLS) * cell + cell / 2);
   ctx.beginPath(); ctx.rect(-cell / 2, -cell / 2, cell, cell); ctx.clip();
   const s = cell / unitsPerCell;
   ctx.scale(s, s);
 }
-export function cellUV(i, inset = 0) {
+export function cellUV(i: number, inset: number = 0): Cell {
   const x = (i % COLS) * CELL + inset, y = Math.floor(i / COLS) * CELL + inset, n = CELL - inset * 2;
   return { u0: x / SIZE, v0: y / SIZE, u1: (x + n) / SIZE, v1: (y + n) / SIZE };
 }
 
-function toTexture(canvas, mips = true) {
+function toTexture(canvas: HTMLCanvasElement, mips: boolean = true): THREE.CanvasTexture {
   const t = new THREE.CanvasTexture(canvas);
   t.flipY = false;
   t.generateMipmaps = mips;
@@ -83,9 +94,9 @@ export const FX = {
 };
 export const FX_UNITS = 32; // fx cell size in world units when drawn at scale 1 (callers pass their own sizes)
 
-export function buildFxAtlas() {
+export function buildFxAtlas(): { canvas: HTMLCanvasElement; texture: THREE.CanvasTexture } {
   const canvas = newCanvas(SIZE, SIZE);
-  const ctx = canvas.getContext('2d');
+  const ctx = ctx2d(canvas);
   const P = 1; // px drawing; helpers below use raw pixel space (cell = 256 px)
 
   // white (solid)
@@ -213,16 +224,16 @@ export function buildFxAtlas() {
 // =====================================================================================
 export const ATTACKER_COLORS = ['#22b8a8', '#f08a24', '#9a63e8', '#8fa04a', '#d83a4a', '#3d9bf0', '#e24bb4', '#d2a23a', '#27c8e8'];
 
-function shade(hexColor, f) { // multiply a #rrggbb by f (0..2)
+function shade(hexColor: string, f: number): string { // multiply a #rrggbb by f (0..2)
   const n = parseInt(hexColor.slice(1), 16);
-  const c = (v) => Math.max(0, Math.min(255, Math.round(v * f)));
+  const c = (v: number): number => Math.max(0, Math.min(255, Math.round(v * f)));
   return `rgb(${c((n >> 16) & 255)},${c((n >> 8) & 255)},${c(n & 255)})`;
 }
-function bodyGrad(ctx, color, y0 = -6, y1 = 6) { return lin(ctx, 0, y0, 0, y1, [[0, shade(color, 1.35)], [0.5, color], [1, shade(color, 0.6)]]); }
+function bodyGrad(ctx: Ctx, color: string, y0: number = -6, y1: number = 6): CanvasGradient { return lin(ctx, 0, y0, 0, y1, [[0, shade(color, 1.35)], [0.5, color], [1, shade(color, 0.6)]]); }
 
-const ATTACKER_DRAW = [
+const ATTACKER_DRAW: ((ctx: Ctx, c: string) => void)[] = [
   // 0: quad drone
-  (ctx, c) => {
+  (ctx: Ctx, c: string) => {
     ctx.lineCap = 'round';
     for (const [sx, sy] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {
       ctx.strokeStyle = '#2a2f38'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(sx * 6.4, sy * 6.4); ctx.stroke();
@@ -235,7 +246,7 @@ const ATTACKER_DRAW = [
     circle(ctx, -3, 0, 0.7); ctx.fillStyle = '#ff5a5a'; ctx.fill();
   },
   // 1: buggy
-  (ctx, c) => {
+  (ctx: Ctx, c: string) => {
     for (const [x, y] of [[5.4, -5.4], [5.4, 5.4], [-5.8, -5.4], [-5.8, 5.4]]) { rrect(ctx, x - 2.3, y - 1.2, 4.6, 2.4, 0.9); fillStroke(ctx, '#1d2026', 0.4); }
     rrect(ctx, -8.4, -4.2, 16.8, 8.4, 2.6); fillStroke(ctx, bodyGrad(ctx, c, -4.2, 4.2), 0.55);
     rrect(ctx, -3.4, -3, 6.4, 6, 1.4); fillStroke(ctx, lin(ctx, 0, -3, 0, 3, [[0, shade(c, 1.5)], [1, shade(c, 0.9)]]), 0.45);
@@ -245,14 +256,14 @@ const ATTACKER_DRAW = [
     circle(ctx, -8.1, -2.8, 0.6); circle(ctx, -8.1, 2.8, 0.6); ctx.fillStyle = '#ff4a4a'; ctx.fill();
   },
   // 2: hover saucer
-  (ctx, c) => {
+  (ctx: Ctx, c: string) => {
     ctx.save(); ctx.shadowColor = shade(c, 1.2); ctx.shadowBlur = 5; circle(ctx, 0, 0, 8.6); fillStroke(ctx, rad(ctx, -2, -3, 1, 0, 0, 8.6, [[0, shade(c, 1.4)], [0.7, shade(c, 0.8)], [1, shade(c, 0.45)]]), 0.6); ctx.restore();
     for (let i = 0; i < 10; i++) { const a = i * TAU / 10; circle(ctx, Math.cos(a) * 7.2, Math.sin(a) * 7.2, 0.62); ctx.fillStyle = i % 2 ? '#ffe9a0' : '#ffffff'; ctx.fill(); }
     metalDisc(ctx, 0, 0, 5.2, '#f4f1ff', shade(c, 1.3), shade(c, 0.5), 0.5);
     ctx.beginPath(); ctx.moveTo(8.9, 0); ctx.lineTo(6.2, -1.7); ctx.lineTo(6.2, 1.7); ctx.closePath(); fillStroke(ctx, '#ffd86a', 0.3);
   },
   // 3: tracked crawler
-  (ctx, c) => {
+  (ctx: Ctx, c: string) => {
     for (const y of [-5.4, 5.4]) {
       rrect(ctx, -9.2, y - 2, 18.4, 4, 2); fillStroke(ctx, '#23262c', 0.5);
       ctx.strokeStyle = 'rgba(120,125,135,0.55)'; ctx.lineWidth = 0.4;
@@ -264,7 +275,7 @@ const ATTACKER_DRAW = [
     circle(ctx, -1.6, 0, 1.2); fillStroke(ctx, '#2a2d33', 0.3);
   },
   // 4: beetle with six legs
-  (ctx, c) => {
+  (ctx: Ctx, c: string) => {
     ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#2a1d1f'; ctx.lineWidth = 1.1;
     for (const sy of [-1, 1]) for (const x of [-4.2, 0, 4.2]) {
       ctx.beginPath(); ctx.moveTo(x, sy * 2.6); ctx.lineTo(x + 1.4, sy * 6.2); ctx.lineTo(x + (x < 0 ? -1.6 : x > 1 ? 2.2 : 0.2), sy * 8.8); ctx.stroke();
@@ -276,7 +287,7 @@ const ATTACKER_DRAW = [
     ctx.strokeStyle = '#2a1d1f'; ctx.lineWidth = 0.6; ctx.beginPath(); ctx.moveTo(9.4, -1.6); ctx.lineTo(11, -2.6); ctx.moveTo(9.4, 1.6); ctx.lineTo(11, 2.6); ctx.stroke();
   },
   // 5: delta skiff
-  (ctx, c) => {
+  (ctx: Ctx, c: string) => {
     ctx.beginPath(); ctx.moveTo(10.6, 0); ctx.lineTo(-6.8, -8.4); ctx.lineTo(-3.6, 0); ctx.lineTo(-6.8, 8.4); ctx.closePath();
     fillStroke(ctx, lin(ctx, -6, -8, 10, 0, [[0, shade(c, 0.6)], [0.5, c], [1, shade(c, 1.5)]]), 0.6);
     ctx.beginPath(); ctx.moveTo(8.4, 0); ctx.lineTo(-2.5, -3); ctx.lineTo(-4.4, 0); ctx.lineTo(-2.5, 3); ctx.closePath(); fillStroke(ctx, shade(c, 0.55), 0.4);
@@ -284,7 +295,7 @@ const ATTACKER_DRAW = [
     glowDot(ctx, -5.2, -1.9, 1, '#ffb347', 5); glowDot(ctx, -5.2, 1.9, 1, '#ffb347', 5);
   },
   // 6: orb roller
-  (ctx, c) => {
+  (ctx: Ctx, c: string) => {
     ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.4)'; ctx.shadowBlur = 2; circle(ctx, 0, 0, 7.6); ctx.restore();
     metalDisc(ctx, 0, 0, 7.6, shade(c, 1.7), c, shade(c, 0.42), 0.6);
     ctx.strokeStyle = 'rgba(25,10,25,0.6)'; ctx.lineWidth = 0.6;
@@ -294,7 +305,7 @@ const ATTACKER_DRAW = [
     glowDot(ctx, 5.2, 0, 1.3, '#fff2a6', 5);
   },
   // 7: truck + trailer
-  (ctx, c) => {
+  (ctx: Ctx, c: string) => {
     for (const [x, y] of [[-6.2, -5], [-6.2, 5], [-2.2, -5], [-2.2, 5], [6, -4.6], [6, 4.6]]) { rrect(ctx, x - 1.7, y - 1, 3.4, 2, 0.7); fillStroke(ctx, '#1c1f24', 0.35); }
     rrect(ctx, -10, -4.5, 11.4, 9, 1.4); fillStroke(ctx, lin(ctx, 0, -4.5, 0, 4.5, [[0, shade('#b8bcc2', 1.2)], [1, shade('#b8bcc2', 0.7)]]), 0.55);
     ctx.strokeStyle = 'rgba(40,44,52,0.55)'; ctx.lineWidth = 0.4; for (let x = -8; x <= 0; x += 2) { ctx.beginPath(); ctx.moveTo(x, -4.2); ctx.lineTo(x, 4.2); ctx.stroke(); }
@@ -305,7 +316,7 @@ const ATTACKER_DRAW = [
     circle(ctx, -10, -2.8, 0.55); circle(ctx, -10, 2.8, 0.55); ctx.fillStyle = '#ff4a4a'; ctx.fill();
   },
   // 8: manta glider
-  (ctx, c) => {
+  (ctx: Ctx, c: string) => {
     ctx.beginPath(); ctx.moveTo(10, 0);
     ctx.bezierCurveTo(5, -2, 0, -9, -5.4, -10); ctx.bezierCurveTo(-4.4, -5, -4.8, -2, -9.4, 0);
     ctx.bezierCurveTo(-4.8, 2, -4.4, 5, -5.4, 10); ctx.bezierCurveTo(0, 9, 5, 2, 10, 0); ctx.closePath();
@@ -316,9 +327,9 @@ const ATTACKER_DRAW = [
   },
 ];
 
-export function buildUnitAtlas() {
+export function buildUnitAtlas(): { canvas: HTMLCanvasElement; texture: THREE.CanvasTexture } {
   const canvas = newCanvas(SIZE, SIZE);
-  const ctx = canvas.getContext('2d');
+  const ctx = ctx2d(canvas);
   for (let i = 0; i < 9; i++) {
     beginCell(ctx, i, 32);
     ATTACKER_DRAW[i](ctx, ATTACKER_COLORS[i]);
@@ -330,41 +341,41 @@ export function buildUnitAtlas() {
 // =====================================================================================
 // Turrets: base plates + weapons. cell = 64 world units (8 px / unit, 2048 px atlases) + a small non-rotating modifier icon atlas
 // =====================================================================================
-export const WEAPON_COLOR = { blue: '#3b82f6', green: '#3ddc6a', red: '#ef4444', yellow: '#facc15' };
-export const MOD_TINT = {
+export const WEAPON_COLOR: Record<string, string> = { blue: '#3b82f6', green: '#3ddc6a', red: '#ef4444', yellow: '#facc15' };
+export const MOD_TINT: Record<string, string> = {
   rangeUp: '#35d0ff', damageUp: '#ff7a2e', rateUpEx: '#b6f03c', rangeUpEx: '#6f86ff',
   rateUp: '#ffd23a', damageUpBig: '#ff3355', damageUpBigEx: '#e04bff',
 };
-export const KIND_TINT = Object.assign({
+export const KIND_TINT: Record<string, string> = Object.assign({
   blue: WEAPON_COLOR.blue, green: WEAPON_COLOR.green, red: WEAPON_COLOR.red, yellow: WEAPON_COLOR.yellow,
   targeter: '#ff9f43', sniper: '#5aa9ff', fusion: '#59ffb0', railgun: '#ff6a3a', comboOnly: '#d8e0f0',
 }, MOD_TINT);
-export const COMBO_COLOR = { red: '#ff4a3d', green: '#3dff6a', blue: '#3d8bff', yellow: '#ffd93d' };
+export const COMBO_COLOR: Record<string, string> = { red: '#ff4a3d', green: '#3dff6a', blue: '#3d8bff', yellow: '#ffd93d' };
 
-export const KIND_INDEX = {};
+export const KIND_INDEX: Record<string, number> = {};
 BUILD_ORDER.forEach((k, i) => { KIND_INDEX[k] = i; });
 
-function chevrons(ctx, n, x0, y0, s) {
+function chevrons(ctx: Ctx, n: number, x0: number, y0: number, s: number): void {
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   for (let i = 0; i < n; i++) { const x = x0 + i * s * 0.9; ctx.beginPath(); ctx.moveTo(x - s * 0.5, y0 - s * 0.8); ctx.lineTo(x + s * 0.4, y0); ctx.lineTo(x - s * 0.5, y0 + s * 0.8); ctx.stroke(); }
 }
-function exchangeArrows(ctx, y, w) {
+function exchangeArrows(ctx: Ctx, y: number, w: number): void {
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   ctx.beginPath(); ctx.moveTo(-w, y - 1.1); ctx.lineTo(w, y - 1.1); ctx.moveTo(w - 1.3, y - 2.3); ctx.lineTo(w, y - 1.1); ctx.lineTo(w - 1.3, y + 0.1); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(w, y + 1.1); ctx.lineTo(-w, y + 1.1); ctx.moveTo(-w + 1.3, y - 0.1); ctx.lineTo(-w, y + 1.1); ctx.lineTo(-w + 1.3, y + 2.3); ctx.stroke();
 }
-function starburst(ctx, n, r0, r1) {
+function starburst(ctx: Ctx, n: number, r0: number, r1: number): void {
   ctx.beginPath();
   for (let i = 0; i < n * 2; i++) { const a = i * Math.PI / n - Math.PI / 2, r = i % 2 ? r0 : r1; ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r); }
   ctx.closePath();
 }
-function rangeIcon(ctx) {
+function rangeIcon(ctx: Ctx): void {
   circle(ctx, 0, 0, 3.1); ctx.stroke();
   ctx.beginPath(); for (const a of [0, 1, 2, 3]) { const an = a * Math.PI / 2 + Math.PI / 4; ctx.moveTo(Math.cos(an) * 4.6, Math.sin(an) * 4.6); ctx.lineTo(Math.cos(an) * 8, Math.sin(an) * 8); } ctx.stroke();
   circle(ctx, 0, 0, 0.9); ctx.fill();
 }
 
-function drawModIcon(ctx, kind, tint) {
+function drawModIcon(ctx: Ctx, kind: string, tint: string): void {
   ctx.save(); ctx.strokeStyle = tint; ctx.fillStyle = tint; ctx.lineWidth = 1.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   ctx.shadowColor = tint; ctx.shadowBlur = 5;
   switch (kind) {
@@ -383,7 +394,7 @@ function drawModIcon(ctx, kind, tint) {
   }
 }
 
-function drawBase(ctx, kind) {
+function drawBase(ctx: Ctx, kind: string): void {
   const isMod = !!MOD_TINT[kind];
   const accent = KIND_TINT[kind] || '#aab';
   // soft drop shadow
@@ -403,10 +414,10 @@ function drawBase(ctx, kind) {
   if (kind === 'comboOnly') { circle(ctx, 0, 0, 12); ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fill(); }
 }
 
-function drawModWeapon(ctx, kind, tint) {
+function drawModWeapon(ctx: Ctx, kind: string, tint: string): void {
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   const steel = ['#e2e6ea', '#8e969e', '#41474e'];
-  const dish = (x, r, ang) => {
+  const dish = (x: number, r: number, ang: number): void => {
     ctx.save(); ctx.translate(x, 0); ctx.rotate(ang);
     ctx.beginPath(); ctx.ellipse(0, 0, r * 0.55, r, 0, -Math.PI / 2, Math.PI / 2, true); ctx.closePath();
     fillStroke(ctx, lin(ctx, -r * 0.5, 0, r * 0.5, 0, [[0, steel[2]], [0.55, steel[1]], [1, steel[0]]]), 0.6);
@@ -439,8 +450,8 @@ function drawModWeapon(ctx, kind, tint) {
   }
 }
 
-const WEAPON_DRAW = {
-  blue(ctx) {
+const WEAPON_DRAW: Record<string, (ctx: Ctx) => void> = {
+  blue(ctx: Ctx) {
     ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.4)'; ctx.shadowBlur = 3; ctx.shadowOffsetX = 0.8; ctx.shadowOffsetY = 1.2;
     rrect(ctx, 3, -3.6, 21, 7.2, 1.6); ctx.fillStyle = '#2a3a60'; ctx.fill(); ctx.restore();
     rrect(ctx, 3, -3.6, 21, 7.2, 1.6); fillStroke(ctx, lin(ctx, 0, -3.6, 0, 3.6, [[0, '#d2e4ff'], [0.35, '#5f98f0'], [1, '#1d3f8f']]), 0.6);
@@ -451,7 +462,7 @@ const WEAPON_DRAW = {
     circle(ctx, 6.8, 0, 0.001);
     for (const a of [0.7, 2.4, 3.9, 5.5]) { circle(ctx, Math.cos(a) * 8.2, Math.sin(a) * 8.2, 0.6); ctx.fillStyle = '#16264f'; ctx.fill(); }
   },
-  green(ctx) {
+  green(ctx: Ctx) {
     for (const s of [-1, 1]) { ctx.beginPath(); ctx.moveTo(5, s * 4.5); ctx.lineTo(13, s * 9.2); ctx.lineTo(14.5, s * 5.2); ctx.lineTo(10, s * 3.5); ctx.closePath(); fillStroke(ctx, '#1f7a3e', 0.5); }
     metalDisc(ctx, 0, 0, 10.2, '#b8f0c8', '#2f9c55', '#145a2a', 0.7);
     rrect(ctx, 2, -4.6, 15, 9.2, 2.2); fillStroke(ctx, lin(ctx, 0, -4.6, 0, 4.6, [[0, '#8df0ae'], [0.5, '#2ea85a'], [1, '#0f4a23']]), 0.6);
@@ -461,7 +472,7 @@ const WEAPON_DRAW = {
     circle(ctx, 16.6, -1, 1); ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fill();
     metalDisc(ctx, -1, 0, 4.4, '#d8ffe4', '#3fbf6f', '#17602f', 0.5);
   },
-  red(ctx) {
+  red(ctx: Ctx) {
     metalDisc(ctx, 0, 0, 10, '#ff9d9d', '#c23a3a', '#6e1717', 0.7);
     rrect(ctx, -7, -9.4, 22, 18.8, 2.6); fillStroke(ctx, lin(ctx, 0, -9.4, 0, 9.4, [[0, '#ff8a80'], [0.5, '#b82f2f'], [1, '#601414']]), 0.7);
     for (const j of [-1, 0, 1]) {
@@ -473,16 +484,16 @@ const WEAPON_DRAW = {
     ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 0.5; ctx.beginPath(); ctx.moveTo(-3, -9); ctx.lineTo(-3, 9); ctx.stroke();
     metalDisc(ctx, -2, 0, 3.4, '#ffd0d0', '#d04545', '#7a1b1b', 0.5);
   },
-  yellow(ctx) {
+  yellow(ctx: Ctx) {
     ctx.strokeStyle = '#8a8f96'; ctx.lineWidth = 1.5;
     for (const s of [-1, 1]) { ctx.beginPath(); ctx.moveTo(6, s * 3); ctx.quadraticCurveTo(13, s * 3, 17.4, s * 7); ctx.stroke(); glowDot(ctx, 18.2, s * 7.4, 1.9, '#ffe35a', 9); }
     ctx.save(); ctx.strokeStyle = 'rgba(255,255,230,0.9)'; ctx.lineWidth = 0.6; ctx.shadowColor = '#ffe35a'; ctx.shadowBlur = 4;
     ctx.beginPath(); ctx.moveTo(18.2, -7.4); ctx.lineTo(20, -3.6); ctx.lineTo(17.6, -1.2); ctx.lineTo(20, 2); ctx.lineTo(18.2, 7.4); ctx.stroke(); ctx.restore();
     metalDisc(ctx, 0, 0, 10.4, '#ffe9a0', '#b0821a', '#5a3f0a', 0.7);
-    for (const [r, c] of [[8.4, '#d89a35'], [6.3, '#f0b850'], [4.4, '#c98a2b']]) { circle(ctx, 0, 0, r); ctx.lineWidth = 1.2; ctx.strokeStyle = c; ctx.stroke(); }
+    for (const [r, c] of [[8.4, '#d89a35'], [6.3, '#f0b850'], [4.4, '#c98a2b']] as [number, string][]) { circle(ctx, 0, 0, r); ctx.lineWidth = 1.2; ctx.strokeStyle = c; ctx.stroke(); }
     glowDot(ctx, 0, 0, 3.4, '#ffe96a', 12);
   },
-  targeter(ctx) {
+  targeter(ctx: Ctx) {
     ctx.strokeStyle = '#6c737b'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(-9, -6); ctx.lineTo(-3, -2); ctx.moveTo(-9, 6); ctx.lineTo(-3, 2); ctx.stroke();
     metalDisc(ctx, -2, 0, 5.2, '#e2e6ea', '#7d858d', '#3a4046', 0.6);
     ctx.save(); ctx.shadowColor = '#ff9f43'; ctx.shadowBlur = 6; ctx.strokeStyle = '#ffb46a'; ctx.lineWidth = 1.3;
@@ -492,7 +503,7 @@ const WEAPON_DRAW = {
     ctx.stroke(); ctx.restore();
     glowDot(ctx, 4, 0, 1.1, '#fff1d8', 4);
   },
-  sniper(ctx) {
+  sniper(ctx: Ctx) {
     rrect(ctx, -10, -3, 13, 6, 1.4); fillStroke(ctx, lin(ctx, 0, -3, 0, 3, [[0, '#7f93b5'], [1, '#2b374f']]), 0.6);
     ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.4)'; ctx.shadowBlur = 2; ctx.shadowOffsetY = 1.2;
     rrect(ctx, 0, -1.5, 31, 3, 0.8); fillStroke(ctx, lin(ctx, 0, -1.5, 0, 1.5, [[0, '#e8f0ff'], [0.5, '#7d92b8'], [1, '#2d3b58']]), 0.5); ctx.restore();
@@ -502,7 +513,7 @@ const WEAPON_DRAW = {
     metalDisc(ctx, -1, 0, 6.2, '#b8c8e6', '#5470a8', '#26345a', 0.6);
     ctx.fillStyle = '#5aa9ff'; ctx.fillRect(-9, -0.5, 8, 1);
   },
-  fusion(ctx) {
+  fusion(ctx: Ctx) {
     ctx.strokeStyle = '#7f8a94'; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
     for (let i = 0; i < 3; i++) { const a = i * TAU / 3 + 0.4; ctx.beginPath(); ctx.arc(0, 0, 10.6, a, a + 1.55); ctx.stroke(); }
     ctx.strokeStyle = '#c8d2da'; ctx.lineWidth = 0.7;
@@ -514,7 +525,7 @@ const WEAPON_DRAW = {
     ctx.save(); ctx.shadowColor = '#59ffb0'; ctx.shadowBlur = 16; circle(ctx, 0, 0, 5.6);
     ctx.fillStyle = rad(ctx, 0, 0, 0, 0, 0, 5.6, [[0, '#ffffff'], [0.4, '#a8ffd8'], [1, '#19c97a']]); ctx.fill(); ctx.restore();
   },
-  railgun(ctx) {
+  railgun(ctx: Ctx) {
     rrect(ctx, -10, -8, 11, 16, 2); fillStroke(ctx, lin(ctx, 0, -8, 0, 8, [[0, '#d07a6a'], [0.5, '#8a2f26'], [1, '#42130f']]), 0.7);
     for (const s of [-1, 1]) { rrect(ctx, -1, s * 4 - 1.5, 30, 3, 0.8); fillStroke(ctx, lin(ctx, 0, s * 4 - 1.5, 0, s * 4 + 1.5, [[0, '#f0f3f6'], [0.5, '#8c959e'], [1, '#3c434a']]), 0.5); }
     ctx.save(); ctx.shadowColor = '#ff7a3a'; ctx.shadowBlur = 7;
@@ -523,7 +534,7 @@ const WEAPON_DRAW = {
     for (const s of [-1, 1]) { metalDisc(ctx, -5, s * 4.4, 2.2, '#ffd0c0', '#c04a3a', '#5a1a14', 0.4); }
     glowDot(ctx, 29, 0, 1.2, '#ff9a5a', 6);
   },
-  comboOnly(ctx) {
+  comboOnly(ctx: Ctx) {
     ctx.save(); ctx.shadowColor = '#fff'; ctx.shadowBlur = 7;
     circle(ctx, 0, 0, 13.6); ctx.lineWidth = 3.4; ctx.strokeStyle = '#ffffff'; ctx.stroke();
     ctx.restore();
@@ -539,16 +550,16 @@ export const MOD_KINDS = BUILD_ORDER.filter((k) => !!MOD_TINT[k]);
 export const MOD_ICON_UNITS = 32;            // icon cell = 32 world units at 8 px / unit (256 px), grid 4 x 2
 const ICON_W = 1024, ICON_H = 512;
 /** UV of the (non-rotating) modifier icon for a kind, or null for non-modifiers. */
-export function modIconUV(kind) {
+export function modIconUV(kind: string): Cell | null {
   const i = MOD_KINDS.indexOf(kind);
   if (i < 0) return null;
   const x = (i % COLS) * 256, y = Math.floor(i / COLS) * 256;
   return { u0: x / ICON_W, v0: y / ICON_H, u1: (x + 256) / ICON_W, v1: (y + 256) / ICON_H };
 }
 
-export function buildTurretAtlases() {
+export function buildTurretAtlases(): { base: THREE.CanvasTexture; weapon: THREE.CanvasTexture; icon: THREE.CanvasTexture } {
   const cb = newCanvas(T_SIZE, T_SIZE), cw = newCanvas(T_SIZE, T_SIZE), ci = newCanvas(ICON_W, ICON_H);
-  const xb = cb.getContext('2d'), xw = cw.getContext('2d'), xi = ci.getContext('2d');
+  const xb = ctx2d(cb), xw = ctx2d(cw), xi = ctx2d(ci);
   BUILD_ORDER.forEach((kind, i) => {
     beginCell(xb, i, 64, T_CELL); drawBase(xb, kind); xb.restore();
     beginCell(xw, i, 64, T_CELL);
@@ -570,11 +581,25 @@ export function buildTurretAtlases() {
 // =====================================================================================
 // Text atlas: small shelf-packed canvas for "+$n" and combo names
 // =====================================================================================
+/** One packed text sprite: texture rectangle plus aspect ratio and pixel size. */
+export interface TextEntry extends Cell { aspect: number; pw: number; ph: number }
+
 export class TextAtlas {
-  constructor(w = 1024, h = 512) {
+  w: number;
+  h: number;
+  canvas: HTMLCanvasElement;
+  ctx: Ctx;
+  texture: THREE.CanvasTexture;
+  map: Map<string, TextEntry>;
+  cx: number = 0;
+  cy: number = 0;
+  rowH: number = 0;
+  full: boolean = false;
+  dirty: boolean;
+  constructor(w: number = 1024, h: number = 512) {
     this.w = w; this.h = h;
     this.canvas = newCanvas(w, h);
-    this.ctx = this.canvas.getContext('2d');
+    this.ctx = ctx2d(this.canvas);
     this.texture = new THREE.CanvasTexture(this.canvas);
     this.texture.flipY = false; this.texture.generateMipmaps = false;
     this.texture.minFilter = THREE.LinearFilter; this.texture.magFilter = THREE.LinearFilter;
@@ -582,15 +607,15 @@ export class TextAtlas {
     this._reset();
     this.dirty = false;
   }
-  _reset() { this.map.clear(); this.cx = 0; this.cy = 0; this.rowH = 0; this.full = false; this.ctx.clearRect(0, 0, this.w, this.h); this.dirty = true; }
+  _reset(): void { this.map.clear(); this.cx = 0; this.cy = 0; this.rowH = 0; this.full = false; this.ctx.clearRect(0, 0, this.w, this.h); this.dirty = true; }
   /** Call once at frame start: wipes the atlas when nearly full (entries are re-created on demand). */
-  beginFrame() { if (this.full) this._reset(); }
-  endFrame() { if (this.dirty) { this.texture.needsUpdate = true; this.dirty = false; } }
+  beginFrame(): void { if (this.full) this._reset(); }
+  endFrame(): void { if (this.dirty) { this.texture.needsUpdate = true; this.dirty = false; } }
   /** Returns { u0, v0, u1, v1, aspect } for the text, drawing it on first use; null when the atlas is full. */
-  get(str, px = 30) {
+  get(str: string, px: number = 30): TextEntry | null {
     const key = px + '|' + str;
-    let e = this.map.get(key);
-    if (e) return e;
+    const hit = this.map.get(key);
+    if (hit) return hit;
     const ctx = this.ctx;
     ctx.font = `bold ${px}px system-ui, -apple-system, "Segoe UI", sans-serif`;
     const pad = 8;
@@ -604,7 +629,7 @@ export class TextAtlas {
     ctx.lineWidth = Math.max(4, px * 0.2); ctx.strokeStyle = 'rgba(10,8,6,0.9)';
     ctx.strokeText(str, x + tw / 2, y + th / 2 + 1);
     ctx.fillStyle = '#ffffff'; ctx.fillText(str, x + tw / 2, y + th / 2 + 1);
-    e = { u0: x / this.w, v0: y / this.h, u1: (x + tw) / this.w, v1: (y + th) / this.h, aspect: tw / th, pw: tw, ph: th };
+    const e: TextEntry = { u0: x / this.w, v0: y / this.h, u1: (x + tw) / this.w, v1: (y + th) / this.h, aspect: tw / th, pw: tw, ph: th };
     this.map.set(key, e);
     this.dirty = true;
     return e;

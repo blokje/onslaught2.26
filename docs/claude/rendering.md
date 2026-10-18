@@ -9,13 +9,14 @@ three.js 0.160.0, orthographic top-down. Contract: `ARCHITECTURE.md` section 2. 
 | `Renderer.ts` | Public class: WebGL setup, batches, frame, overlay state, resize. Extras: `setViewInsets`, `getZoom`, `dispose`, `.canvas`. |
 | `camera.ts` | View state and input: wheel zoom toward the cursor (0.5x to 4x), right/middle drag pan, two-finger pinch/pan, clamping. `screenToWorld` / `worldToScreen`. |
 | `terrain.ts` | Ground shader (sand noise, circuit lines, vignette), road as a signed-distance texture, dashes, base compound. |
-| `atlas.ts` | All sprites drawn procedurally with the 2D canvas into atlases (effects, 9 attackers, 16 turret bases and weapons) plus a text atlas for "+$n" and combo names. |
+| `atlas.ts` | `newCanvas()` / `ctx2d()` (shared with `terrain.ts`; `ctx2d` throws if there is no 2D context). All sprites drawn procedurally with the 2D canvas into atlases (effects, 9 attackers, 16 turret bases and weapons) plus a text atlas for "+$n" and combo names. |
 | `batches.ts` | `SpriteBatch` and `RingBatch`: instanced quads. A full frame is about 25 draw calls. |
 | `entities.ts` | Turrets, attackers, projectiles, rocket smoke. |
 | `fxlayer.ts` | Beams, effects, overlays (ghost, selection, hover, ranges, firing cones, combo lines, join line). |
 | `particles.ts` | Renderer-owned particle pool (capped), not part of game state. |
 | `util.ts` | Colour helpers and the compact number format. |
-| `demo.ts` | Fake game with the 1.1 state shape, used by `/render-demo.html`. |
+| `demo.ts` | Fake game (`DemoGame`) whose objects satisfy the real `TurretState`, `Attacker` and `Projectile` types, used by `/render-demo.html` via `render-demo.ts`. |
+| `context.ts` | Types only: `RenderGame` (what `setGame` accepts: a `state` and an optional `comboPartners`), `Res`, `Frame`, `Batches`, `Cells`. Add every new batch to `Batches`. |
 
 ## Rules
 

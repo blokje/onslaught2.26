@@ -7,25 +7,46 @@ import { MAPS } from '../data/maps.ts';
 import { TURRETS, BUILD_ORDER, COMBO_RANGE, MODIFIER_RANGE } from '../data/turrets.ts';
 import { FIELD } from '../data/rules.ts';
 import { mulberry32 } from './util.ts';
+import type { RenderGame } from './context.ts';
+import type {
+  Attacker, BeamKind, BlastSize, Effect, EffectKind, GameState, KeyColor, LadderStep, MapState, Point, Projectile, ProjectileKind, Stat, TurretState,
+} from '../types.ts';
+
+/** Demo turret: a real TurretState plus the demo's own animation fields. */
+interface DemoTurret extends TurretState { cool: number; freakOffset: number; spin: number }
+/** Demo projectile: flies straight to (tx, ty) and then runs onArrive (the demo has no real projectile simulation). */
+interface DemoProjectile extends Projectile { tx: number; ty: number; onArrive?: () => void; life: number; mineBlast?: boolean; stress?: boolean }
+interface DemoState extends GameState { turrets: DemoTurret[]; projectiles: DemoProjectile[] }
+
+export interface DemoGame extends RenderGame {
+  state: DemoState;
+  comboPartners(tid: number): number[];
+  turretAt(x: number, y: number): number | null;
+  togglePause(): void;
+  setSpeed(s: number): void;
+  setStress(on: boolean): void;
+  addStressProjectiles(): void;
+  update(dtMsReal: number): void;
+}
 
 const BASE_W = FIELD.baseSize[0], BASE_H = FIELD.baseSize[1];
 
-export function createDemoGame({ mapIndex = 0, seed = 1 } = {}) {
+export function createDemoGame({ mapIndex = 0, seed = 1 }: { mapIndex?: number; seed?: number } = {}): DemoGame {
   const m = MAPS[mapIndex % MAPS.length];
   const rnd = mulberry32(seed);
   const path = m.path;
   // cumulative lengths
-  const cum = [0];
+  const cum: number[] = [0];
   for (let i = 1; i < path.length; i++) cum.push(cum[i - 1] + Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]));
   const length = cum[cum.length - 1];
-  function pointAt(s) {
+  function pointAt(s: number): { x: number; y: number; angle: number } {
     s = Math.max(0, Math.min(length, s));
     let i = 1;
     while (i < cum.length - 1 && cum[i] < s) i++;
     const a = path[i - 1], b = path[i], seg = cum[i] - cum[i - 1] || 1, k = (s - cum[i - 1]) / seg;
     return { x: a[0] + (b[0] - a[0]) * k, y: a[1] + (b[1] - a[1]) * k, angle: Math.atan2(b[1] - a[1], b[0] - a[0]) };
   }
-  function distToPath(x, y) {
+  function distToPath(x: number, y: number): number {
     let best = 1e9;
     for (let i = 1; i < path.length; i++) {
       const [ax, ay] = path[i - 1], [bx, by] = path[i];
@@ -36,64 +57,66 @@ export function createDemoGame({ mapIndex = 0, seed = 1 } = {}) {
     return best;
   }
 
-  const map = { id: m.id, name: m.name, path: path.map((p) => [p[0], p[1]]), base: { x: m.base[0], y: m.base[1], w: BASE_W, h: BASE_H }, roadWidth: FIELD.roadWidth, length };
-  const state = {
+  const map: MapState = { id: m.id, name: m.name, path: path.map((p) => [p[0], p[1]]), base: { x: m.base[0], y: m.base[1], w: BASE_W, h: BASE_H }, roadWidth: FIELD.roadWidth, length };
+  const state: DemoState = {
     time: 0, speed: 1, paused: false, over: false, difficulty: 'medium', mode: 'sandbox', mapId: m.id,
     cash: 1e7, lives: 10, kills: 0, spent: 0, wave: 1, nextWaveIn: 20000, score: 0,
-    unlocked: Object.fromEntries(BUILD_ORDER.map((k) => [k, true])),
-    map, attackers: [], turrets: [], projectiles: [], beams: [], effects: [],
+    unlocked: Object.fromEntries(BUILD_ORDER.map((k) => [k, true as const])),
+    focusId: null, map, attackers: [], turrets: [], projectiles: [], beams: [], effects: [],
   };
   let nextId = 1;
   const id = () => nextId++;
 
   // ---------------------------------------------------------------- turret placement
-  const inBase = (x, y, pad) => x > map.base.x - pad && x < map.base.x + map.base.w + pad && y > map.base.y - pad && y < map.base.y + map.base.h + pad;
-  const candidates = [];
+  const inBase = (x: number, y: number, pad: number): boolean => x > map.base.x - pad && x < map.base.x + map.base.w + pad && y > map.base.y - pad && y < map.base.y + map.base.h + pad;
+  const candidates: Point[] = [];
   for (let y = 26; y < FIELD.height - 20; y += 11) for (let x = 26; x < FIELD.width - 20; x += 11) {
     if (distToPath(x, y) > 38 && !inBase(x, y, 26)) candidates.push([x, y]);
   }
   for (let i = candidates.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [candidates[i], candidates[j]] = [candidates[j], candidates[i]]; }
-  const placed = [];
-  const free = (x, y, sp) => placed.every((p) => Math.hypot(p.x - x, p.y - y) >= sp);
+  const placed: DemoTurret[] = [];
+  const free = (x: number, y: number, sp: number): boolean => placed.every((p) => Math.hypot(p.x - x, p.y - y) >= sp);
 
-  function makeTurret(kind, x, y, extra = {}) {
+  function makeTurret(kind: string, x: number, y: number, extra: Partial<DemoTurret> & { full?: boolean } = {}): DemoTurret {
     const def = TURRETS[kind];
-    const lad = def.ladders || {};
+    const lad: Partial<Record<Stat, LadderStep[]>> = def.ladders || {};
     const isMod = def.category === 'modifier';
     const maxLevels = isMod ? { damage: 0, range: 1, rate: 0 } : { damage: (lad.damage || []).length, range: (lad.range || []).length, rate: (lad.rate || []).length };
-    const full = extra.full;
+    const { full, ...rest } = extra;
     const levels = {
       damage: full ? maxLevels.damage : Math.floor(rnd() * (maxLevels.damage + 1)),
       range: full ? maxLevels.range : Math.floor(rnd() * (maxLevels.range + 1)),
       rate: full ? maxLevels.rate : Math.floor(rnd() * (maxLevels.rate + 1)),
     };
     const base = def.base || { damage: 0, range: 0, rate: 0 };
-    const t = {
+    const t: DemoTurret = {
       id: id(), kind, x, y, angle: rnd() * Math.PI * 2, levels, maxLevels,
       stats: { damage: base.damage, range: levels.range && lad.range && lad.range[levels.range - 1] ? lad.range[levels.range - 1].value : base.range, rate: base.rate },
       cashValue: def.cost, comboCapable: levels.damage >= maxLevels.damage && maxLevels.damage > 0, comboReady: false,
-      freak: 'off', holding: false, links: [], targetMode: def.target || 'near', locked: false, targetId: null,
+      freak: 'off', holding: 0, links: [], targetMode: def.target || 'near', locked: false, targetId: null,
       directional: { mode: 'normal', angle: 0 }, joinedTo: null,
-      comboColor: kind === 'comboOnly' ? ['red', 'green', 'blue', 'yellow'][Math.floor(rnd() * 4)] : undefined,
-      modRange: isMod ? (levels.range ? MODIFIER_RANGE.upgraded : MODIFIER_RANGE.base) : undefined,
+      comboColor: kind === 'comboOnly' ? (['red', 'green', 'blue', 'yellow'] as KeyColor[])[Math.floor(rnd() * 4)] : null,
+      modRange: isMod ? (levels.range ? MODIFIER_RANGE.upgraded : MODIFIER_RANGE.base) : 0,
+      // fields the renderer never reads, present so the object satisfies TurretState
+      kills: 0, combosFired: 0, combosAssisted: 0, comboLog: [], category: def.category, color: def.color || null, cd: 0, comboNext: 0, damageMult: 1, freakAt: 0, targeterId: null, ramp: 0, rampTarget: null,
       cool: rnd() * 1000, freakOffset: rnd() * 20, spin: (rnd() - 0.5) * 1.5,
-      ...extra,
+      ...rest,
     };
-    delete t.full;
     placed.push(t); state.turrets.push(t);
     return t;
   }
 
   // combo cluster: red + 2 blue + green + yellow, all damage-maxed and close together
-  let cluster = null;
+  let cluster: Point[] | null = null;
   for (const [sx, sy] of candidates) {
     const near = candidates.filter(([x, y]) => { const d = Math.hypot(x - sx, y - sy); return d >= 48 && d <= 62; });
-    const picks = [[sx, sy]];
+    const picks: Point[] = [[sx, sy]];
     for (const c of near) { if (picks.every((p) => Math.hypot(p[0] - c[0], p[1] - c[1]) >= 46)) picks.push(c); if (picks.length === 5) break; }
     if (picks.length === 5) { cluster = picks; break; }
   }
   if (cluster) {
-    ['red', 'blue', 'blue', 'green', 'yellow'].forEach((k, i) => { makeTurret(k, cluster[i][0], cluster[i][1], { full: true, comboReady: i < 3 }); });
+    const cl: Point[] = cluster;
+    ['red', 'blue', 'blue', 'green', 'yellow'].forEach((k, i) => { makeTurret(k, cl[i][0], cl[i][1], { full: true, comboReady: i < 3 }); });
   }
   // one of every kind
   for (const kind of BUILD_ORDER) {
@@ -114,10 +137,10 @@ export function createDemoGame({ mapIndex = 0, seed = 1 } = {}) {
   if (targeter && someBlue) someBlue.joinedTo = targeter.id;
   const freakers = state.turrets.filter((t) => t.kind === 'blue' || t.kind === 'yellow');
   const reds = state.turrets.filter((t) => t.kind === 'red');
-  if (reds[0]) reds[0].holding = true;
+  if (reds[0]) reds[0].holding = 1;
   // a firing cone (D / Shift+D in the game), aimed at the nearest road point
   if (reds[1]) {
-    let best = null, bd = Infinity;
+    let best: { x: number; y: number; angle: number } | null = null, bd = Infinity;
     for (let s = 0; s < length; s += 10) { const p = pointAt(s); const d = Math.hypot(p.x - reds[1].x, p.y - reds[1].y); if (d < bd) { bd = d; best = p; } }
     if (best) reds[1].directional = { mode: 'medium', angle: Math.atan2(best.y - reds[1].y, best.x - reds[1].x) };
   }
@@ -125,47 +148,49 @@ export function createDemoGame({ mapIndex = 0, seed = 1 } = {}) {
   // ---------------------------------------------------------------- simulation bits
   let spawnTimer = 0, spawnCount = 0, specialTimer = 1500, fxTimer = 0, blastSizeIdx = 0, comboNameTimer = 2500;
   let stress = false, simTime = 0;
-  const BLAST_SIZES = ['small', 'medium', 'large', 'huge', 'bfg'];
-  const timers = { poison: 3000, hole: 6000, napalm: 4500, shock: 2000, blast: 600 };
+  const BLAST_SIZES: BlastSize[] = ['small', 'medium', 'large', 'huge', 'bfg'];
+  const timers: Record<string, number> = { poison: 3000, hole: 6000, napalm: 4500, shock: 2000, blast: 600 };
 
-  function addEffect(kind, x, y, radius, duration, data) {
-    const e = { id: id(), kind, x, y, radius: radius || 0, age: 0, duration, data: data || {} };
+  function addEffect(kind: EffectKind, x: number, y: number, radius: number, duration: number, data?: Record<string, unknown>): Effect {
+    const e: Effect = { id: id(), kind, x, y, radius: radius || 0, age: 0, duration, data: data || {} };
     state.effects.push(e); return e;
   }
-  function addBeam(kind, x1, y1, x2, y2, ttl) { state.beams.push({ kind, x1, y1, x2, y2, age: 0, ttl }); }
-  function addProj(kind, x, y, tx, ty, speed, onArrive, life) {
+  function addBeam(kind: BeamKind, x1: number, y1: number, x2: number, y2: number, ttl: number): void { state.beams.push({ kind, x1, y1, x2, y2, age: 0, ttl }); }
+  function addProj(kind: ProjectileKind, x: number, y: number, tx: number, ty: number, speed: number, onArrive: () => void, life?: number): DemoProjectile {
     const angle = Math.atan2(ty - y, tx - x);
-    state.projectiles.push({ id: id(), kind, x, y, angle, tx, ty, speed, onArrive, life: life || 0 });
+    const p: DemoProjectile = { id: id(), kind, mode: 'goto', x, y, angle, tx, ty, speed, onArrive, life: life || 0 };
+    state.projectiles.push(p);
+    return p;
   }
   function randomRoadPoint() { return pointAt(rnd() * length); }
-  function roadPointsAround(s0, len) { const pts = []; for (let s = s0; s < s0 + len; s += 12) { const p = pointAt(s); pts.push([p.x, p.y]); } return pts; }
+  function roadPointsAround(s0: number, len: number): Point[] { const pts: Point[] = []; for (let s = s0; s < s0 + len; s += 12) { const p = pointAt(s); pts.push([p.x, p.y]); } return pts; }
 
-  function spawnAttacker(progress = 0) {
+  function spawnAttacker(progress: number = 0): void {
     const wave = state.wave;
     const hp = 10 * Math.pow(1.125, wave) * (0.5 + rnd());
     const p = pointAt(progress);
-    state.attackers.push({ id: id(), type: spawnCount++ % 9, x: p.x, y: p.y, angle: p.angle, hp, maxHp: hp, speed: 60, baseSpeed: 60, poisoned: false, blackholed: false, progress });
+    state.attackers.push({ id: id(), type: spawnCount++ % 9, x: p.x, y: p.y, angle: p.angle, hp, maxHp: hp, speed: 60, baseSpeed: 60, poisoned: false, blackholed: false, progress, wave, bounty: 0, dead: false, _seg: 0 });
   }
-  function killAttacker(a, reward = true) {
+  function killAttacker(a: Attacker, reward: boolean = true): void {
     state.attackers.splice(state.attackers.indexOf(a), 1);
     state.kills++;
     if (reward && !a.blackholed) addEffect('cash', a.x, a.y, 0, 1100, { amount: Math.round(Math.pow(10, 0.5 + rnd() * 6.5)) });
   }
-  function nearestAttacker(x, y, range) {
-    let best = null, bd = range;
+  function nearestAttacker(x: number, y: number, range: number): Attacker | null {
+    let best: Attacker | null = null, bd = range;
     for (const a of state.attackers) { const d = Math.hypot(a.x - x, a.y - y); if (d <= bd) { bd = d; best = a; } }
     return best;
   }
-  function hurt(a, dmg) { a.hp -= dmg; if (a.hp <= 0 && state.attackers.includes(a)) killAttacker(a); }
+  function hurt(a: Attacker, dmg: number): void { a.hp -= dmg; if (a.hp <= 0 && state.attackers.includes(a)) killAttacker(a); }
 
   function launchSpecial() {
     const turrets = state.turrets;
     const src = turrets[Math.floor(rnd() * turrets.length)];
-    const target = state.attackers.length ? state.attackers[Math.floor(rnd() * state.attackers.length)] : randomRoadPoint();
+    const target: { x: number; y: number; progress?: number } = state.attackers.length ? state.attackers[Math.floor(rnd() * state.attackers.length)] : randomRoadPoint();
     const tx = target.x, ty = target.y;
     const kinds = ['nuke', 'poisonRocket', 'laserRocket', 'napalmRocket', 'tazerRocket', 'bfg', 'clusterBomb', 'mine', 'rocket', 'rail', 'sniper'];
     const kind = kinds[specialIdx++ % kinds.length];
-    const burst = (size) => addEffect('blast', tx, ty, 0, 700, { size });
+    const burst = (size: BlastSize): Effect => addEffect('blast', tx, ty, 0, 700, { size });
     switch (kind) {
       case 'nuke': addProj('nuke', src.x, src.y, tx, ty, 150, () => burst('huge')); break;
       case 'poisonRocket': addProj('poisonRocket', src.x, src.y, tx, ty, 150, () => { addEffect('poisonCloud', tx, ty, 110, 4200); burst('small'); }); break;
@@ -177,7 +202,7 @@ export function createDemoGame({ mapIndex = 0, seed = 1 } = {}) {
         burst('medium');
         for (let i = 0; i < 7; i++) { const ang = (i / 7) * Math.PI * 2, d = 40 + rnd() * 30; addProj('cluster', tx, ty, tx + Math.cos(ang) * d, ty + Math.sin(ang) * d, 120, (() => { const bx = tx + Math.cos(ang) * d, by = ty + Math.sin(ang) * d; return () => addEffect('blast', bx, by, 0, 500, { size: 'small' }); })()); }
       }); break;
-      case 'mine': { const p = randomRoadPoint(); addProj('mine', src.x, src.y, p.x, p.y, 220, () => {}, 3500); state.projectiles[state.projectiles.length - 1].mineBlast = true; break; }
+      case 'mine': { const p = randomRoadPoint(); const mp = addProj('mine', src.x, src.y, p.x, p.y, 220, () => {}, 3500); mp.mineBlast = true; break; }
       case 'rocket': addProj('rocket', src.x, src.y, tx, ty, 250, () => burst('small')); break;
       case 'rail': addBeam('rail', src.x, src.y, src.x + Math.cos(src.angle) * 300, src.y + Math.sin(src.angle) * 300, 400); break;
       case 'sniper': addBeam('sniper', src.x, src.y, tx, ty, 260); break;
@@ -186,7 +211,7 @@ export function createDemoGame({ mapIndex = 0, seed = 1 } = {}) {
   }
   let specialIdx = 0;
 
-  function turretFire(t, a) {
+  function turretFire(t: DemoTurret, a: Attacker): void {
     const dx = a.x - t.x, dy = a.y - t.y;
     switch (t.kind) {
       case 'blue': addProj('shell', t.x + Math.cos(t.angle) * 24, t.y + Math.sin(t.angle) * 24, a.x, a.y, 700, () => hurt(a, 6 + 6 * rnd())); break;
@@ -202,21 +227,21 @@ export function createDemoGame({ mapIndex = 0, seed = 1 } = {}) {
   }
 
   const WEAPONS = new Set(['blue', 'green', 'red', 'yellow', 'sniper', 'fusion', 'railgun']);
-  const game = {
+  const game: DemoGame = {
     state,
-    comboPartners(tid) {
+    comboPartners(tid: number): number[] {
       const t = state.turrets.find((q) => q.id === tid);
       if (!t) return [];
       return state.turrets.filter((o) => o !== t && Math.hypot(o.x - t.x, o.y - t.y) <= COMBO_RANGE).map((o) => o.id);
     },
-    turretAt(x, y) {
-      let best = null, bd = TURRETS.blue ? 22 : 22;
+    turretAt(x: number, y: number): number | null {
+      let best: number | null = null, bd = TURRETS.blue ? 22 : 22;
       for (const t of state.turrets) { const d = Math.hypot(t.x - x, t.y - y); if (d <= bd) { bd = d; best = t.id; } }
       return best;
     },
-    togglePause() { state.paused = !state.paused; },
-    setSpeed(s) { state.speed = s; },
-    setStress(on) {
+    togglePause(): void { state.paused = !state.paused; },
+    setSpeed(s: number): void { state.speed = s; },
+    setStress(on: boolean): void {
       if (on === stress) return;
       stress = on;
       if (on) {
@@ -231,18 +256,18 @@ export function createDemoGame({ mapIndex = 0, seed = 1 } = {}) {
         state.projectiles = state.projectiles.filter((p) => !p.stress);
       }
     },
-    addStressProjectiles() {
+    addStressProjectiles(): void {
       let n = 0;
       for (const p of state.projectiles) if (p.stress) n++;
       for (; n < 400; n++) {
         const t = state.turrets[Math.floor(rnd() * state.turrets.length)];
         const tx = rnd() * FIELD.width, ty = rnd() * FIELD.height;
-        addProj(n % 3 === 0 ? 'rocket' : 'shell', t.x, t.y, tx, ty, 150 + rnd() * 200, () => {});
-        state.projectiles[state.projectiles.length - 1].stress = true;
+        const sp = addProj(n % 3 === 0 ? 'rocket' : 'shell', t.x, t.y, tx, ty, 150 + rnd() * 200, () => {});
+        sp.stress = true;
       }
     },
 
-    update(dtMsReal) {
+    update(dtMsReal: number): void {
       if (state.paused) return;
       const dt = Math.min(dtMsReal, 100) * state.speed;
       state.time += dt; simTime += dt;

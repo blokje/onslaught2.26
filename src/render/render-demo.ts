@@ -1,15 +1,21 @@
 import { Renderer } from './Renderer.ts';
 import { createDemoGame } from './demo.ts';
 import { TURRETS, BUILD_ORDER } from '../data/turrets.ts';
+import type { DemoGame } from './demo.ts';
+import type { Overlay } from '../types.ts';
+
+declare global {
+  interface Window { renderer: Renderer; demo: () => DemoGame }
+}
 
 const params = new URLSearchParams(location.search);
 let mapIndex = Number(params.get('map') || 0);
-const renderer = new Renderer(document.getElementById('game'));
-let game = createDemoGame({ mapIndex });
+const renderer = new Renderer(document.getElementById('game')!); // the demo page always has #game
+let game: DemoGame = createDemoGame({ mapIndex });
 renderer.setGame(game);
 window.renderer = renderer; window.demo = () => game;
 
-const overlay = { ghost: null, selectedId: null, hoverId: null, showRanges: 'selected', showCombo: false, joinFromId: null };
+const overlay: Overlay = { ghost: null, selectedId: null, hoverId: null, showRanges: 'selected', showCombo: false, joinFromId: null };
 let stressOn = false, ghostIdx = -1, lastMouse = { x: 0, y: 0 }, showFps = true, fps = 60;
 const push = () => renderer.setOverlay(overlay);
 
@@ -47,9 +53,9 @@ window.addEventListener('keydown', (e) => {
   push();
 });
 
-const hud = document.getElementById('hud');
+const hud = document.getElementById('hud')!; // the demo page always has #hud
 let last = performance.now(), acc = 0, frames = 0;
-function frame(now) {
+function frame(now: number): void {
   const dt = Math.min(now - last, 100); last = now;
   game.update(dt);
   renderer.render(dt);

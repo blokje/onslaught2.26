@@ -1,23 +1,28 @@
 // Renderer-owned particle pool (smoke trails, sparks, debris). Not part of game state.
 // kind 0: smoke puff (normal blend, grows and fades)   kind 1: additive spark (shrinks and fades)
 
+import type { SpriteBatch, Cell } from './batches.ts';
+
 const STRIDE = 14; // x y vx vy age life s0 s1 r g b a kind drag
 
 export class Particles {
-  constructor(capacity = 2600) {
+  cap: number;
+  n: number;
+  d: Float32Array;
+  constructor(capacity: number = 2600) {
     this.cap = capacity;
     this.n = 0;
     this.d = new Float32Array(capacity * STRIDE);
   }
-  clear() { this.n = 0; }
-  spawn(kind, x, y, vx, vy, lifeMs, s0, s1, r, g, b, a, drag = 0) {
+  clear(): void { this.n = 0; }
+  spawn(kind: number, x: number, y: number, vx: number, vy: number, lifeMs: number, s0: number, s1: number, r: number, g: number, b: number, a: number, drag: number = 0): void {
     if (this.n >= this.cap) return;
     const d = this.d; let o = this.n++ * STRIDE;
     d[o++] = x; d[o++] = y; d[o++] = vx; d[o++] = vy; d[o++] = 0; d[o++] = lifeMs; d[o++] = s0; d[o++] = s1;
     d[o++] = r; d[o++] = g; d[o++] = b; d[o++] = a; d[o++] = kind; d[o] = drag;
   }
   /** Advance by dtMs (game time) and draw into the two sprite batches. */
-  update(dtMs, smokeBatch, sparkBatch, puffCell, sparkCell) {
+  update(dtMs: number, smokeBatch: SpriteBatch, sparkBatch: SpriteBatch, puffCell: Cell, sparkCell: Cell): void {
     const d = this.d, dt = dtMs / 1000;
     for (let i = 0; i < this.n; i++) {
       let o = i * STRIDE;

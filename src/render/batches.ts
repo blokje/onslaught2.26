@@ -9,7 +9,13 @@ import * as THREE from 'three';
 const SPRITE_STRIDE = 13; // x y rot | sx sy | u0 v0 u1 v1 | r g b a
 const RING_STRIDE = 11;   // x y R | width fill soft dash | r g b a
 
-function makeGeometry(stride, capacity, attrs) {
+/** Texture rectangle of one sprite (texture coords; v0 = top row of the canvas). */
+export interface Cell { u0: number; v0: number; u1: number; v1: number }
+
+interface BatchOptions { additive?: boolean; order?: number }
+interface GeometryParts { geometry: THREE.InstancedBufferGeometry; data: Float32Array; buf: THREE.InstancedInterleavedBuffer }
+
+function makeGeometry(stride: number, capacity: number, attrs: [string, number][]): GeometryParts {
   const g = new THREE.InstancedBufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute([-0.5, -0.5, 0, 0.5, -0.5, 0, 0.5, 0.5, 0, -0.5, 0.5, 0], 3));
   g.setIndex([0, 1, 2, 0, 2, 3]);
@@ -76,7 +82,7 @@ void main() {
   gl_FragColor = vec4(vCol.rgb, vCol.a * a);
 }`;
 
-function baseMaterial(additive, extra) {
+function baseMaterial(additive: boolean, extra: THREE.ShaderMaterialParameters): THREE.ShaderMaterialParameters {
   return Object.assign({
     transparent: true, depthTest: false, depthWrite: false, side: THREE.DoubleSide,
     blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
@@ -85,7 +91,14 @@ function baseMaterial(additive, extra) {
 
 /** Textured instanced quads. cell = {u0,v0,u1,v1} (texture coords, v0 = top row of the canvas). */
 export class SpriteBatch {
-  constructor(texture, capacity, { additive = false, order = 0 } = {}) {
+  capacity: number;
+  count: number;
+  geometry: THREE.InstancedBufferGeometry;
+  data: Float32Array;
+  buf: THREE.InstancedInterleavedBuffer;
+  material: THREE.ShaderMaterial;
+  mesh: THREE.Mesh;
+  constructor(texture: THREE.Texture, capacity: number, { additive = false, order = 0 }: BatchOptions = {}) {
     this.capacity = capacity;
     this.count = 0;
     const { geometry, data, buf } = makeGeometry(SPRITE_STRIDE, capacity, [['aPR', 3], ['aSize', 2], ['aUV', 4], ['aCol', 4]]);
@@ -98,9 +111,9 @@ export class SpriteBatch {
     this.mesh.renderOrder = order;
     this.mesh.visible = false;
   }
-  setTexture(t) { this.material.uniforms.map.value = t; }
-  begin() { this.count = 0; }
-  add(x, y, rot, sx, sy, cell, r, g, b, a) {
+  setTexture(t: THREE.Texture): void { this.material.uniforms.map.value = t; }
+  begin(): void { this.count = 0; }
+  add(x: number, y: number, rot: number, sx: number, sy: number, cell: Cell, r: number, g: number, b: number, a: number): void {
     if (this.count >= this.capacity) return;
     const d = this.data;
     let o = this.count++ * SPRITE_STRIDE;
@@ -109,21 +122,29 @@ export class SpriteBatch {
     d[o++] = r; d[o++] = g; d[o++] = b; d[o] = a;
   }
   /** Line segment as a stretched quad (cell should be a horizontal band such as the beam cell). */
-  line(x1, y1, x2, y2, width, cell, r, g, b, a) {
+  line(x1: number, y1: number, x2: number, y2: number, width: number, cell: Cell, r: number, g: number, b: number, a: number): void {
     const dx = x2 - x1, dy = y2 - y1;
     this.add((x1 + x2) * 0.5, (y1 + y2) * 0.5, Math.atan2(dy, dx), Math.hypot(dx, dy), width, cell, r, g, b, a);
   }
-  end() {
+  end(): void {
     this.geometry.instanceCount = this.count;
     this.buf.needsUpdate = true;
     this.mesh.visible = this.count > 0;
   }
-  dispose() { this.geometry.dispose(); this.material.dispose(); }
+  dispose(): void { this.geometry.dispose(); this.material.dispose(); }
 }
 
 /** Procedural rings / discs with screen-constant AA. width is in WORLD units. */
 export class RingBatch {
-  constructor(capacity, { additive = false, order = 0 } = {}) {
+  capacity: number;
+  count: number;
+  geometry: THREE.InstancedBufferGeometry;
+  data: Float32Array;
+  buf: THREE.InstancedInterleavedBuffer;
+  uniforms: { uWpp: { value: number }; uTime: { value: number } };
+  material: THREE.ShaderMaterial;
+  mesh: THREE.Mesh;
+  constructor(capacity: number, { additive = false, order = 0 }: BatchOptions = {}) {
     this.capacity = capacity;
     this.count = 0;
     const { geometry, data, buf } = makeGeometry(RING_STRIDE, capacity, [['aPR', 3], ['aW', 4], ['aCol', 4]]);
@@ -137,9 +158,9 @@ export class RingBatch {
     this.mesh.renderOrder = order;
     this.mesh.visible = false;
   }
-  begin(wpp, t) { this.count = 0; this.uniforms.uWpp.value = wpp; this.uniforms.uTime.value = t; }
+  begin(wpp: number, t: number): void { this.count = 0; this.uniforms.uWpp.value = wpp; this.uniforms.uTime.value = t; }
   /** width: stroke width (world units). fill: 0..1 disc fill alpha. soft: 0..1 edge softness. dash: dash count (0 = solid). */
-  add(x, y, R, width, fill, soft, dash, r, g, b, a) {
+  add(x: number, y: number, R: number, width: number, fill: number, soft: number, dash: number, r: number, g: number, b: number, a: number): void {
     if (this.count >= this.capacity) return;
     const d = this.data;
     let o = this.count++ * RING_STRIDE;
@@ -147,10 +168,10 @@ export class RingBatch {
     d[o++] = width; d[o++] = fill; d[o++] = soft; d[o++] = dash;
     d[o++] = r; d[o++] = g; d[o++] = b; d[o] = a;
   }
-  end() {
+  end(): void {
     this.geometry.instanceCount = this.count;
     this.buf.needsUpdate = true;
     this.mesh.visible = this.count > 0;
   }
-  dispose() { this.geometry.dispose(); this.material.dispose(); }
+  dispose(): void { this.geometry.dispose(); this.material.dispose(); }
 }

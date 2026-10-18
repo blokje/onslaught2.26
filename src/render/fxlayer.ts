@@ -2,15 +2,20 @@
 
 import { TURRETS, MODIFIER_RANGE, COMBO_RANGE } from '../data/turrets.ts';
 import { BLAST_RADIUS } from '../data/combos.ts';
+import type { BlastSize } from '../types.ts';
 import { DIRECTIONAL } from '../data/rules.ts';
 import { KIND_INDEX, KIND_TINT, MOD_TINT } from './atlas.ts';
 import { clamp, hash2, fmtCompact, TAU } from './util.ts';
 import { rgb, rangeOf, turretColor } from './entities.ts';
+import type { RGB } from './util.ts';
+import type { Cell, SpriteBatch } from './batches.ts';
+import type { Effect, TurretState } from '../types.ts';
+import type { Res, Frame } from './context.ts';
 
-const easeOut = (u, p = 3) => 1 - Math.pow(1 - u, p);
+const easeOut = (u: number, p: number = 3): number => 1 - Math.pow(1 - u, p);
 
 // ------------------------------------------------------------------------------------------------ beams
-export function drawBeams(R, f) {
+export function drawBeams(R: Res, f: Frame): void {
   const { b, c } = R;
   const L = b.beams, beamCell = c.fx.beam, glow = c.fx.glow;
   let idx = 0;
@@ -78,11 +83,11 @@ export function drawBeams(R, f) {
 }
 
 // ------------------------------------------------------------------------------------------------ effects
-function blastRadius(e) {
-  return e.radius > 0 ? e.radius : (BLAST_RADIUS[e.data && e.data.size] || 40);
+function blastRadius(e: Effect): number {
+  return e.radius > 0 ? e.radius : (BLAST_RADIUS[e.data && e.data.size as BlastSize] || 40);
 }
 
-export function drawEffects(R, f) {
+export function drawEffects(R: Res, f: Frame): void {
   const { b, c, particles } = R;
   const t = f.t;
   const seen = R.fxSeen, stamp = f.frame;
@@ -202,14 +207,14 @@ export function drawEffects(R, f) {
 
 // ------------------------------------------------------------------------------------------------ overlays
 /** Half-angle (radians) of a turret's firing cone, or 0 when it fires all around. */
-function coneHalf(tr) {
+function coneHalf(tr: TurretState): number {
   const d = tr.directional;
   if (!d || d.mode === 'normal' || !DIRECTIONAL[d.mode]) return 0;
   return (DIRECTIONAL[d.mode] / 2) * (Math.PI / 180);
 }
 
 /** Where a weapon acquires targets from: itself, or the Targeter joined to it (as in weapons.js origin()). */
-function coneOrigin(tr, turrets) {
+function coneOrigin(tr: TurretState, turrets: TurretState[]): { x: number; y: number; r: number } {
   for (const g of turrets) if (g.joinedTo === tr.id) return { x: g.x, y: g.y, r: rangeOf(g) };
   return { x: tr.x, y: tr.y, r: rangeOf(tr) };
 }
@@ -221,12 +226,12 @@ function coneOrigin(tr, turrets) {
  * detail: degrees per arc segment (coarser for the R "all ranges" view to stay inside the batch).
  * outline: dark under-stroke for contrast (selected turret).
  */
-function drawCone(L, cell, px, ox, oy, range, angle, half, col, alpha, detail, outline) {
+function drawCone(L: SpriteBatch, cell: Cell, px: (n: number) => number, ox: number, oy: number, range: number, angle: number, half: number, col: RGB, alpha: number, detail: number, outline: boolean): void {
   if (range <= 0 || half <= 0) return;
   const a0 = angle - half, a1 = angle + half;
   const r0 = Math.min(20, range * 0.5);
   const n = Math.max(2, Math.min(60, Math.ceil((2 * half) / (detail * Math.PI / 180))));
-  const passes = outline
+  const passes: [number, RGB, number][] = outline
     ? [[px(4.2), [0.04, 0.08, 0.12], alpha * 0.45], [px(2), col, alpha]]
     : [[px(1.5), col, alpha]];
   for (const [w, [r, g, bl], a] of passes) {
@@ -250,10 +255,10 @@ function drawCone(L, cell, px, ox, oy, range, angle, half, col, alpha, detail, o
   }
 }
 
-export function drawOverlay(R, f) {
+export function drawOverlay(R: Res, f: Frame): void {
   const { b, c } = R;
   const o = R.overlay, wpp = f.wpp, t = f.t;
-  const px = (n) => n * wpp; // screen pixels -> world units
+  const px = (n: number): number => n * wpp; // screen pixels -> world units
   const st = f.state, byId = f.turretById;
 
   // faint range rings for everything
@@ -330,7 +335,7 @@ export function drawOverlay(R, f) {
   if (sel) {
     const r = rangeOf(sel);
     const isMod = TURRETS[sel.kind] && TURRETS[sel.kind].category === 'modifier';
-    const col = isMod ? rgb(MOD_TINT[sel.kind] || '#ffffff') : [0.7, 0.95, 1];
+    const col: RGB = isMod ? rgb(MOD_TINT[sel.kind] || '#ffffff') : [0.7, 0.95, 1];
     const half = coneHalf(sel);
     if (r > 0 && half > 0) {
       // cone: the full ring stays as a faint reference, the wedge is what actually fires
@@ -347,7 +352,7 @@ export function drawOverlay(R, f) {
 
   // combo partners
   if (o.showCombo && sel && R.game && typeof R.game.comboPartners === 'function') {
-    let ids = [];
+    let ids: number[] = [];
     try { ids = R.game.comboPartners(sel.id) || []; } catch (_) { ids = []; }
     b.ringTop.add(sel.x, sel.y, COMBO_RANGE, px(1.6), 0.035, 0, 18, 1, 0.85, 0.3, 0.9);
     for (const id of ids) {
@@ -385,11 +390,13 @@ export function drawOverlay(R, f) {
       b.ringTop.add(gh.x, gh.y, rng, px(2), 0.1, 0.3, 0, col[0], col[1], col[2], 0.75);
     }
     b.ghostBase.add(gh.x, gh.y, 0, 64, 64, c.tb[idx], tint[0], tint[1], tint[2], 0.78);
-    let rot = gh.angle || 0;
+    // Overlay.ghost has no angle in src/types.ts; kept for callers that add one (nobody does today)
+    let rot = (gh as { angle?: number }).angle || 0;
     if (isMod) rot = t * 0.8;
     const gws = isMod ? 50 : 64;
     b.ghostWeap.add(gh.x, gh.y, rot, gws, gws, c.tw[idx], tint[0], tint[1], tint[2], 0.78);
-    if (isMod && c.ti[gh.kind]) b.ghostIcon.add(gh.x, gh.y, 0, 32, 32, c.ti[gh.kind], tint[0], tint[1], tint[2], 0.9);
+    const gIcon = c.ti[gh.kind];
+    if (isMod && gIcon) b.ghostIcon.add(gh.x, gh.y, 0, 32, 32, gIcon, tint[0], tint[1], tint[2], 0.9);
     b.ringTop.add(gh.x, gh.y, 22, px(2.4), 0, 0.15, 14, col[0], col[1], col[2], 0.95);
   }
   void KIND_TINT;

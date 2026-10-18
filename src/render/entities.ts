@@ -4,31 +4,34 @@
 import { TURRETS, TURRET_SIZE } from '../data/turrets.ts';
 import { KIND_INDEX, KIND_TINT, COMBO_COLOR, MOD_TINT } from './atlas.ts';
 import { clamp, hex, hash2, TAU } from './util.ts';
+import type { RGB } from './util.ts';
+import type { TurretState } from '../types.ts';
+import type { Res, Frame } from './context.ts';
 
-const rgbCache = new Map();
-export function rgb(c) {
+const rgbCache = new Map<string, RGB>();
+export function rgb(c: string): RGB {
   let v = rgbCache.get(c);
   if (!v) { v = hex(c); rgbCache.set(c, v); }
   return v;
 }
 
-const PIP_STATS = [['damage', [1, 0.45, 0.25]], ['range', [0.35, 0.85, 1]], ['rate', [0.7, 1, 0.35]]];
+const PIP_STATS: ['damage' | 'range' | 'rate', RGB][] = [['damage', [1, 0.45, 0.25]], ['range', [0.35, 0.85, 1]], ['rate', [0.7, 1, 0.35]]];
 
 /** Rendering tint for a turret kind (used for glow, rings). */
-export function turretColor(t) {
+export function turretColor(t: TurretState): RGB {
   if (t.kind === 'comboOnly' && t.comboColor && COMBO_COLOR[t.comboColor]) return rgb(COMBO_COLOR[t.comboColor]);
   return rgb(KIND_TINT[t.kind] || '#ffffff');
 }
 
 /** Influence / firing range ring radius for a turret (0 = none). */
-export function rangeOf(t) {
+export function rangeOf(t: TurretState): number {
   const def = TURRETS[t.kind];
   if (!def) return 0;
   if (def.category === 'modifier') return t.modRange || 80;
   return (t.stats && t.stats.range) || (def.base && def.base.range) || 0;
 }
 
-export function drawTurrets(R, f) {
+export function drawTurrets(R: Res, f: Frame): void {
   const { b, c } = R, t0 = f.t;
   const wpp = f.wpp;
   for (const t of f.state.turrets) {
@@ -72,7 +75,8 @@ export function drawTurrets(R, f) {
     }
     const ws = isMod ? 50 : 64; // modifier dishes are drawn smaller so the icon on top stays readable
     b.tWeap.add(x + jx, y + jy, rot, ws, ws, c.tw[idx], wr, wg, wb, 1);
-    if (isMod && c.ti[t.kind]) b.tIcon.add(x, y, 0, 32, 32, c.ti[t.kind], wr, wg, wb, 1);
+    const icon = c.ti[t.kind];
+    if (isMod && icon) b.tIcon.add(x, y, 0, 32, 32, icon, wr, wg, wb, 1);
 
     // freak indicators
     if (t.freak === 'available') {
@@ -116,7 +120,7 @@ export function drawTurrets(R, f) {
 // ------------------------------------------------------------------------------------------------
 const HP_W = 15;
 
-export function drawAttackers(R, f) {
+export function drawAttackers(R: Res, f: Frame): void {
   const { b, c } = R;
   const holes = f.holes;
   for (const a of f.state.attackers) {
@@ -152,7 +156,8 @@ export function drawAttackers(R, f) {
 
 // ------------------------------------------------------------------------------------------------
 // kind -> look. body: tint of the rocket sprite, flame: exhaust tint, smoke: trail tint
-const ROCKETS = {
+interface RocketLook { size: number; body: RGB; flame: RGB; smoke: RGB; smokeSize: number; glow: [number, number, number, number] | null }
+const ROCKETS: Record<string, RocketLook> = {
   rocket:       { size: 18, body: [1, 0.4, 0.32], flame: [1, 0.6, 0.2], smoke: [0.78, 0.76, 0.74], smokeSize: 7, glow: null },
   nuke:         { size: 34, body: [1, 0.86, 0.35], flame: [1, 0.7, 0.3], smoke: [0.5, 0.46, 0.42], smokeSize: 14, glow: [1, 0.55, 0.15, 60] },
   poisonRocket: { size: 18, body: [0.5, 1, 0.4], flame: [0.5, 1, 0.35], smoke: [0.45, 0.95, 0.35], smokeSize: 8, glow: [0.4, 1, 0.3, 22] },
@@ -161,7 +166,7 @@ const ROCKETS = {
   tazerRocket:  { size: 18, body: [1, 0.92, 0.3], flame: [1, 0.95, 0.4], smoke: [1, 0.95, 0.6], smokeSize: 7, glow: [1, 0.9, 0.3, 24] },
 };
 
-export function drawProjectiles(R, f) {
+export function drawProjectiles(R: Res, f: Frame): void {
   const { b, c, particles } = R;
   const t = f.t;
   const seen = R.trailSeen; // id -> {x,y}; entries not touched this frame are dropped
@@ -202,7 +207,8 @@ export function drawProjectiles(R, f) {
       }
       continue;
     }
-    switch (p.kind) {
+    // 'rail' and 'sniper' are drawn for completeness although ProjectileKind does not list them (the demo/older code may emit them)
+    switch (p.kind as string) {
       case 'shell':
         b.projAdd.add(x - cs * 2.5, y - sn * 2.5, ang, 10, 3.6, c.fx.spark, 0.65, 0.85, 1, 0.8);
         b.projAdd.add(x, y, 0, 4.4, 4.4, c.fx.spark, 1, 1, 1, 1);
