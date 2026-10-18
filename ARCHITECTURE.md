@@ -58,7 +58,7 @@ const g2 = Game.deserialize(save);      // restore a running game
                holding /*rockets circling, Red only*/,
                links: [turretId],                     // Green: linked Greens
                targetMode /*rules.TARGET_MODES*/, locked /*bool*/, targetId /*or null*/,
-               directional: { mode: 'normal'|'wide'|'medium'|'small', angle },
+               directional: { mode: 'normal'|'wide'|'medium'|'tight'|'small'|'pinpoint', angle }, // 360/180/90/60/45/30 degrees
                joinedTo /*Targeter: turret id or null*/, comboColor /*Combo-only: 'red'|'green'|'blue'|'yellow'*/,
                modRange /*modifiers: current influence radius*/,
                combosFired, combosAssisted,           // combos led / joined as partner (weapons and Combo-only)
@@ -93,7 +93,7 @@ game.move(id, x, y)                  // costs $500, same placement checks
 game.setTargetMode(id, mode)         // or game.cycleTargetMode(id)
 game.toggleLock(id)
 game.focusFire(attackerId)           // all weapons that can reach it target it; null clears
-game.setDirectional(id, mode, angle) // or game.cycleDirectional(id)
+game.setDirectional(id, mode, angle) // or game.cycleDirectional(id): normal, wide, medium, tight, small, pinpoint, normal
 game.join(targeterId, turretId)      // toggles; turretId null unjoins
 game.setComboColor(id, color)        // Combo-only
 game.comboPartners(id)               // -> [turretId] within COMBO_RANGE (for the C overlay)

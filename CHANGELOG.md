@@ -5,6 +5,11 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
 
 ## Unreleased
 
+### Added
+- Two extra firing cone widths: Tight 60 and Pinpoint 30 degrees. D now cycles All around, Wide 180, Medium 90, Tight 60,
+  Narrow 45, Pinpoint 30 (new `directional.mode` values `tight` and `pinpoint`; the old values and saves are unchanged).
+  Docs: `SPEC.md` section 5, `ARCHITECTURE.md`, `docs/claude/testing.md`.
+
 ### Fixed
 - The firing cone (D / Shift+D) is now drawn. It already restricted targeting, but the renderer never showed it, so
   changing it looked like it did nothing. Selected and hovered weapons (and all weapons with R) show the cone as a wedge

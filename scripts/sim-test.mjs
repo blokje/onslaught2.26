@@ -251,6 +251,17 @@ function makePlayer(game, spots) {
   g.setDirectional(t.id, 'small', Math.atan2(30, 60)); // aims toward B (330,90)
   tt.targetMode = 'near'; tt.targetId = null; settle();
   check('(tgt) directional cone restricts acquisition', tt.targetId === B.id, `${tt.targetId}`);
+  // aimed at B (45 deg); A sits 18.4 deg off that line: inside Tight 60 (+-30), outside Pinpoint 30 (+-15)
+  g.setDirectional(t.id, 'tight', Math.PI / 4); settle();
+  check('(tgt) Tight 60 cone includes 18 deg off-axis', tt.targetId === A.id, `${tt.targetId}`);
+  g.setDirectional(t.id, 'pinpoint', Math.PI / 4); settle();
+  check('(tgt) Pinpoint 30 cone excludes 18 deg off-axis', tt.targetId === B.id, `${tt.targetId}`);
+  {
+    g.setDirectional(t.id, 'normal');
+    const seen = [];
+    for (let i = 0; i < 7; i++) { g.cycleDirectional(t.id); seen.push(tt.directional.mode); }
+    check('(tgt) D cycles 180, 90, 60, 45, 30, all around', seen.join() === 'wide,medium,tight,small,pinpoint,normal,wide', seen.join());
+  }
   g.setDirectional(t.id, 'normal');
   g.focusFire(C.id); settle();
   check('(tgt) focus fire overrides', tt.targetId === C.id);
