@@ -33,7 +33,7 @@ Status per item: **[ORIG]** taken from the original, **[SITE]** from the help pa
 
 ## 3. Waves and attackers [ORIG]
 
-- A new wave starts every **20 s** (setting; Space sends the next one early).
+- A new wave starts every **20 s** (setting; Space sends the next one early, with a [NEW] bonus of $1 per whole second skipped, see section 9).
 - Each wave sends **10 attackers**, **700 ms** apart.
 - On every new wave: HP × **1.125**, bounty + **$1**. Wave *n*: HP = 10 × 1.125ⁿ, bounty = $n (waves 1 to 100) [ORIG].
   - Wave 50 ≈ 3,600 HP, wave 100 ≈ 1.3 M.
@@ -192,25 +192,29 @@ Nine maps plus a tutorial layout. Coordinates are waypoint polylines in the 720 
 | 9 | Lyne | a single diagonal line (the famous "Lyne" map) |
 | T | How to Play | simple U-shape |
 
-The exact waypoint lists have been recovered and will go into the map data file during the build (they are plain coordinates).
+The exact waypoint lists have been recovered and are in `src/data/maps.ts` (plain coordinates).
 
 ## 8. Controls [ORIG + SITE]
 
 | Key | Action |
 |---|---|
-| 1–8, Shift+1–8 | pick turret to build |
+| 1-8, Shift+1-8 | pick turret to build |
 | Q / W / E | upgrade damage / range / rate (Shift = as far as affordable) |
 | S | sell (70%) |
 | M | move ($500) |
 | R | toggle range rings |
 | C | toggle combo-in-range display |
 | T, L, F, D | targeting mode, lock, focus fire, directional cone [CHOICE] |
+| J | join mode for a selected Targeter (click the turret to join, the Targeter itself to unjoin) [CHOICE] |
+| X | cycle the colour of a selected Combo-only (red, green, blue, yellow) [CHOICE] |
+| B / Enter | build the armed (or rack-highlighted) turret at the cursor, stays armed [CHOICE] |
+| Left / Right arrows | step the build rack to the previous / next unlocked turret [CHOICE] |
 | Space | send the next wave now |
 | P | pause |
 | I | info panel |
 | Drag panel header | move the info panel, double-click to dock it again [CHOICE] |
 | G | settings |
-| Esc | cancel build/move |
+| Esc | cancel build/move/join/focus mode, else clear focus fire, else deselect, else open the game menu (auto-repeat ignored) |
 | Mouse wheel / drag | zoom / pan [CHOICE] |
 
 ## 9. Things the original does not have (proposals) [NEW]
@@ -225,12 +229,14 @@ The exact waypoint lists have been recovered and will go into the map data file 
 | Lives | 20 | 10 | 5 | 1 |
 | Wave interval | 25 s | 20 s | 17 s | 15 s |
 
+**Early-wave bonus** [NEW]: sending the next wave early with Space pays $1 (`WAVES.earlyBonusPerSec`) per whole second left on the countdown. Refused while paused.
+
 **Sandbox** (unlockable): $10,000,000 start cash, everything unlocked (the original's own debug mode does exactly this).
 
 **5 extra weapons** (unlock at 1,200 to 1,600 kills, that is roughly waves 121 to 161 on Medium; kills come at most 10 per wave):
 - **Targeter** ($3,000, unlock 1,200 kills; range ladder $400 to $3,200 for 175 to 300): cheap support. "Join" it to a turret (J) and that turret uses the Targeter's position and range for target acquisition.
 - **Sniper** ($6,000, unlock 1,300): very long range (420 to 550), very slow (12 to 22 shots/min), huge single hit (280k to 2.2M), prefers the strongest target.
-- **Fusion** ($7,500, unlock 1,400): short-range beam (110 to 160) whose damage ramps up (x1.15 per tick, max x6) while it stays on the same target; base 4,100 damage, 300 shots/min, ladder to 25,000.
+- **Fusion** ($7,500, unlock 1,400): short-range beam (110 to 160) whose damage ramps up (+0.15x per tick, linear, max x6) while it stays on the same target; base 4,100 damage, 300 shots/min, ladder to 25,000.
 - **Railgun** ($9,000, unlock 1,500): piercing line shot that damages every attacker along the line; 67k to 370k per hit, 20 to 35 shots/min, range 300 to 380.
 - **Combo-only** ($3,000, unlock 1,600; cheaper than the cheapest damage-maxed partner, Yellow at $3,360): never fires on its own; it only takes part in combos as a wildcard colour you pick.
 

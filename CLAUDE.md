@@ -1,7 +1,7 @@
 # OnSlaught2.26
 
 Browser tower-defense game remaking the *mechanics* of a classic 2007 Flash TD game.
-Vite + plain ES modules (JavaScript, no TypeScript, no framework) + three.js 0.160.0.
+Vite + TypeScript (strict, ES modules, no framework) + three.js 0.160.0. Node 22.18+ runs the `.ts` tests directly (type stripping).
 
 ## Hard rules
 
@@ -13,13 +13,15 @@ Vite + plain ES modules (JavaScript, no TypeScript, no framework) + three.js 0.1
 4. **Originality:** all code, art and sound are original. Never add the original SWF, decompiled code, or copied or imitated sprites, logos or sounds. Art is procedural, sound is synthesized. No asset files without asking.
 5. **Determinism:** simulation randomness only through `game.rng`; `serialize()` then `Game.deserialize()` must continue identically.
 6. **No em dash characters** anywhere: code, comments, UI text, docs.
-7. **Storage** only through `src/ui/storage.js` (prefix `os226.`, try/catch).
+7. **Storage** only through `src/ui/storage.ts` (prefix `os226.`, try/catch).
 8. **No new dependencies** without asking.
+9. **Typed:** all source is `.ts` with `strict` on. `npm run typecheck` must pass. Only erasable syntax (no `enum`, `namespace` or parameter properties) so Node can strip types; import with the `.ts` extension. Shared shapes live in `src/types.ts`; avoid `any`.
 
 ## Done means
 
 - Docs updated (intent before, result after), `CHANGELOG.md` entry under Unreleased, docs listed in the report or commit message.
-- `node scripts/sim-test.mjs` and `node scripts/combo-test.mjs` pass, with new checks for new mechanics.
+- `node scripts/sim-test.ts` and `node scripts/combo-test.ts` pass, with new checks for new mechanics.
+- `npm run typecheck` passes (strict, no new `any` without a comment).
 - `npm run build` succeeds.
 - Visual or UI changes have been looked at in a browser with no console errors; otherwise say so explicitly.
 - Budget: simulation under 4 ms per frame at 8x with 300 attackers and 150 turrets; rendering uses instanced batches only.
@@ -29,9 +31,10 @@ Vite + plain ES modules (JavaScript, no TypeScript, no framework) + three.js 0.1
 ```bash
 npm install
 npm run dev                  # http://localhost:5226 (demos: /render-demo.html, /ui-demo.html)
-node scripts/sim-test.mjs
-node scripts/combo-test.mjs
-npm run build                # dist/
+node scripts/sim-test.ts
+node scripts/combo-test.ts
+npm run typecheck            # tsc, strict, no emit
+npm run build                # typecheck, then dist/
 npm run build:single         # dist-single/index.html (one file)
 ```
 

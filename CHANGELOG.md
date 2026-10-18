@@ -5,20 +5,47 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
 
 ## Unreleased
 
+### Removed
+- Dead code: unused imports, variables, parameters, exports and unreachable branches across `src/` and `scripts/`,
+  among them the `rail`/`sniper` projectile cases in the renderer (both are beams), the never-set ghost angle, the unused
+  `KEYS`, `FX_UNITS`, `lerp` and `TURRET_COLORS` exports, the `.is-off` button style and the unread `dbg` flag in `balance.ts`.
+  `tsconfig.json` now sets `noUnusedLocals` and `noUnusedParameters`, so new dead code fails `npm run typecheck`.
+  No gameplay change. Docs: `docs/claude/testing.md`, `docs/claude/gotchas.md`.
+
+### Changed
+- The codebase is now TypeScript with `strict` on (was plain JavaScript): every `src/` file, the test scripts and the
+  Vite configs are `.ts`. Shared contract types live in the new `src/types.ts`; `npm run typecheck` runs `tsc`, and
+  `npm run build` / `build:single` type-check first. The tests still run without a build step (`node scripts/sim-test.ts`,
+  Node 22.18+ type stripping), so only erasable syntax is allowed. New dev dependencies: `typescript`, `@types/three`,
+  `@types/node`. The inline demo scripts moved to `src/render/render-demo.ts` and `src/ui/ui-demo.ts`. No gameplay change.
+  Docs: `CLAUDE.md`, `ARCHITECTURE.md`, `CONTRIBUTING.md`, `README.md`, all `docs/claude/*.md`, the skills in `.claude/skills/`.
+
 ### Added
-- GitHub Pages deploy: `.github/workflows/pages.yml` runs both test scripts and `npm run build` on every push to
+- GitHub Pages deploy: `.github/workflows/pages.yml` runs `npm test` and `npm run build` (typecheck included) on every push to
   `main` and publishes `dist/` to <https://blokje.github.io/ontslaught2.26/>, so the game is playable from a URL.
   Docs: `README.md`, `docs/claude/testing.md`, `.claude/skills/release-build/SKILL.md`.
 - Two extra firing cone widths: Tight 60 and Pinpoint 30 degrees. D now cycles All around, Wide 180, Medium 90, Tight 60,
   Narrow 45, Pinpoint 30 (new `directional.mode` values `tight` and `pinpoint`; the old values and saves are unchanged).
   Docs: `SPEC.md` section 5, `ARCHITECTURE.md`, `docs/claude/testing.md`.
-
-### Fixed
-- The firing cone (D / Shift+D) is now drawn. It already restricted targeting, but the renderer never showed it, so
-  changing it looked like it did nothing. Selected and hovered weapons (and all weapons with R) show the cone as a wedge
-  from their acquisition origin (a joined Targeter's position and range), with the rest of the range ring dimmed;
-  every weapon with a cone also gets a small aim tick on its base. The render demo has a coned Rocket turret.
-  Docs: `ARCHITECTURE.md`, `docs/claude/rendering.md`, `docs/claude/gotchas.md`.
+- The selected-turret panel can be moved: drag its header (mouse or touch) so it no longer covers the road, double-click
+  or double-tap the header to dock it top right again. The position is kept on screen between the top bar and the build
+  rack and saved in the new setting `panelPos`. Docs: `docs/claude/ui.md`, `SPEC.md` §8, How to play.
+- Tabbed selected-turret panel (General, Upgrades, Combos, Freakout), modelled on the original game's panel so it stays
+  short. New Combos tab: combos fired and assisted, partners in range, time until the next combo, the recipes with the
+  partners still missing, and the last 5 combos. Backed by new turret fields `combosFired`, `combosAssisted` and `comboLog`
+  (saved), the read-only `game.comboPreview(id)`, and `partnerIds` on the `combo` event.
+- README section "About this project": a from-scratch, AI-assisted reimplementation of Onslaught 2, why it was made,
+  and the reference material used (screenshots and the game on the Internet Archive).
+- Selected-turret panel always shows freak-out status for Cannon and Tazer (now in the Freakout tab), with upgrade progress toward the
+  requirement ("Freak-out at 4 dmg + 4 rate (2/4, 1/4)") before they become eligible, so it is visible that they support it.
+- `scripts/balance.mjs` (`dps`, `combos`, `difficulty`, `unlock`, `late`, `all`).
+- Docs-first policy: `docs/claude/documentation.md` (which doc to update per change, writing style), rule 0 in `CLAUDE.md`,
+  docs-first and docs-after steps in every skill, doc requirements in agent briefs.
+- `README.md`, `CONTRIBUTING.md` and this changelog for human contributors.
+- Target modes "oldest" (spawned first) and "newest" (spawned last).
+- Setting "Pause when tab is hidden" (default on). An auto-paused game resumes when the tab is visible again; a manual pause does not.
+- Full-screen pause overlay so the paused state is clearly visible.
+- Layered agent docs: `CLAUDE.md` (hard rules and pointers), `docs/claude/` area guides, 7 runbook skills in `.claude/skills/`.
 
 ### Changed
 - Linked lasers pierce (approved deviation from the original): the Green's shot total (own damage plus chain bonus) is
@@ -50,28 +77,12 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
   1,200 to 1,600 kills; Napalm, Tazer Rockets and Shockwave buffed, Tazer BFG nerfed; Hard HP growth 1.165, Extreme 1.25
   (waves reached about 1.45 : 1 : 0.71 : 0.39 for Easy : Medium : Hard : Extreme). Details in `docs/claude/data-and-balance.md`.
 
-### Added
-- The selected-turret panel can be moved: drag its header (mouse or touch) so it no longer covers the road, double-click
-  or double-tap the header to dock it top right again. The position is kept on screen between the top bar and the build
-  rack and saved in the new setting `panelPos`. Docs: `docs/claude/ui.md`, `SPEC.md` §8, How to play.
-- Tabbed selected-turret panel (General, Upgrades, Combos, Freakout), modelled on the original game's panel so it stays
-  short. New Combos tab: combos fired and assisted, partners in range, time until the next combo, the recipes with the
-  partners still missing, and the last 5 combos. Backed by new turret fields `combosFired`, `combosAssisted` and `comboLog`
-  (saved), the read-only `game.comboPreview(id)`, and `partnerIds` on the `combo` event.
-- README section "About this project": a from-scratch, AI-assisted reimplementation of Onslaught 2, why it was made,
-  and the reference material used (screenshots and the game on the Internet Archive).
-- Selected-turret panel always shows freak-out status for Cannon and Tazer (now in the Freakout tab), with upgrade progress toward the
-  requirement ("Freak-out at 4 dmg + 4 rate (2/4, 1/4)") before they become eligible, so it is visible that they support it.
-- `scripts/balance.mjs` (`dps`, `combos`, `difficulty`, `unlock`, `all`).
-- Docs-first policy: `docs/claude/documentation.md` (which doc to update per change, writing style), rule 0 in `CLAUDE.md`,
-  docs-first and docs-after steps in every skill, doc requirements in agent briefs.
-- `README.md`, `CONTRIBUTING.md` and this changelog for human contributors.
-- Target modes "oldest" (spawned first) and "newest" (spawned last).
-- Setting "Pause when tab is hidden" (default on). An auto-paused game resumes when the tab is visible again; a manual pause does not.
-- Full-screen pause overlay so the paused state is clearly visible.
-- Layered agent docs: `CLAUDE.md` (hard rules and pointers), `docs/claude/` area guides, 7 runbook skills in `.claude/skills/`.
-
 ### Fixed
+- The firing cone (D / Shift+D) is now drawn. It already restricted targeting, but the renderer never showed it, so
+  changing it looked like it did nothing. Selected and hovered weapons (and all weapons with R) show the cone as a wedge
+  from their acquisition origin (a joined Targeter's position and range), with the rest of the range ring dimmed;
+  every weapon with a cone also gets a small aim tick on its base. The render demo has a coned Rocket turret.
+  Docs: `ARCHITECTURE.md`, `docs/claude/rendering.md`, `docs/claude/gotchas.md`.
 - Freak-out text matched neither the code nor the tests: the panel said "x3 dmg x4 rate", but the bonuses are added to the
   multiplier sum (x4 damage, x5 rate without modifiers). The panel now shows "+300% dmg +400% rate", and the Freakout tab hint
   and the How to Play text use the real numbers from `FREAKOUT`. How to Play also no longer says it needs full upgrades
@@ -86,6 +97,29 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
 - Tazer BFG fires `sparks.qty` sparks per tick instead of one.
 - Sharper turret sprites (atlas at 8 px per world unit).
 - Settings checkboxes toggle when their label is clicked; turrets count their own kills.
+- Frame loop in `main.js` survives an exception: it logs each new message once and pauses the game instead of stopping.
+- Missing WebGL no longer leaves a blank page: a message is shown instead.
+- Holding Esc no longer toggles the game menu repeatedly (key auto-repeat is ignored).
+- Quitting to the menu clears the renderer (`setGame(null)`), so the old field is not left behind.
+- Autosave no longer stores `paused: true` when the pause came from the open Esc menu.
+- Audio resumes from any non-running state, which fixes silence after an iOS interruption.
+- Turret icon and beam batches have caps, so a huge game cannot overflow them.
+- Input validation for build and move coordinates and for `setWaveInterval` (fails unless a finite number >= 1000).
+- The default game seed is a fixed constant instead of `Math.random()`; `src/main.js` passes a random seed for real games.
+
+### Security
+- `Game.deserialize` validates the save (version, arrays, caps, unknown turret kind), throws `Error('Invalid save: ...')`
+  and ignores `__proto__`, `constructor` and `prototype` keys.
+- `getSettings()` drops stored values whose type does not match the defaults.
+- Upgraded vite 5.4.10 to 8.3.4 and vite-plugin-singlefile to 2.3.4, which fixes the dev-server advisories (esbuild
+  GHSA-67mh-4wv8-2f99 and the vite advisories `npm audit` reported); `npm audit` now reports 0 vulnerabilities. New
+  requirement: Node ^20.19.0 or >=22.12.0 (`engines` in `package.json`, noted in `README.md` and `CONTRIBUTING.md`).
+
+### Docs
+- Review corrections so docs match the code: `ARCHITECTURE.md` (App constructor, projectile kinds, `move` event, upgrade payload,
+  `comboColor`, new commands, deserialize errors, renderer extras, settings), `SPEC.md` (Fusion ramp is linear, early-wave bonus,
+  controls table, maps location), `docs/claude/simulation.md`, `rendering.md`, `gotchas.md`, `ui.md`, `testing.md`,
+  `.claude/skills/balance-pass/SKILL.md`, demo config headers, `.gitignore` (`dist-render-demo/`).
 
 ## 0.1.0 (2026-10-17)
 

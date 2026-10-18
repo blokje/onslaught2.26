@@ -1,5 +1,5 @@
 # Build the game and publish dist/ to GitHub Pages on every push to main.
-# Tests run first; a failing test stops the deploy.
+# Tests run first, then npm run build (typecheck + vite); any failure stops the deploy.
 name: Deploy to GitHub Pages
 
 on:
@@ -26,8 +26,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: node scripts/sim-test.mjs
-      - run: node scripts/combo-test.mjs
+      - run: npm test
       - run: npm run build
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5

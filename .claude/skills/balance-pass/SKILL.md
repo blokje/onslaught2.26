@@ -9,7 +9,7 @@ description: Measure and tune the numbers of OnSlaught2.26's new (non-original) 
 
 Read `docs/claude/data-and-balance.md` first: original [ORIG] numbers are frozen, only [NEW] content is tuned.
 
-1. Measure before changing anything. Use `scripts/balance.mjs` if it exists, or write one: drive `Game` in Node with a fixed `seed`, `mode: 'sandbox'` for cash, `spawnAttacker(wave, hpOverride)` for high-HP targets, `advance(steps)`.
+1. Measure before changing anything. Use `scripts/balance.ts` (modes in `docs/claude/testing.md`); to measure something it does not cover, drive `Game` in Node with a fixed `seed`, `mode: 'sandbox'` for cash, `spawnAttacker(wave, hpOverride)` for high-HP targets, `advance(steps)`.
 2. Compare at equal spend ($5K, $20K, $80K, $300K) against the best original option in the same niche. Targets are in `data-and-balance.md`.
 3. Combos: damage per recharge-second against originals with a similar turret count, measured with the real combo code.
 4. Difficulty: greedy bot games on maps 1, 4 and 9 per difficulty; report the wave reached.

@@ -5,6 +5,8 @@ A change without documentation updates is not finished and will not be merged.
 
 ## The workflow
 
+Setup: `npm install` needs Node.js 22.18 or newer (type stripping for the `.ts` tests; Vite 8 needs 22.12+).
+
 1. **Read** [CLAUDE.md](CLAUDE.md) (hard rules, short) and the guide for your area in [docs/claude/](docs/claude/).
 2. **Write the intent first.** Update the doc that describes what you are changing:
    game rules and numbers in [SPEC.md](SPEC.md), interfaces in [ARCHITECTURE.md](ARCHITECTURE.md), how a module works in the area guide.
@@ -12,8 +14,9 @@ A change without documentation updates is not finished and will not be merged.
 3. **Build it** against that doc. If you have to deviate, change the doc too.
 4. **Test it.**
    ```bash
-   node scripts/sim-test.mjs
-   node scripts/combo-test.mjs
+   node scripts/sim-test.ts
+   node scripts/combo-test.ts
+   npm run typecheck
    npm run build
    ```
    For anything visual, play it in the browser (`npm run dev`) and check the console for errors.
@@ -30,7 +33,7 @@ A change without documentation updates is not finished and will not be merged.
   in code, sound is synthesized. Ask before adding any asset file.
 - **Layers stay separate:** `src/data` → `src/game` (pure logic, runs in Node) → `src/render` (three.js, read-only)
   and `src/ui` (DOM, input, storage, audio).
-- **Plain JavaScript**, ES modules, no TypeScript, no framework, no new dependencies without discussing first.
+- **TypeScript** (`strict`), ES modules, no framework, no new dependencies without discussing first. Run `npm run typecheck`.
 - **No em dash characters** in code, comments, UI text or docs.
 
 ## Common tasks

@@ -2,17 +2,17 @@
 
 | File | Contents |
 |---|---|
-| `maps.js` | 10 maps (9 original layouts plus the tutorial): waypoints and base top-left corner in the 720 x 450 field. |
-| `turrets.js` | 16 turret kinds: cost, base stats, upgrade ladders `[{cost, value}]`, specials, unlock kills, hotkeys; constants (sell 70%, move $500, footprint 44, combo range 70, freak-out, poison). |
-| `combos.js` | 20 recipes per lead colour, checked top to bottom: `needs`, optional `exact`, optional `takes` (partners used, defaults to `needs`), `recharge`, `fx`. Blast radii. Mine settings (`MINE`: sample step, travel speed, trigger radius, jitter, check interval). |
-| `rules.js` | Field, waves, difficulties, modes, speeds, target modes, directional cones, score. |
+| `maps.ts` | 10 maps (9 original layouts plus the tutorial): waypoints and base top-left corner in the 720 x 450 field. |
+| `turrets.ts` | 16 turret kinds: cost, base stats, upgrade ladders `[{cost, value}]`, specials, unlock kills, hotkeys; constants (sell 70%, move $500, footprint 44, combo range 70, freak-out, poison). |
+| `combos.ts` | 20 recipes per lead colour, checked top to bottom: `needs`, optional `exact`, optional `takes` (partners used, defaults to `needs`), `recharge`, `fx`. Blast radii. Mine settings (`MINE`: sample step, travel speed, trigger radius, jitter, check interval). |
+| `rules.ts` | Field, waves, difficulties, modes, speeds, target modes, directional cones, score. |
 
 ## What may change
 
 - **Frozen ([ORIG] in `SPEC.md`):** Blue, Green, Red and Yellow, the 7 modifiers, the 16 original combos, wave and economy rules, Medium, the 9 original maps. They come from analysis of the original game. Change them only when the user explicitly asks to deviate.
 - **Tunable ([NEW]):** Targeter, Sniper, Fusion, Railgun, Combo-only; Napalm Rocket, Tazer Rockets, Shockwave, Tazer BFG; Easy, Hard, Extreme; the early-wave bonus.
-- **Piercing laser ([NEW], approved deviation):** the Green's own shot carries its leftover energy through attackers on a straight line (`SPEC.md` 4.1). The Green numbers and the chain x1.25 stay original; tune the beam half-width (`LASER_WIDTH` in `src/game/weapons.js`) if it is too strong.
-- **Late-game curve ([NEW], approved deviation):** after `WAVES.lateWave` (100) HP growth and bounty follow `WAVES.lateGrowthFactor` and `WAVES.lateBountyGrowth` (`src/data/rules.js`, used by `waveHp` / `waveBounty` in `src/game/Attacker.js`). Waves 1 to 100 stay original; tune these two numbers, not the original growth.
+- **Piercing laser ([NEW], approved deviation):** the Green's own shot carries its leftover energy through attackers on a straight line (`SPEC.md` 4.1). The Green numbers and the chain x1.25 stay original; tune the beam half-width (`LASER_WIDTH` in `src/game/weapons.ts`) if it is too strong.
+- **Late-game curve ([NEW], approved deviation):** after `WAVES.lateWave` (100) HP growth and bounty follow `WAVES.lateGrowthFactor` and `WAVES.lateBountyGrowth` (`src/data/rules.ts`, used by `waveHp` / `waveBounty` in `src/game/Attacker.ts`). Waves 1 to 100 stay original; tune these two numbers, not the original growth.
 
 ## Balance targets
 
@@ -25,7 +25,7 @@ Use the `balance-pass` skill. Always record before/after numbers and update `SPE
 
 ## Latest balance pass
 
-Rerun everything with `node scripts/balance.mjs [dps|combos|difficulty|unlock|late|all]` (about 1 minute, headless, fixed seeds). Informational only; `sim-test` and `combo-test` stay the pass/fail gates.
+Rerun everything with `node scripts/balance.ts [dps|combos|difficulty|unlock|late|all]` (about 1 minute, headless, fixed seeds). Informational only; `sim-test` and `combo-test` stay the pass/fail gates.
 
 - **Weapons** (single turret at equal spend, versus the best original, no freak-out): Sniper 0.72 to 0.75 on a near target and 1.0 to 1.2 when range 320+ is required; Fusion 1.05 to 1.09 on a sustained single target (about 0.3 on a moving stream); Railgun 1.09 on a head-on straight stretch (about 0.2 beside the road). Blue and Yellow average about 3.4x higher with freak-out (about 12% uptime), which is an original mechanic and not counted.
 - **Ladders** were cut from about 115k to 64k (Sniper), 95k to 64k (Fusion) and 126k to 79k (Railgun) for a maxed turret. Lifetime cash is only about 10 x wave x (wave + 1) / 2 (72k by wave 120), so old ladders were out of reach.
