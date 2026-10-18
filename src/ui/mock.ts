@@ -5,15 +5,38 @@ import { TURRETS, BUILD_ORDER, MODIFIER_RANGE, SELL_REFUND, MOVE_COST, TURRET_SI
 import { DIFFICULTIES, MODES, WAVES, TARGET_MODES, DIRECTIONAL } from '../data/rules.ts';
 import { waveHp, waveBounty } from '../game/Attacker.ts';
 import { COMBOS, COMBO_LOG_MAX } from '../data/combos.ts';
+import type { AppGame, AppRenderer, CommandResult } from './appTypes.ts';
+import type {
+  GameState, GameOptions, GameEvents, GameEventName, Attacker, TurretState, Result, Fail, ComboPreview,
+  Overlay, Stat, StatValues, DifficultyId, ModeId, TargetMode, DirectionalMode, KeyColor, ColorCounts, ComboRecipe,
+} from '../types.ts';
 
-const STATS = ['damage', 'range', 'rate'];
-const DIR_MODES = Object.keys(DIRECTIONAL);
+const STATS: Stat[] = ['damage', 'range', 'rate'];
+const DIR_MODES = Object.keys(DIRECTIONAL) as DirectionalMode[];
 
-export function createMockGame(opts = {}) { return new MockGame(opts); }
-export function restoreMockGame(save) { return new MockGame(save.opts || {}, save); }
+/** Serialized form of a MockGame (private to this file; the real game has its own format). */
+interface MockSave {
+  opts: GameOptions; state: GameState; nid: number; queue: QueuedAttacker[]; spawnClock: number; cool: Record<number, number>;
+}
+interface QueuedAttacker { type: number; hp: number; bounty: number }
+type Listener = (payload: never) => void;
 
-class MockGame {
-  constructor(opts, saved) {
+export function createMockGame(opts: GameOptions = {}): MockGame { return new MockGame(opts); }
+export function restoreMockGame(save: MockSave): MockGame { return new MockGame(save.opts || {}, save); }
+
+class MockGame implements AppGame {
+  opts: GameOptions;
+  listeners: Partial<Record<GameEventName, Listener[]>>;
+  state: GameState;
+  nid: number;
+  queue: QueuedAttacker[];
+  spawnClock: number;
+  cool: Record<number, number>;
+  cum: number[];
+  comboClock: number;
+  focus: number | null = null;
+
+  constructor(opts: GameOptions, saved?: MockSave) {
     this.opts = { mapId: 'map1', difficulty: 'medium', mode: 'normal', unlockAll: false, ...opts };
     this.listeners = {};
     if (saved) {
@@ -24,15 +47,15 @@ class MockGame {
       this.cool = saved.cool || {};
     } else {
       const o = this.opts;
-      const diff = DIFFICULTIES[o.difficulty] || DIFFICULTIES.medium;
-      const mode = MODES[o.mode] || MODES.normal;
+      const diff = DIFFICULTIES[o.difficulty!] || DIFFICULTIES.medium;
+      const mode = MODES[o.mode!] || MODES.normal;
       const m = MAPS.find((x) => x.id === o.mapId) || MAPS[0];
       let length = 0;
       for (let i = 1; i < m.path.length; i++) length += Math.hypot(m.path[i][0] - m.path[i - 1][0], m.path[i][1] - m.path[i - 1][1]);
-      const unlocked = {};
-      for (const k of BUILD_ORDER) unlocked[k] = !TURRETS[k].unlockKills || o.unlockAll || !!mode.unlockAllTurrets;
+      const unlocked: Record<string, true> = {};
+      for (const k of BUILD_ORDER) if (!TURRETS[k].unlockKills || o.unlockAll || !!mode.unlockAllTurrets) unlocked[k] = true;
       this.state = {
-        time: 0, speed: 1, paused: false, over: false, difficulty: o.difficulty, mode: o.mode, mapId: m.id,
+        time: 0, speed: 1, paused: false, over: false, difficulty: o.difficulty as DifficultyId, mode: o.mode as ModeId, mapId: m.id, focusId: null,
         cash: mode.startCash && o.mode === 'sandbox' ? mode.startCash : diff.startCash, lives: diff.lives, kills: 0, spent: 0, wave: 0,
         nextWaveIn: o.waveInterval || diff.waveInterval, score: 0, unlocked,
         map: { id: m.id, name: m.name, path: m.path, base: { x: m.base[0], y: m.base[1], w: 126, h: 82 }, roadWidth: 28, length },
@@ -50,24 +73,25 @@ class MockGame {
   }
 
   // ---------- events
-  on(n, f) { (this.listeners[n] ||= []).push(f); }
-  off(n, f) { const l = this.listeners[n]; if (l) { const i = l.indexOf(f); if (i >= 0) l.splice(i, 1); } }
-  emit(n, p) { for (const f of (this.listeners[n] || []).slice()) f(p); }
-  fail(reason) { this.emit('error', { reason }); return { ok: false, reason }; }
+  // listeners are stored without their payload type; on/off/emit keep the name and payload paired
+  on<K extends GameEventName>(n: K, f: (payload: GameEvents[K]) => void): void { ((this.listeners[n] ||= []) as Listener[]).push(f as Listener); }
+  off<K extends GameEventName>(n: K, f: (payload: GameEvents[K]) => void): void { const l = this.listeners[n] as Listener[] | undefined; if (l) { const i = l.indexOf(f as Listener); if (i >= 0) l.splice(i, 1); } }
+  emit<K extends GameEventName>(n: K, p: GameEvents[K]): void { for (const f of ((this.listeners[n] || []) as Listener[]).slice()) (f as (payload: GameEvents[K]) => void)(p); }
+  fail(reason: string): Fail { this.emit('error', { reason }); return { ok: false, reason }; }
 
   // ---------- persistence
-  serialize() { return JSON.parse(JSON.stringify({ opts: this.opts, state: this.state, nid: this.nid, queue: this.queue, spawnClock: this.spawnClock, cool: this.cool })); }
-  static deserialize(save) { return restoreMockGame(save); }
+  serialize(): MockSave { return JSON.parse(JSON.stringify({ opts: this.opts, state: this.state, nid: this.nid, queue: this.queue, spawnClock: this.spawnClock, cool: this.cool })); }
+  static deserialize(save: MockSave): MockGame { return restoreMockGame(save); }
 
   // ---------- simulation
-  update(dtMs) {
+  update(dtMs: number): void {
     const s = this.state;
     if (s.paused || s.over) return;
     let t = dtMs * s.speed;
     while (t > 0) { const step = Math.min(t, 50); this.step(step); t -= step; if (s.over) break; }
   }
 
-  posAt(d) {
+  posAt(d: number): { x: number; y: number; angle: number } {
     const p = this.state.map.path;
     let i = 1;
     while (i < this.cum.length - 1 && this.cum[i] < d) i++;
@@ -76,7 +100,7 @@ class MockGame {
     return { x: p[i - 1][0] + (p[i][0] - p[i - 1][0]) * f, y: p[i - 1][1] + (p[i][1] - p[i - 1][1]) * f, angle: Math.atan2(p[i][1] - p[i - 1][1], p[i][0] - p[i - 1][0]) };
   }
 
-  step(ms) {
+  step(ms: number): void {
     const s = this.state;
     s.time += ms;
     s.nextWaveIn -= ms;
@@ -84,8 +108,8 @@ class MockGame {
     // spawn
     this.spawnClock -= ms;
     while (this.queue.length && this.spawnClock <= 0) {
-      const a = this.queue.shift();
-      s.attackers.push({ id: this.nid++, type: a.type, x: 0, y: 0, angle: 0, hp: a.hp, maxHp: a.hp, bounty: a.bounty, speed: 60, baseSpeed: 60, poisoned: false, blackholed: false, progress: 0 });
+      const a = this.queue.shift()!;
+      s.attackers.push({ id: this.nid++, type: a.type, x: 0, y: 0, angle: 0, hp: a.hp, maxHp: a.hp, bounty: a.bounty, speed: 60, baseSpeed: 60, poisoned: false, blackholed: false, progress: 0, wave: s.wave, dead: false, _seg: 0 });
       this.spawnClock += WAVES.spacing;
     }
     if (!this.queue.length) this.spawnClock = 0;
@@ -111,7 +135,7 @@ class MockGame {
       if (def.category !== 'weapon') continue;
       this.cool[t.id] = (this.cool[t.id] || 0) - ms;
       if (this.cool[t.id] > 0) continue;
-      let target = null;
+      let target: Attacker | null = null;
       let bd = Infinity;
       for (const a of s.attackers) {
         const d = Math.hypot(a.x - t.x, a.y - t.y);
@@ -155,7 +179,7 @@ class MockGame {
     }
   }
 
-  startWave(early) {
+  startWave(early: boolean): void {
     const s = this.state;
     const diff = DIFFICULTIES[s.difficulty] || DIFFICULTIES.medium;
     s.wave++;
@@ -167,7 +191,7 @@ class MockGame {
     this.emit('message', { text: `Wave ${s.wave} incoming${early ? ' (early)' : ''}` });
   }
 
-  kill(a) {
+  kill(a: Attacker): void {
     const s = this.state;
     const i = s.attackers.indexOf(a);
     if (i >= 0) s.attackers.splice(i, 1);
@@ -175,10 +199,10 @@ class MockGame {
     s.cash += a.bounty;
     s.score = s.kills * s.spent;
     this.emit('kill', { attackerId: a.id, x: a.x, y: a.y, bounty: a.bounty });
-    if (s.kills % 6 === 0) this.emit('blast', { size: ['small', 'medium', 'large'][s.kills % 3], x: a.x, y: a.y });
+    if (s.kills % 6 === 0) this.emit('blast', { size: (['small', 'medium', 'large'] as const)[s.kills % 3], x: a.x, y: a.y });
   }
 
-  finish() {
+  finish(): void {
     const s = this.state;
     s.over = true;
     s.score = s.kills * s.spent;
@@ -186,9 +210,9 @@ class MockGame {
   }
 
   // ---------- helpers
-  find(id) { return this.state.turrets.find((t) => t.id === id) || null; }
+  find(id: number): TurretState | null { return this.state.turrets.find((t) => t.id === id) || null; }
 
-  distToRoad(x, y) {
+  distToRoad(x: number, y: number): number {
     const p = this.state.map.path;
     let best = Infinity;
     for (let i = 1; i < p.length; i++) {
@@ -202,7 +226,7 @@ class MockGame {
     return best;
   }
 
-  recompute(t) {
+  recompute(t: TurretState): void {
     const def = TURRETS[t.kind];
     t.maxLevels = { damage: 0, range: 0, rate: 0 };
     if (def.ladders) for (const st of STATS) t.maxLevels[st] = def.ladders[st].length;
@@ -219,7 +243,7 @@ class MockGame {
   }
 
   // ---------- commands
-  canBuild(kind, x, y, ignoreId = null) {
+  canBuild(kind: string, x: number, y: number, ignoreId: number | null = null): Result {
     const s = this.state;
     const def = TURRETS[kind];
     if (!def) return { ok: false, reason: 'Unknown turret' };
@@ -234,16 +258,18 @@ class MockGame {
     return { ok: true };
   }
 
-  build(kind, x, y) {
+  build(kind: string, x: number, y: number): CommandResult {
     const c = this.canBuild(kind, x, y);
     if (!c.ok) return this.fail(c.reason);
     const s = this.state;
     const def = TURRETS[kind];
-    const t = {
-      id: this.nid++, kind, x, y, angle: 0, levels: { damage: 0, range: 0, rate: 0 }, maxLevels: {}, stats: { damage: 0, range: 0, rate: 0 },
-      cashValue: def.cost, comboCapable: false, comboReady: false, freak: 'off', holding: false, links: [],
+    const t: TurretState = {
+      id: this.nid++, kind, x, y, angle: 0, levels: { damage: 0, range: 0, rate: 0 }, maxLevels: { damage: 0, range: 0, rate: 0 }, stats: { damage: 0, range: 0, rate: 0 },
+      cashValue: def.cost, comboCapable: false, comboReady: false, freak: 'off', holding: 0, links: [],
       targetMode: def.target || 'near', locked: false, targetId: null, directional: { mode: 'normal', angle: 0 },
       joinedTo: null, comboColor: 'red', modRange: 0, kills: 0, combosFired: 0, combosAssisted: 0, comboLog: [],
+      // fields the real Turret class has and the fake does not use
+      category: def.category, color: def.color ?? null, cd: 0, comboNext: 0, damageMult: 1, freakAt: 0, targeterId: null, ramp: 0, rampTarget: null,
     };
     this.recompute(t);
     s.cash -= def.cost; s.spent += def.cost; s.score = s.kills * s.spent;
@@ -252,7 +278,7 @@ class MockGame {
     return { ok: true, id: t.id };
   }
 
-  upgradeCost(id, stat) {
+  upgradeCost(id: number, stat: Stat): number | null {
     const t = this.find(id);
     if (!t) return null;
     const def = TURRETS[t.kind];
@@ -263,7 +289,7 @@ class MockGame {
     return lv >= lad.length ? null : lad[lv].cost;
   }
 
-  upgrade(id, stat, toMax = false) {
+  upgrade(id: number, stat: Stat, toMax = false): CommandResult {
     const t = this.find(id);
     if (!t) return this.fail('No such turret');
     const s = this.state;
@@ -275,13 +301,13 @@ class MockGame {
       s.cash -= cost; s.spent += cost; t.cashValue += cost; t.levels[stat]++;
       this.recompute(t);
       s.score = s.kills * s.spent;
-      this.emit('upgrade', { id, stat });
+      this.emit('upgrade', { id, stat, levels: 1 });
       n++;
     } while (toMax);
     return { ok: true };
   }
 
-  sell(id) {
+  sell(id: number): CommandResult {
     const t = this.find(id);
     if (!t) return this.fail('No such turret');
     const s = this.state;
@@ -292,7 +318,7 @@ class MockGame {
     return { ok: true, refund };
   }
 
-  move(id, x, y) {
+  move(id: number, x: number, y: number): CommandResult {
     const t = this.find(id);
     if (!t) return this.fail('No such turret');
     const s = this.state;
@@ -305,44 +331,46 @@ class MockGame {
     return { ok: true };
   }
 
-  setTargetMode(id, mode) { const t = this.find(id); if (!t) return this.fail('No such turret'); t.targetMode = mode; return { ok: true }; }
-  cycleTargetMode(id) { const t = this.find(id); if (!t) return this.fail('No such turret'); return this.setTargetMode(id, TARGET_MODES[(TARGET_MODES.indexOf(t.targetMode) + 1) % TARGET_MODES.length]); }
-  toggleLock(id) { const t = this.find(id); if (!t) return this.fail('No such turret'); t.locked = !t.locked; return { ok: true }; }
-  focusFire(aid) { this.focus = aid; return { ok: true }; }
-  setDirectional(id, mode, angle) { const t = this.find(id); if (!t) return this.fail('No such turret'); t.directional = { mode, angle }; return { ok: true }; }
-  cycleDirectional(id) { const t = this.find(id); if (!t) return this.fail('No such turret'); t.directional.mode = DIR_MODES[(DIR_MODES.indexOf(t.directional.mode) + 1) % DIR_MODES.length]; return { ok: true }; }
-  join(tid, other) {
+  setTargetMode(id: number, mode: TargetMode): CommandResult { const t = this.find(id); if (!t) return this.fail('No such turret'); t.targetMode = mode; return { ok: true }; }
+  cycleTargetMode(id: number): CommandResult { const t = this.find(id); if (!t) return this.fail('No such turret'); return this.setTargetMode(id, TARGET_MODES[(TARGET_MODES.indexOf(t.targetMode) + 1) % TARGET_MODES.length]); }
+  toggleLock(id: number): CommandResult { const t = this.find(id); if (!t) return this.fail('No such turret'); t.locked = !t.locked; return { ok: true }; }
+  focusFire(aid: number | null): CommandResult { this.focus = aid; return { ok: true }; }
+  setDirectional(id: number, mode: DirectionalMode, angle: number): CommandResult { const t = this.find(id); if (!t) return this.fail('No such turret'); t.directional = { mode, angle }; return { ok: true }; }
+  cycleDirectional(id: number): CommandResult { const t = this.find(id); if (!t) return this.fail('No such turret'); t.directional.mode = DIR_MODES[(DIR_MODES.indexOf(t.directional.mode) + 1) % DIR_MODES.length]; return { ok: true }; }
+  join(tid: number, other: number | null): CommandResult {
     const t = this.find(tid);
     if (!t || t.kind !== 'targeter') return this.fail('Only a Targeter can join');
     t.joinedTo = other == null || t.joinedTo === other ? null : other;
     return { ok: true };
   }
-  setComboColor(id, color) { const t = this.find(id); if (!t) return this.fail('No such turret'); t.comboColor = color; return { ok: true }; }
-  comboPartners(id) {
+  setComboColor(id: number, color: KeyColor): CommandResult { const t = this.find(id); if (!t) return this.fail('No such turret'); t.comboColor = color; return { ok: true }; }
+  comboPartners(id: number): number[] {
     const t = this.find(id);
     if (!t) return [];
     return this.state.turrets.filter((o) => o.id !== id && o.comboCapable && Math.hypot(o.x - t.x, o.y - t.y) <= COMBO_RANGE).map((o) => o.id);
   }
   /** Rough stand-in for Game.comboPreview: missing partners only, waits follow the fake 20 s combo clock. */
-  comboPreview(id) {
+  comboPreview(id: number): ComboPreview | null {
     const t = this.find(id);
     if (!t) return null;
-    const col = (o) => (o.kind === 'comboOnly' ? o.comboColor : TURRETS[o.kind].color);
+    const col = (o: TurretState): KeyColor | null => (o.kind === 'comboOnly' ? o.comboColor : TURRETS[o.kind].color ?? null);
     const wait = Math.max(0, 20000 - this.comboClock);
-    const partners = this.comboPartners(id).map((pid) => { const o = this.find(pid); return { id: o.id, kind: o.kind, color: col(o), wait: 0 }; });
-    const have = {};
-    for (const p of partners) have[p.color] = (have[p.color] || 0) + 1;
-    const leads = t.kind !== 'comboOnly' && !!COMBOS[col(t)];
-    const recipes = (leads ? COMBOS[col(t)] : []).map((r) => {
-      const missing = {};
-      for (const [c, n] of Object.entries(r.needs)) if ((have[c] || 0) < n) missing[c] = n - (have[c] || 0);
+    const partners = this.comboPartners(id).map((pid) => { const o = this.find(pid)!; return { id: o.id, kind: o.kind, color: col(o), wait: 0 }; });
+    const have: ColorCounts = {};
+    for (const p of partners) if (p.color) have[p.color] = (have[p.color] || 0) + 1;
+    const myColor = col(t);
+    const leads = t.kind !== 'comboOnly' && !!myColor && !!COMBOS[myColor];
+    const list: ComboRecipe[] = leads && myColor ? COMBOS[myColor] : [];
+    const recipes = list.map((r) => {
+      const missing: ColorCounts = {};
+      for (const [c, n] of Object.entries(r.needs) as [KeyColor, number][]) if ((have[c] || 0) < n) missing[c] = n - (have[c] || 0);
       const ok = t.comboCapable && !Object.keys(missing).length;
       return { id: r.id, name: r.name, isNew: !!r.isNew, needs: r.needs, missing, exactBlocked: false, wait: ok ? wait : Infinity };
     });
     const first = recipes.find((r) => r.wait !== Infinity);
     return { leads, partners, recipes, next: first ? { id: first.id, name: first.name, wait: first.wait } : null };
   }
-  sendWave() {
+  sendWave(): CommandResult {
     const s = this.state;
     if (s.over) return this.fail('Game over');
     if (s.paused) return this.fail('Game is paused');
@@ -350,29 +378,41 @@ class MockGame {
     this.startWave(true);
     return { ok: true };
   }
-  setSpeed(v) { this.state.speed = v; return { ok: true }; }
-  togglePause() { this.state.paused = !this.state.paused; return { ok: true }; }
-  setPaused(b) { this.state.paused = !!b; return { ok: true }; }
-  turretAt(x, y) {
+  setSpeed(v: number): CommandResult { this.state.speed = v; return { ok: true }; }
+  togglePause(): CommandResult { this.state.paused = !this.state.paused; return { ok: true }; }
+  setPaused(b: boolean): CommandResult { this.state.paused = !!b; return { ok: true }; }
+  turretAt(x: number, y: number): number | null {
     for (const t of this.state.turrets) if (Math.hypot(t.x - x, t.y - y) <= TURRET_SIZE / 2) return t.id;
     return null;
   }
 
   // handy for demos: grant cash / kills
-  cheat(cash = 100000, kills = 0) { this.state.cash += cash; this.state.kills += kills; }
+  cheat(cash = 100000, kills = 0): void { this.state.cash += cash; this.state.kills += kills; }
 }
 
 // =====================================================================================================
 // MockRenderer: 2D canvas, same public API as src/render/Renderer.js (section 2 of ARCHITECTURE.md).
-const COL = { blue: '#4da3ff', green: '#52d17a', red: '#ff6a4d', yellow: '#ffd54a' };
+const COL: Record<string, string> = { blue: '#4da3ff', green: '#52d17a', red: '#ff6a4d', yellow: '#ffd54a' };
 
-export class MockRenderer {
-  constructor(container) {
+export class MockRenderer implements AppRenderer {
+  container: HTMLElement;
+  canvas: HTMLCanvasElement;
+  ctx: CanvasRenderingContext2D;
+  game: MockGame | null;
+  overlay: Overlay;
+  zoom: number;
+  panX: number;
+  panY: number;
+  mouse: { x: number; y: number };
+  drag: { x: number; y: number } | null;
+  size: { w: number; h: number; dpr: number };
+
+  constructor(container: HTMLElement) {
     this.container = container;
     this.canvas = document.createElement('canvas');
     this.canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block;';
     container.append(this.canvas);
-    this.ctx = this.canvas.getContext('2d');
+    this.ctx = this.canvas.getContext('2d')!;
     this.game = null;
     this.overlay = { ghost: null, selectedId: null, hoverId: null, showRanges: 'selected', showCombo: false, joinFromId: null };
     this.zoom = 1; this.panX = 0; this.panY = 0;
@@ -400,7 +440,7 @@ export class MockRenderer {
     c.addEventListener('pointerup', () => { this.drag = null; });
   }
 
-  resize() {
+  resize(): void {
     const r = this.container.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
     this.size = { w: r.width, h: r.height, dpr };
@@ -408,24 +448,25 @@ export class MockRenderer {
     this.canvas.height = Math.max(1, Math.round(r.height * dpr));
   }
 
-  baseScale() { return Math.min(this.size.w / 720, this.size.h / 450) * 0.94; }
-  setGame(g) { this.game = g; }
-  resetView() { this.zoom = 1; this.panX = 0; this.panY = 0; }
-  setOverlay(o) { Object.assign(this.overlay, o); }
+  baseScale(): number { return Math.min(this.size.w / 720, this.size.h / 450) * 0.94; }
+  // the demo only ever binds a MockGame (App passes the AppGame it created through createMockGame)
+  setGame(g: AppGame | null): void { this.game = g as MockGame | null; }
+  resetView(): void { this.zoom = 1; this.panX = 0; this.panY = 0; }
+  setOverlay(o: Overlay): void { Object.assign(this.overlay, o); }
 
-  worldToScreen(x, y) {
+  worldToScreen(x: number, y: number): { x: number; y: number } {
     const r = this.canvas.getBoundingClientRect();
     const s = this.baseScale() * this.zoom;
     return { x: r.left + this.size.w / 2 + this.panX + (x - 360) * s, y: r.top + this.size.h / 2 + this.panY + (y - 225) * s };
   }
 
-  screenToWorld(cx, cy) {
+  screenToWorld(cx: number, cy: number): { x: number; y: number } {
     const r = this.canvas.getBoundingClientRect();
     const s = this.baseScale() * this.zoom;
     return { x: (cx - r.left - this.size.w / 2 - this.panX) / s + 360, y: (cy - r.top - this.size.h / 2 - this.panY) / s + 225 };
   }
 
-  render() {
+  render(_realDtMs?: number): void {
     const { w, h, dpr } = this.size;
     const g = this.ctx;
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -452,10 +493,10 @@ export class MockRenderer {
     g.fillStyle = '#4a3828'; g.fillRect(b.x, b.y, b.w, b.h);
     g.strokeStyle = '#f2a93b'; g.lineWidth = 3; g.strokeRect(b.x, b.y, b.w, b.h);
     const ov = this.overlay;
-    const ring = (x, y, r, col) => { g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fillStyle = col + '22'; g.fill(); g.strokeStyle = col; g.lineWidth = 1.5; g.stroke(); };
+    const ring = (x: number, y: number, r: number, col: string): void => { g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fillStyle = col + '22'; g.fill(); g.strokeStyle = col; g.lineWidth = 1.5; g.stroke(); };
     for (const t of st.turrets) {
       const def = TURRETS[t.kind];
-      const col = COL[def.color] || '#c9b6ff';
+      const col = (def.color && COL[def.color]) || '#c9b6ff';
       if (ov.showRanges === 'all' || t.id === ov.selectedId) ring(t.x, t.y, def.category === 'modifier' ? t.modRange : t.stats.range, '#ffffff');
       g.beginPath(); g.arc(t.x, t.y, 20, 0, Math.PI * 2); g.fillStyle = '#3a342c'; g.fill();
       g.lineWidth = t.id === ov.selectedId ? 4 : 2; g.strokeStyle = t.id === ov.selectedId ? '#ffd27a' : t.id === ov.hoverId ? '#fff' : '#222'; g.stroke();
@@ -464,7 +505,7 @@ export class MockRenderer {
     }
     if (ov.showCombo && ov.selectedId != null) {
       const t = game.find(ov.selectedId);
-      if (t) for (const id of game.comboPartners(t.id)) { const o = game.find(id); g.strokeStyle = '#ff0'; g.lineWidth = 2; g.beginPath(); g.moveTo(t.x, t.y); g.lineTo(o.x, o.y); g.stroke(); }
+      if (t) for (const id of game.comboPartners(t.id)) { const o = game.find(id)!; g.strokeStyle = '#ff0'; g.lineWidth = 2; g.beginPath(); g.moveTo(t.x, t.y); g.lineTo(o.x, o.y); g.stroke(); }
     }
     for (const bm of st.beams) { g.strokeStyle = bm.kind === 'laser' ? '#7fffa0' : '#ffe27a'; g.lineWidth = 2; g.beginPath(); g.moveTo(bm.x1, bm.y1); g.lineTo(bm.x2, bm.y2); g.stroke(); }
     for (const a of st.attackers) {

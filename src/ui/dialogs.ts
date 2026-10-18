@@ -5,14 +5,15 @@ import { DIFFICULTIES, MODES } from '../data/rules.ts';
 import { formatNum } from './format.ts';
 import { TURRETS, FREAKOUT } from '../data/turrets.ts';
 import * as storage from './storage.ts';
+import type { App, GameOverInfo, ScoreHighlight } from './App.ts';
 
-const kbd = (t) => h('span', { class: 'os-kbd' }, t);
+const kbd = (t: string): HTMLElement => h('span', { class: 'os-kbd' }, t);
 
 // ---------------- Settings ----------------
-export function buildSettings(app) {
+export function buildSettings(app: App): HTMLElement {
   const s = app.settings;
   const vol = h('input', { type: 'range', min: 0, max: 100, step: 1, value: Math.round(s.volume * 100), 'aria-label': 'Master volume' });
-  vol.addEventListener('input', () => app.updateSettings({ volume: vol.value / 100 }));
+  vol.addEventListener('input', () => app.updateSettings({ volume: Number(vol.value) / 100 }));
   vol.addEventListener('change', () => app.audio.play('click'));
   const mute = h('input', { type: 'checkbox' });
   mute.checked = !!s.muted;
@@ -20,16 +21,16 @@ export function buildSettings(app) {
   const wave = h('input', { type: 'number', min: 0, max: 300, step: 1, value: s.waveInterval || 0 });
   wave.addEventListener('change', () => {
     const v = Math.max(0, Math.min(300, Math.round(Number(wave.value) || 0)));
-    wave.value = v;
+    wave.value = String(v);
     app.updateSettings({ waveInterval: v });
   });
-  const check = (key) => {
+  const check = (key: 'snap' | 'unlockAll' | 'showFps' | 'autoPause'): HTMLInputElement => {
     const c = h('input', { type: 'checkbox' });
     c.checked = !!s[key];
-    c.addEventListener('change', () => app.updateSettings({ [key]: c.checked }));
+    c.addEventListener('change', () => app.updateSettings({ [key]: c.checked } as Partial<storage.Settings>)); // key is one of the four boolean settings
     return c;
   };
-  const field = (label, sub, control) => h(control && control.tagName === 'INPUT' && control.type === 'checkbox' ? 'label' : 'div', { class: 'os-field' }, h('div', { class: 'os-lab' }, label, sub ? h('small', null, sub) : null), control);
+  const field = (label: string, sub: string | null, control: HTMLElement): HTMLElement => h(control && control.tagName === 'INPUT' && (control as HTMLInputElement).type === 'checkbox' ? 'label' : 'div', { class: 'os-field' }, h('div', { class: 'os-lab' }, label, sub ? h('small', null, sub) : null), control);
 
   let resetStep = 0;
   const resetBtn = h('button', { class: 'os-btn danger small', type: 'button' }, 'Reset progress');
@@ -57,8 +58,8 @@ export function buildSettings(app) {
 }
 
 // ---------------- How to play ----------------
-export function buildHelp() {
-  const row = (k, text) => [kbd(k), h('span', null, text)];
+export function buildHelp(): HTMLElement {
+  const row = (k: string, text: string): HTMLElement[] => [kbd(k), h('span', null, text)];
   const keys = h('div', { class: 'os-keys' },
     row('1-8', 'Pick a turret (hold Shift for the second row of eight)'),
     row('Click', 'Build, select a turret, or pick a target'),
@@ -88,7 +89,7 @@ export function buildHelp() {
       h('li', null, 'Laser (green): instant beam. If it kills an attacker, the leftover energy goes on through the next attackers in a straight line. Lasers near each other link up and pass beams along, each link adding extra damage.'),
       h('li', null, 'Rocket (red): homing rockets with the longest reach. Upgraded ones can keep rockets circling overhead.'),
       h('li', null, 'Tazer (yellow): its sparks slow attackers down. Great for buying other turrets more time.'),
-      h('li', null, 'Cannons and Tazers with ' + TURRETS.blue.freakout.damage + ' damage and ' + TURRETS.blue.freakout.rate +
+      h('li', null, 'Cannons and Tazers with ' + TURRETS.blue.freakout!.damage + ' damage and ' + TURRETS.blue.freakout!.rate +
         ' rate upgrades sometimes freak out: a ' + FREAKOUT.warn / 1000 + ' s warning, then ' + FREAKOUT.length / 1000 + ' s of x' +
         (1 + FREAKOUT.damageMult) + ' damage and x' + (1 + FREAKOUT.rateMult) + ' fire rate.')),
     h('h3', null, 'Upgrades and modifiers'),
@@ -104,13 +105,13 @@ export function buildHelp() {
 }
 
 // ---------------- High scores ----------------
-export function buildScores(app, highlight) {
-  const sel = {
+export function buildScores(app: App, highlight?: ScoreHighlight): HTMLElement {
+  const sel: Record<'mapId' | 'difficulty' | 'mode', string> = {
     mapId: highlight?.mapId || app.settings.lastMap || MAPS[0].id,
     difficulty: highlight?.difficulty || app.settings.lastDifficulty || 'medium',
     mode: highlight?.mode || app.settings.lastMode || 'normal',
   };
-  const mkSelect = (opts, key) => {
+  const mkSelect = (opts: string[][], key: 'mapId' | 'difficulty' | 'mode'): HTMLSelectElement => {
     const el = h('select', null, ...opts.map(([v, t]) => h('option', { value: v }, t)));
     el.value = sel[key];
     el.addEventListener('change', () => { sel[key] = el.value; render(); });
@@ -139,7 +140,7 @@ export function buildScores(app, highlight) {
 }
 
 // ---------------- Game over ----------------
-export function buildGameOver(app, info) {
+export function buildGameOver(app: App, info: GameOverInfo): HTMLElement {
   const map = MAPS.find((m) => m.id === info.mapId);
   const rankText = info.rank > 0
     ? `New high score: rank ${info.rank} on ${map ? map.name : info.mapId}, ${DIFFICULTIES[info.difficulty]?.name || info.difficulty}${info.mode === 'sandbox' ? ' (Sandbox)' : ''}.`

@@ -2,10 +2,10 @@ import { Game } from './game/Game.ts';
 import { Renderer } from './render/Renderer.ts';
 import { App } from './ui/App.ts';
 
-let renderer = null;
-let app = null;
+let renderer: Renderer | null = null;
+let app: App | null = null;
 try {
-  renderer = new Renderer(document.getElementById('game'));
+  renderer = new Renderer(document.getElementById('game')!);
 } catch (e) {
   console.error(e);
   const ui = document.getElementById('ui');
@@ -18,27 +18,30 @@ try {
 }
 
 if (renderer) {
-  app = new App(document.getElementById('ui'), {
+  app = new App(document.getElementById('ui')!, {
     createGame: (opts) => new Game({ seed: (Math.random() * 0x100000000) >>> 0, ...opts }),
     restoreGame: (save) => Game.deserialize(save),
     renderer,
   });
 
+  // narrowed copies: the closure below runs later, where TS no longer knows these are set
+  const theApp: App = app;
+  const theRenderer: Renderer = renderer;
   let last = performance.now();
-  const seenErrors = new Set();
-  const frame = (now) => {
+  const seenErrors = new Set<string>();
+  const frame = (now: number): void => {
     requestAnimationFrame(frame);
     try {
       const dt = Math.min(now - last, 100);
       last = now;
-      const game = app.game;
+      const game = theApp.game;
       if (game) game.update(dt);
-      renderer.render(dt);
-      app.frame(dt);
+      theRenderer.render(dt);
+      theApp.frame(dt);
     } catch (e) {
-      const key = String((e && e.message) || e);
+      const key = String((e as Error | null)?.message || e);
       if (!seenErrors.has(key)) { seenErrors.add(key); console.error(e); }
-      const g = app.game;
+      const g = theApp.game;
       if (g && !g.state.paused) { try { g.setPaused(true); } catch (e2) { /* ignore */ } }
     }
   };

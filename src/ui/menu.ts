@@ -4,17 +4,19 @@ import { MAPS } from '../data/maps.ts';
 import { DIFFICULTIES, MODES } from '../data/rules.ts';
 import { LOCK_SVG } from './icons.ts';
 import * as storage from './storage.ts';
+import type { App } from './App.ts';
+import type { MapDef } from '../types.ts';
 
 const FIELD_W = 720;
 const FIELD_H = 450;
 
-export function drawMapPreview(canvas, map) {
+export function drawMapPreview(canvas: HTMLCanvasElement, map: MapDef): void {
   const W = 192;
   const H = 120;
   const dpr = Math.min(2, window.devicePixelRatio || 1);
   canvas.width = W * dpr;
   canvas.height = H * dpr;
-  const g = canvas.getContext('2d');
+  const g = canvas.getContext('2d')!;
   g.scale(dpr * (W / FIELD_W), dpr * (H / FIELD_H));
   g.fillStyle = '#c9ad78';
   g.fillRect(0, 0, FIELD_W, FIELD_H);
@@ -51,7 +53,17 @@ export function drawMapPreview(canvas, map) {
 }
 
 export class Menu {
-  constructor(app) {
+  app: App;
+  el: HTMLElement;
+  mapBtns: Map<string, HTMLButtonElement>;
+  diffBtns: Map<string, HTMLButtonElement>;
+  modeBtns: Map<string, HTMLButtonElement>;
+  sel!: { mapId: string; difficulty: string; mode: string }; // assigned in build(), called by the constructor
+  note!: HTMLElement;
+  startBtn!: HTMLButtonElement;
+  contBtn!: HTMLButtonElement;
+
+  constructor(app: App) {
     this.app = app;
     this.el = h('div', { class: 'os-menu' });
     this.mapBtns = new Map();
@@ -60,7 +72,7 @@ export class Menu {
     this.build();
   }
 
-  build() {
+  build(): void {
     const app = this.app;
     const s = app.settings;
     this.sel = {
@@ -117,29 +129,29 @@ export class Menu {
     this.refresh();
   }
 
-  pickMap(id) { this.sel.mapId = id; this.app.updateSettings({ lastMap: id }); this.refresh(); }
+  pickMap(id: string): void { this.sel.mapId = id; this.app.updateSettings({ lastMap: id }); this.refresh(); }
 
-  pickDiff(id) {
+  pickDiff(id: string): void {
     if (!this.app.isDifficultyUnlocked(id)) { this.flash('Extreme unlocks after you reach wave 100 on Medium.'); return; }
     this.sel.difficulty = id;
     this.app.updateSettings({ lastDifficulty: id });
     this.refresh();
   }
 
-  pickMode(id) {
+  pickMode(id: string): void {
     if (!this.app.isModeUnlocked(id)) { this.flash('Sandbox unlocks after you reach wave 50 on any difficulty.'); return; }
     this.sel.mode = id;
     this.app.updateSettings({ lastMode: id });
     this.refresh();
   }
 
-  flash(text) { this.note.textContent = text; this.app.audio.play('error'); }
+  flash(text: string): void { this.note.textContent = text; this.app.audio.play('error'); }
 
-  start() {
+  start(): void {
     this.app.startGame({ ...this.sel });
   }
 
-  refresh() {
+  refresh(): void {
     const app = this.app;
     if (!app.isDifficultyUnlocked(this.sel.difficulty)) this.sel.difficulty = 'medium';
     if (!app.isModeUnlocked(this.sel.mode)) this.sel.mode = 'normal';
@@ -169,8 +181,8 @@ export class Menu {
     }
   }
 
-  show() { this.refresh(); this.el.classList.add('on'); }
-  hide() { this.el.classList.remove('on'); }
+  show(): void { this.refresh(); this.el.classList.add('on'); }
+  hide(): void { this.el.classList.remove('on'); }
 }
 
 const LOGO_SVG = `<svg viewBox="0 0 64 64" width="100%" height="100%" aria-hidden="true">

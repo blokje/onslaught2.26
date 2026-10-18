@@ -1,36 +1,100 @@
 // In-game HUD: top bar, build rack, selected turret panel, message log, toasts, feedback effects.
 // Dynamic values are updated through cached setters so the DOM is only touched when something changes.
+import type { Kid } from './dom.ts';
 import { h, setText, setClass, setProp, show } from './dom.ts';
 import { TURRETS, BUILD_ORDER, SELL_REFUND, MOVE_COST, FREAKOUT } from '../data/turrets.ts';
 import { SPEEDS, TARGET_MODES } from '../data/rules.ts';
 import { iconSvg, LOCK_SVG } from './icons.ts';
 import { formatNum, formatCash, formatTime } from './format.ts';
 import { COMBOS } from '../data/combos.ts';
+import type { App } from './App.ts';
+import type { TurretState, GameState, ComboPreview, KeyColor, Stat, TargetMode, DirectionalMode, TurretDef, Category } from '../types.ts';
 
-const TARGET_NAMES = { near: 'Nearest', far: 'Furthest', weak: 'Weakest', strong: 'Strongest', slow: 'Slowest', fast: 'Fastest', oldest: 'Oldest', newest: 'Newest' };
-const DIR_NAMES = { normal: 'All around', wide: 'Wide 180', medium: 'Medium 90', tight: 'Tight 60', small: 'Narrow 45', pinpoint: 'Pinpoint 30' };
-const STAT_NAMES = { damage: 'Damage', range: 'Range', rate: 'Rate' };
-const STAT_KEYS = { damage: 'Q', range: 'W', rate: 'E' };
-const COMBO_HEX = { red: '#ff6a4d', green: '#52d17a', blue: '#4da3ff', yellow: '#ffd54a' };
+const TARGET_NAMES: Record<TargetMode, string> = { near: 'Nearest', far: 'Furthest', weak: 'Weakest', strong: 'Strongest', slow: 'Slowest', fast: 'Fastest', oldest: 'Oldest', newest: 'Newest' };
+const DIR_NAMES: Record<DirectionalMode, string> = { normal: 'All around', wide: 'Wide 180', medium: 'Medium 90', tight: 'Tight 60', small: 'Narrow 45', pinpoint: 'Pinpoint 30' };
+const STAT_NAMES: Record<Stat, string> = { damage: 'Damage', range: 'Range', rate: 'Rate' };
+const STAT_KEYS: Record<Stat, string> = { damage: 'Q', range: 'W', rate: 'E' };
+const COMBO_HEX: Record<string, string> = { red: '#ff6a4d', green: '#52d17a', blue: '#4da3ff', yellow: '#ffd54a' };
 
-const COLORS = ['red', 'green', 'blue', 'yellow'];
-const COMBO_NAMES = {};
-const COMBO_EXACT = {};
+const COLORS: KeyColor[] = ['red', 'green', 'blue', 'yellow'];
+const COMBO_NAMES: Record<string, string> = {};
+const COMBO_EXACT: Record<string, Partial<Record<KeyColor, number>>> = {};
 for (const list of Object.values(COMBOS)) for (const r of list) { COMBO_NAMES[r.id] = r.name; if (r.exact) COMBO_EXACT[r.id] = r.exact; }
 // Freak-out adds these to the multiplier sums (src/game/modifiers.js), so without modifiers it is x4 damage, x5 rate.
 const FREAK_BONUS = '+' + FREAKOUT.damageMult * 100 + '% dmg +' + FREAKOUT.rateMult * 100 + '% rate';
-const TAB_ORDER = ['general', 'upgrades', 'combos', 'freak'];
-const TAB_NAMES = { general: 'General', upgrades: 'Upgrades', combos: 'Combos', freak: 'Freakout' };
+type TabId = 'general' | 'upgrades' | 'combos' | 'freak';
+const TAB_ORDER: TabId[] = ['general', 'upgrades', 'combos', 'freak'];
+const TAB_NAMES: Record<TabId, string> = { general: 'General', upgrades: 'Upgrades', combos: 'Combos', freak: 'Freakout' };
 
-const dot = (color) => h('i', { class: 'os-cdot', style: 'background:' + (COMBO_HEX[color] || '#888') });
+const dot = (color: string | null): HTMLElement => h('i', { class: 'os-cdot', style: 'background:' + (COMBO_HEX[color ?? ''] || '#888') });
 /** Combo wait in game ms -> "ready" or "2.4s". */
-const formatWait = (ms) => (ms <= 0 ? 'ready' : (ms / 1000).toFixed(1) + 's');
-const formatAgo = (ms) => { const sec = Math.max(0, Math.floor(ms / 1000)); return sec < 60 ? sec + 's ago' : Math.floor(sec / 60) + 'm ago'; };
+const formatWait = (ms: number): string => (ms <= 0 ? 'ready' : (ms / 1000).toFixed(1) + 's');
+const formatAgo = (ms: number): string => { const sec = Math.max(0, Math.floor(ms / 1000)); return sec < 60 ? sec + 's ago' : Math.floor(sec / 60) + 'm ago'; };
 
-export const hotkeyLabel = (i) => (i < 8 ? String(i + 1) : '⇧' + (i - 7));
+export const hotkeyLabel = (i: number): string => (i < 8 ? String(i + 1) : '⇧' + (i - 7));
+
+/** Cached DOM references of one upgrade row in the turret panel. */
+interface StatRow { val: HTMLElement; pips: Element[]; upBtn: HTMLButtonElement; upTxt: ChildNode; maxBtn: HTMLButtonElement; lvl: number }
+
+/** Cached DOM references of the Combos tab. */
+interface ComboRefs {
+  fired: HTMLElement; assisted: HTMLElement; next: HTMLElement; nextName: HTMLElement;
+  partners: HTMLElement; recipes: HTMLElement; recent: HTMLElement;
+  recipeRows: { el: HTMLElement; status: HTMLElement }[];
+  recentRows: { el: HTMLElement; ago: HTMLElement }[];
+  partnerEls?: HTMLElement[];
+  pKey: string | null; rKey: string | null; lKey: string | null;
+}
+
+/** DOM references of the panel built for the selected turret (the build-kind view has none). */
+interface TurretRefs {
+  sub: HTMLElement;
+  rows: Record<string, StatRow>;
+  def: TurretDef;
+  cat: Category;
+  panes: Partial<Record<TabId, HTMLElement>>;
+  vals: Record<string, HTMLElement>;
+  chips: Record<'holding' | 'combo' | 'links' | 'joined' | 'kills' | 'lock', HTMLElement>;
+  sell: HTMLButtonElement;
+  move: HTMLButtonElement;
+  target?: ActionBtn; lock?: ActionBtn; dir?: ActionBtn; join?: ActionBtn; color?: ActionBtn;
+  rangeHint: HTMLElement;
+  combo?: ComboRefs;
+  freak?: HTMLElement;
+  tabBtns: Partial<Record<TabId, HTMLButtonElement>>;
+  active?: TabId;
+}
+
+/** An action button whose first child is the text label updated every tick. */
+type ActionBtn = HTMLButtonElement & { _label?: ChildNode | null };
 
 export class Hud {
-  constructor(app) {
+  app: App;
+  el: HTMLElement;
+  panelKey: string;
+  refs: TurretRefs | null;
+  logLines: HTMLElement[];
+  tabPref: TabId;
+  v!: Record<string, HTMLElement>;
+  livesEl!: HTMLElement;
+  sendBtn!: HTMLButtonElement;
+  speedBtns!: HTMLButtonElement[];
+  pauseBtn!: HTMLButtonElement;
+  fps!: HTMLElement;
+  top!: HTMLElement;
+  rack!: HTMLElement;
+  slots!: { kind: string; el: HTMLButtonElement; lockTxt: HTMLElement; def: TurretDef }[];
+  side!: HTMLElement;
+  log!: HTMLElement;
+  toasts!: HTMLElement;
+  err!: HTMLElement;
+  leak!: HTMLElement;
+  focusBadge!: HTMLElement;
+  modeHint!: HTMLElement;
+  paused!: HTMLElement;
+  collapseBtn: HTMLButtonElement | null = null;
+
+  constructor(app: App) {
     this.app = app;
     this.el = h('div', { class: 'os-hud' });
     this.panelKey = '';
@@ -40,26 +104,26 @@ export class Hud {
     this.build();
   }
 
-  btn(cls, text, onclick, title) {
+  btn(cls: string, text: Kid, onclick: (e: MouseEvent) => void, title?: string): HTMLButtonElement {
     const b = h('button', { class: 'os-btn ' + cls, type: 'button', tabindex: -1, title: title || null }, text);
     b.addEventListener('click', (e) => { onclick(e); b.blur(); });
     return b;
   }
 
-  stat(key, label, cls) {
+  stat(key: string, label: string, cls?: string): HTMLElement {
     const v = h('span', { class: 'os-stat-v' }, '0');
     this.v[key] = v;
     return h('div', { class: 'os-stat ' + (cls || '') }, h('span', { class: 'os-stat-l' }, label), v);
   }
 
-  build() {
+  build(): void {
     const app = this.app;
     this.v = {};
     // ----- top bar
     const stats = h('div', { class: 'os-panel' },
       this.stat('cash', 'Cash', 'cash'), this.stat('lives', 'Lives', 'lives'), this.stat('wave', 'Wave', 'wave'),
       this.stat('kills', 'Kills'), this.stat('score', 'Score'));
-    this.livesEl = stats.querySelector('.lives');
+    this.livesEl = stats.querySelector<HTMLElement>('.lives')!;
     this.sendBtn = this.btn('primary', ['Send wave ', h('span', { class: 'os-kbd' }, 'Space')], () => app.sendWave(), 'Start the next wave now (Space)');
     const waveBox = h('div', { class: 'os-panel os-wave-box' }, this.stat('next', 'Next wave'), this.sendBtn);
     this.speedBtns = SPEEDS.map((s) => this.btn('', s + 'x', () => app.setSpeed(s), 'Game speed ' + s + 'x'));
@@ -106,22 +170,22 @@ export class Hud {
   }
 
   // ------------------------------------------------------------ feedback
-  addLog(text) {
+  addLog(text: string): void {
     const line = h('div', { class: 'os-log-line' }, text);
     this.log.append(line);
     this.logLines.push(line);
-    while (this.logLines.length > 6) this.logLines.shift().remove();
+    while (this.logLines.length > 6) this.logLines.shift()!.remove();
     setTimeout(() => { line.remove(); const i = this.logLines.indexOf(line); if (i >= 0) this.logLines.splice(i, 1); }, 7000);
   }
 
-  toast(text, cls) {
+  toast(text: string, cls?: string): void {
     const t = h('div', { class: 'os-toast ' + (cls || '') }, text);
     this.toasts.append(t);
-    while (this.toasts.children.length > 3) this.toasts.firstChild.remove();
+    while (this.toasts.children.length > 3) this.toasts.firstChild!.remove();
     setTimeout(() => t.remove(), 4000);
   }
 
-  showError(text, cx, cy) {
+  showError(text: string, cx: number, cy: number): void {
     const e = this.err;
     e.textContent = text;
     const x = Math.max(8, Math.min(window.innerWidth - 220, cx + 14));
@@ -133,16 +197,16 @@ export class Hud {
     e.classList.add('show');
   }
 
-  flashLeak() {
+  flashLeak(): void {
     this.leak.classList.remove('show');
     void this.leak.offsetWidth;
     this.leak.classList.add('show');
   }
 
-  setVisible(on) { this.el.classList.toggle('on', on); }
+  setVisible(on: boolean): void { this.el.classList.toggle('on', on); }
 
   // ------------------------------------------------------------ per tick update (about 10 Hz)
-  update() {
+  update(): void {
     const app = this.app;
     const game = app.game;
     if (!game) return;
@@ -155,7 +219,7 @@ export class Hud {
     setText(this.v.score, formatNum(s.score));
     setText(this.v.next, s.over ? '-' : formatTime(s.nextWaveIn));
     this.speedBtns.forEach((b, i) => setClass(b, 'is-on', s.speed === SPEEDS[i]));
-    setText(this.pauseBtn.firstChild, s.paused ? 'Resume ' : 'Pause ');
+    setText(this.pauseBtn.firstChild!, s.paused ? 'Resume ' : 'Pause ');
     setClass(this.pauseBtn, 'is-on', s.paused);
     show(this.paused, s.paused && !app.modalOpen(), 'flex');
     show(this.focusBadge, app.focusId != null, 'block');
@@ -183,10 +247,10 @@ export class Hud {
   }
 
   // ------------------------------------------------------------ side panel
-  updateSide() {
+  updateSide(): void {
     const app = this.app;
-    const s = app.game.state;
-    let t = null;
+    const s = app.game!.state;
+    let t: TurretState | null = null;
     if (app.selectedId != null) t = s.turrets.find((x) => x.id === app.selectedId) || null;
     if (app.selectedId != null && !t) { app.deselect(); }
     const buildKind = app.mode === 'build' && app.armed ? app.armed : null;
@@ -196,7 +260,7 @@ export class Hud {
       this.refs = null;
       this.side.replaceChildren();
       if (t) this.refs = this.buildTurretView(t);
-      else if (buildKind) this.refs = this.buildKindView(buildKind);
+      else if (buildKind) this.buildKindView(buildKind);
     }
     const wasOn = this.side.classList.contains('on');
     setClass(this.side, 'on', !!key);
@@ -207,11 +271,11 @@ export class Hud {
 
   // ------------------------------------------------------------ moving the side panel
   /** Drag the side panel by its header, double-click or double-tap the header to dock it again. Saved as settings.panelPos. */
-  initPanelDrag() {
+  initPanelDrag(): void {
     const side = this.side;
-    let drag = null;
+    let drag: { id: number; dx: number; dy: number; pos: { x: number; y: number } | null } | null = null;
     let lastDown = -1e9;
-    const onHead = (e) => e.target.closest('.os-side-head') && !e.target.closest('button');
+    const onHead = (e: PointerEvent): boolean => e.target instanceof Element && !!e.target.closest('.os-side-head') && !e.target.closest('button');
     side.addEventListener('pointerdown', (e) => {
       if (e.button !== 0 || !onHead(e)) return;
       e.preventDefault();
@@ -233,7 +297,7 @@ export class Hud {
       const hud = this.el.getBoundingClientRect();
       drag.pos = this.placePanel(e.clientX - drag.dx - hud.left, e.clientY - drag.dy - hud.top);
     });
-    const end = (e) => {
+    const end = (e: PointerEvent): void => {
       if (!drag || e.pointerId !== drag.id) return;
       const pos = drag.pos;
       drag = null;
@@ -247,7 +311,7 @@ export class Hud {
   }
 
   /** Put the panel at the saved position (clamped), or back in the CSS dock when there is none. */
-  applyPanelPos() {
+  applyPanelPos(): void {
     const p = this.app.settings.panelPos;
     const st = this.side.style;
     if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y)) { st.left = st.top = st.right = st.maxHeight = ''; return; }
@@ -255,10 +319,10 @@ export class Hud {
   }
 
   /** Place the panel at x, y (px in the HUD), clamped between the top bar and the build rack so its header stays reachable. Returns the clamped position. */
-  placePanel(x, y) {
+  placePanel(x: number, y: number): { x: number; y: number } {
     const hud = this.el.getBoundingClientRect();
     const r = this.side.getBoundingClientRect();
-    const head = this.side.querySelector('.os-side-head');
+    const head = this.side.querySelector<HTMLElement>('.os-side-head');
     const headH = head ? head.offsetHeight : 40;
     const topR = this.top.getBoundingClientRect();
     const rackR = this.rack.getBoundingClientRect();
@@ -274,7 +338,7 @@ export class Hud {
     return { x, y };
   }
 
-  header(kind, title, subtitle) {
+  header(kind: string, title: string, subtitle: string): { head: HTMLElement; sub: HTMLElement } {
     const app = this.app;
     const sub = h('span', null, subtitle);
     const collapse = h('button', { class: 'os-iconbtn', type: 'button', tabindex: -1, title: 'Collapse or expand (I)' }, app.settings.infoCollapsed ? '+' : '–');
@@ -289,10 +353,10 @@ export class Hud {
     return { head, sub };
   }
 
-  buildKindView(kind) {
+  buildKindView(kind: string): void {
     const def = TURRETS[kind];
     const { head } = this.header(kind, def.name, def.category === 'modifier' ? 'Modifier' : (def.category === 'support' ? 'Support' : 'Weapon'));
-    const lines = [];
+    const lines: HTMLElement[] = [];
     if (def.base && def.base.rate) {
       lines.push(h('div', { class: 'os-chips' },
         h('span', { class: 'os-chip' }, 'Damage ' + formatNum(def.base.damage)),
@@ -307,21 +371,21 @@ export class Hud {
       ...lines,
       h('div', { class: 'os-hint' }, 'Click to place. Shift+Click keeps building. Esc or right click cancels.'));
     this.side.append(head, body);
-    return {};
   }
 
-  buildTurretView(t) {
+  buildTurretView(t: TurretState): TurretRefs {
     const app = this.app;
     const def = TURRETS[t.kind];
     const cat = def.category;
     const { head, sub } = this.header(t.kind, def.name, cat === 'modifier' ? 'Modifier' : cat === 'support' ? 'Support' : 'Weapon');
-    const refs = { sub, rows: {}, def, cat, panes: {} };
+    // the remaining fields (vals, chips, sell, move, rangeHint, tabBtns, ...) are assigned below, before refs is returned
+    const refs = { sub, rows: {}, def, cat, panes: {}, tabBtns: {} } as unknown as TurretRefs;
     const pane = () => h('div', { class: 'os-side-body os-pane' });
 
     // ---- General: blurb, current stats, status chips, actions
     const general = pane();
     general.append(h('div', { class: 'os-blurb' }, def.blurb));
-    const statList = cat === 'modifier' ? ['range'] : ['damage', 'range', 'rate'];
+    const statList: Stat[] = cat === 'modifier' ? ['range'] : ['damage', 'range', 'rate'];
     refs.vals = {};
     const valsEl = h('div', { class: 'os-vals' });
     for (const stat of statList) {
@@ -339,8 +403,8 @@ export class Hud {
     };
     general.append(h('div', { class: 'os-chips' }, ...Object.values(refs.chips)));
     const actions = h('div', { class: 'os-actions' });
-    const act = (key, cls, content, fn, title) => { const b = this.btn(cls, content, fn, title); refs[key] = b; actions.append(b); return b; };
-    const k = (x) => h('span', { class: 'os-kbd' }, x);
+    const act = (key: 'sell' | 'move' | 'target' | 'lock' | 'dir' | 'join' | 'color', cls: string, content: Kid, fn: () => void, title: string): HTMLButtonElement => { const b = this.btn(cls, content, fn, title); refs[key] = b; actions.append(b); return b; };
+    const k = (x: string): HTMLElement => h('span', { class: 'os-kbd' }, x);
     act('sell', '', [h('span', null, 'Sell'), k('S')], () => app.sell(), 'Sell for 70% of everything spent on it');
     act('move', '', [h('span', null, 'Move ' + formatCash(MOVE_COST)), k('M')], () => app.startMove(), 'Move this turret');
     if (cat === 'weapon') {
@@ -369,14 +433,14 @@ export class Hud {
       if (!n) continue;
       const val = h('b', null, '');
       const pips = h('div', { class: 'os-pips' }, ...Array.from({ length: n }, () => h('span', { class: 'os-pip' })));
-      const upBtn = this.btn('', [h('span', null, ''), h('span', { class: 'os-kbd' }, STAT_KEYS[stat])], (e) => app.upgrade(stat, e.shiftKey), 'Upgrade ' + STAT_NAMES[stat].toLowerCase() + ' (' + STAT_KEYS[stat] + ')');
+      const upBtn = this.btn('', [h('span', null, ''), h('span', { class: 'os-kbd' }, STAT_KEYS[stat])], (e: MouseEvent) => app.upgrade(stat, e.shiftKey), 'Upgrade ' + STAT_NAMES[stat].toLowerCase() + ' (' + STAT_KEYS[stat] + ')');
       const maxBtn = this.btn('', 'Max', () => app.upgrade(stat, true), 'Upgrade as far as you can afford (Shift+' + STAT_KEYS[stat] + ')');
       const label = cat === 'modifier' ? 'Influence' : STAT_NAMES[stat];
       const row = h('div', { class: 'os-srow' },
         h('div', { class: 'os-srow-top' }, h('span', null, label), val), pips,
         h('div', { class: 'os-upg' }, upBtn, maxBtn));
       statsEl.append(row);
-      refs.rows[stat] = { val, pips: [...pips.children], upBtn, upTxt: upBtn.firstChild, maxBtn, lvl: -1 };
+      refs.rows[stat] = { val, pips: [...pips.children], upBtn, upTxt: upBtn.firstChild!, maxBtn, lvl: -1 };
     }
     if (statsEl.children.length) {
       refs.panes.upgrades = pane();
@@ -411,7 +475,6 @@ export class Hud {
 
     // ---- tab strip (only when there is more than one tab)
     const ids = TAB_ORDER.filter((id) => refs.panes[id]);
-    refs.tabBtns = {};
     this.side.append(head);
     if (ids.length > 1) {
       const strip = h('div', { class: 'os-tabs', role: 'tablist' });
@@ -423,22 +486,23 @@ export class Hud {
       }
       this.side.append(strip);
     }
-    for (const id of ids) this.side.append(refs.panes[id]);
-    for (const key of ['target', 'lock', 'dir', 'join', 'color']) if (refs[key]) refs[key]._label = refs[key].firstChild;
+    for (const id of ids) this.side.append(refs.panes[id]!);
+    for (const key of ['target', 'lock', 'dir', 'join', 'color'] as const) { const b = refs[key]; if (b) b._label = b.firstChild; }
     this.refs = refs;
     this.showTab();
     return refs;
   }
 
   /** Show the remembered tab, or General when the selected turret does not have it. */
-  showTab() {
+  showTab(): void {
     const r = this.refs;
     if (!r || !r.panes) return;
     const active = r.panes[this.tabPref] ? this.tabPref : 'general';
     r.active = active;
-    for (const id of Object.keys(r.panes)) {
-      setClass(r.panes[id], 'off', id !== active);
-      if (r.tabBtns[id]) { setClass(r.tabBtns[id], 'is-on', id === active); r.tabBtns[id].setAttribute('aria-selected', String(id === active)); }
+    for (const id of Object.keys(r.panes) as TabId[]) {
+      setClass(r.panes[id]!, 'off', id !== active);
+      const tb = r.tabBtns[id];
+      if (tb) { setClass(tb, 'is-on', id === active); tb.setAttribute('aria-selected', String(id === active)); }
     }
     if (this.app.game && this.app.game.state) {
       const t = this.app.game.state.turrets.find((x) => x.id === this.app.selectedId);
@@ -446,8 +510,8 @@ export class Hud {
     }
   }
 
-  updateTurretView(t, s) {
-    const r = this.refs;
+  updateTurretView(t: TurretState, s: GameState): void {
+    const r = this.refs!;
     const app = this.app;
     setClass(this.side, 'collapsed', app.settings.infoCollapsed);
     if (this.collapseBtn) setText(this.collapseBtn, app.settings.infoCollapsed ? '+' : '–');
@@ -458,32 +522,32 @@ export class Hud {
     else this.updateGeneral(t, s);
   }
 
-  statValue(t, stat) {
-    if (this.refs.cat === 'modifier') return String(Math.round(t.modRange != null ? t.modRange : (t.stats && t.stats.range) || 0));
+  statValue(t: TurretState, stat: Stat): string {
+    if (this.refs!.cat === 'modifier') return String(Math.round(t.modRange != null ? t.modRange : (t.stats && t.stats.range) || 0));
     if (stat === 'damage') return formatNum(t.stats ? t.stats.damage : 0);
     if (stat === 'range') return String(Math.round(t.stats ? t.stats.range : 0));
     return Math.round(t.stats ? t.stats.rate : 0) + '/min';
   }
 
-  updateGeneral(t, s) {
-    const r = this.refs;
+  updateGeneral(t: TurretState, s: GameState): void {
+    const r = this.refs!;
     const app = this.app;
-    for (const stat of Object.keys(r.vals)) setText(r.vals[stat], this.statValue(t, stat));
+    for (const stat of Object.keys(r.vals) as Stat[]) setText(r.vals[stat], this.statValue(t, stat));
     const refund = Math.floor((t.cashValue || 0) * SELL_REFUND);
-    setText(r.sell.firstChild, 'Sell ' + formatCash(refund));
+    setText(r.sell.firstChild!, 'Sell ' + formatCash(refund));
     setProp(r.move, 'disabled', s.cash < MOVE_COST);
     setClass(r.move, 'is-on', app.mode === 'move');
-    if (r.target) setText(r.target._label, 'Target: ' + (TARGET_NAMES[t.targetMode] || t.targetMode || TARGET_MODES[0]));
+    if (r.target) setText(r.target._label!, 'Target: ' + (TARGET_NAMES[t.targetMode] || t.targetMode || TARGET_MODES[0]));
     if (r.lock) { setClass(r.lock, 'is-on', !!t.locked); }
-    if (r.dir) setText(r.dir._label, 'Cone: ' + (DIR_NAMES[t.directional ? t.directional.mode : 'normal'] || 'All around'));
+    if (r.dir) setText(r.dir._label!, 'Cone: ' + (DIR_NAMES[t.directional ? t.directional.mode : 'normal'] || 'All around'));
     if (r.join) {
       const j = t.joinedTo != null ? s.turrets.find((x) => x.id === t.joinedTo) : null;
-      setText(r.join._label, app.mode === 'join' ? 'Click a turret...' : (j ? 'Joined: ' + TURRETS[j.kind].name + ' (change)' : 'Join to a turret'));
+      setText(r.join._label!, app.mode === 'join' ? 'Click a turret...' : (j ? 'Joined: ' + TURRETS[j.kind].name + ' (change)' : 'Join to a turret'));
       setClass(r.join, 'is-on', app.mode === 'join');
     }
     if (r.color) {
       const c = t.comboColor || 'red';
-      setText(r.color._label, 'Colour: ' + c);
+      setText(r.color._label!, 'Colour: ' + c);
       r.color.style.borderColor = COMBO_HEX[c] || '';
     }
     const c = r.chips;
@@ -501,10 +565,10 @@ export class Hud {
     setText(r.rangeHint, r.cat === 'modifier' ? 'Boosts every turret whose centre is inside the circle.' : (t.kind === 'targeter' ? 'Join it to a turret to lend it this range.' : ''));
   }
 
-  updateUpgrades(t, s) {
-    const r = this.refs;
-    const game = this.app.game;
-    for (const stat of Object.keys(r.rows)) {
+  updateUpgrades(t: TurretState, s: GameState): void {
+    const r = this.refs!;
+    const game = this.app.game!;
+    for (const stat of Object.keys(r.rows) as Stat[]) {
       const row = r.rows[stat];
       setText(row.val, this.statValue(t, stat));
       const lvl = t.levels ? t.levels[stat] || 0 : 0;
@@ -524,9 +588,9 @@ export class Hud {
     }
   }
 
-  updateFreak(t) {
-    const fo = this.refs.def.freakout;
-    const el = this.refs.freak;
+  updateFreak(t: TurretState): void {
+    const fo = this.refs!.def.freakout!;
+    const el = this.refs!.freak!;
     const fr = t.freak || 'off';
     setClass(el, 'hot', fr === 'warn');
     setClass(el, 'good', fr === 'on');
@@ -541,22 +605,22 @@ export class Hud {
     setText(el, txt);
   }
 
-  updateCombos(t, s) {
-    const cr = this.refs.combo;
-    const game = this.app.game;
+  updateCombos(t: TurretState, s: GameState): void {
+    const cr = this.refs!.combo!;
+    const game = this.app.game!;
     setText(cr.fired, formatNum(t.combosFired || 0));
     setText(cr.assisted, formatNum(t.combosAssisted || 0));
     const pv = (game.comboPreview && game.comboPreview(t.id)) || { leads: false, partners: [], recipes: [], next: null };
 
     // partners in range (rebuilt only when the set changes)
-    const pKey = pv.partners.map((p) => p.id + p.color).join(',');
+    const pKey = pv.partners.map((p) => `${p.id}${p.color}`).join(',');
     if (pKey !== cr.pKey) {
       cr.pKey = pKey;
       cr.partnerEls = pv.partners.map((p) => h('span', { class: 'os-cpart' }, dot(p.color), TURRETS[p.kind] ? TURRETS[p.kind].name : p.kind));
       if (cr.partnerEls.length) cr.partners.replaceChildren(...cr.partnerEls);
       else cr.partners.replaceChildren(h('span', { class: 'os-hint' }, 'No weapons within combo range'));
     }
-    pv.partners.forEach((p, i) => setClass(cr.partnerEls[i], 'off', p.wait > 0));
+    pv.partners.forEach((p, i) => setClass(cr.partnerEls![i], 'off', p.wait > 0));
 
     // next combo
     if (!t.comboCapable) { setText(cr.next, 'n/a'); setText(cr.nextName, t.kind === 'comboOnly' ? '' : 'Unlocks at max damage'); }

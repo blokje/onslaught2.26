@@ -5,6 +5,14 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
 
 ## Unreleased
 
+### Changed
+- The codebase is now TypeScript with `strict` on (was plain JavaScript): every `src/` file, the test scripts and the
+  Vite configs are `.ts`. Shared contract types live in the new `src/types.ts`; `npm run typecheck` runs `tsc`, and
+  `npm run build` / `build:single` type-check first. The tests still run without a build step (`node scripts/sim-test.ts`,
+  Node 22.18+ type stripping), so only erasable syntax is allowed. New dev dependencies: `typescript`, `@types/three`,
+  `@types/node`. The inline demo scripts moved to `src/render/render-demo.ts` and `src/ui/ui-demo.ts`. No gameplay change.
+  Docs: `CLAUDE.md`, `ARCHITECTURE.md`, `CONTRIBUTING.md`, `README.md`, all `docs/claude/*.md`, the skills in `.claude/skills/`.
+
 ### Added
 - Two extra firing cone widths: Tight 60 and Pinpoint 30 degrees. D now cycles All around, Wide 180, Medium 90, Tight 60,
   Narrow 45, Pinpoint 30 (new `directional.mode` values `tight` and `pinpoint`; the old values and saves are unchanged).

@@ -1,14 +1,14 @@
 // Big number formatting: 1,234 below 10K, then 12.3K, 4.56M, 7.89B, 1.23T, then 1.23e15.
 
-const UNITS = [[1e3, 'K'], [1e6, 'M'], [1e9, 'B'], [1e12, 'T']];
+const UNITS: [number, string][] = [[1e3, 'K'], [1e6, 'M'], [1e9, 'B'], [1e12, 'T']];
 
-function sig3(v) {
+function sig3(v: number): string {
   if (v < 10) return v.toFixed(2);
   if (v < 100) return v.toFixed(1);
   return v.toFixed(0);
 }
 
-export function formatNum(n) {
+export function formatNum(n: number): string {
   if (typeof n !== 'number' || Number.isNaN(n)) return '0';
   if (!Number.isFinite(n)) return n > 0 ? 'inf' : '-inf';
   const sign = n < 0 ? '-' : '';
@@ -27,12 +27,12 @@ export function formatNum(n) {
   return sign + String(parseFloat(str)) + UNITS[i][1];
 }
 
-export function formatCash(n) {
+export function formatCash(n: number): string {
   const s = formatNum(n);
   return s.startsWith('-') ? '-$' + s.slice(1) : '$' + s;
 }
 
-export function formatTime(ms) {
+export function formatTime(ms: number): string {
   const s = Math.max(0, Math.ceil(ms / 1000));
   return s + 's';
 }

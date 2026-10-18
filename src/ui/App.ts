@@ -10,15 +10,86 @@ import { Menu } from './menu.ts';
 import { Hud } from './hud.ts';
 import { buildSettings, buildHelp, buildScores, buildGameOver } from './dialogs.ts';
 import { formatCash, formatNum } from './format.ts';
+import type { AppGame, AppRenderer, AppOptions, CommandResult } from './appTypes.ts';
+import type { GameEventName, GameEvents, GameOptions, Overlay, Stat, TurretState, Attacker, KeyColor, TargetMode, DirectionalMode, ModeId, DifficultyId, Result } from '../types.ts';
 
 const GRID = 22;
 const FOCUS_RADIUS = 16;
-const COMBO_COLORS = ['red', 'green', 'blue', 'yellow'];
-const GAME_EVENTS = ['shot', 'kill', 'leak', 'wave', 'blast', 'combo', 'build', 'sell', 'upgrade', 'unlock', 'error', 'message', 'gameover'];
-const BLAST_SOUND = { small: 'small', medium: 'medium', large: 'large', huge: 'huge', bfg: 'large', poison: 'medium' };
+const COMBO_COLORS: KeyColor[] = ['red', 'green', 'blue', 'yellow'];
+const GAME_EVENTS: GameEventName[] = ['shot', 'kill', 'leak', 'wave', 'blast', 'combo', 'build', 'sell', 'upgrade', 'unlock', 'error', 'message', 'gameover'];
+const BLAST_SOUND: Record<string, string> = { small: 'small', medium: 'medium', large: 'large', huge: 'huge', bfg: 'large', poison: 'medium' };
+
+type Keys<T> = T extends unknown ? keyof T : never;
+type Val<T, K extends PropertyKey> = T extends unknown ? (K extends keyof T ? T[K] : never) : never;
+/** Every event payload merged into one all-optional shape: onGameEvent reads fields by event name. */
+type LooseEvent = { [K in Keys<GameEvents[GameEventName]>]?: Val<GameEvents[GameEventName], K> };
+
+type InputMode = 'none' | 'build' | 'move' | 'join' | 'focus';
+
+export interface ModalOptions {
+  dismissable?: boolean;
+  onClose?: (() => void) | null;
+  cls?: string;
+  buttons?: { label: string; cls?: string; onClick: (handle: ModalHandle, el: HTMLButtonElement) => void }[];
+}
+
+export interface ModalHandle {
+  el: HTMLElement;
+  dismissable: boolean;
+  onClose: (() => void) | null;
+  close: () => void;
+  kind?: string;
+}
+
+interface CursorState { cx: number; cy: number; over: boolean; known: boolean; wx?: number; wy?: number }
+interface PointerDown { id: number; x: number; y: number; button: number; moved: boolean; touch: boolean }
+export interface GameOverInfo { score: number; kills: number; wave: number; mapId: string; difficulty: string; mode: string; rank: number }
+export interface ScoreHighlight { mapId: string; difficulty: string; mode: string; rank: number }
+type GhostState = Overlay['ghost'];
 
 export class App {
-  constructor(rootEl, { createGame, restoreGame, renderer }) {
+  rootEl: HTMLElement;
+  createGame: AppOptions['createGame'];
+  restoreGame: AppOptions['restoreGame'];
+  renderer: AppRenderer;
+  game: AppGame | null;
+  settings: storage.Settings;
+  unlocks: storage.Unlocks;
+  audio: AudioEngine;
+  mode: InputMode;
+  armed: string | null;
+  moveId: number | null;
+  selectedId: number | null;
+  focusId: number | null;
+  showRanges: Overlay['showRanges'];
+  showCombo: boolean;
+  hoverId: number | null;
+  rackIndex: number;
+  cursor: CursorState;
+  ghost: GhostState;
+  cursorDirty: boolean;
+  overlayDirty: boolean;
+  hudDirty: boolean;
+  hudAcc: number;
+  fpsAcc: number;
+  fpsN: number;
+  errSeq: number;
+  modals: ModalHandle[];
+  handlers: [GameEventName, (p: GameEvents[GameEventName]) => void][];
+  ptrs: Map<number, boolean>;
+  down: PointerDown | null;
+  multi: boolean;
+  canvas: HTMLCanvasElement | null;
+  _overShown: boolean;
+  _pausedByMenu: boolean;
+  _autoPaused: boolean;
+  lastSel: number | null;
+  root: HTMLElement;
+  menu: Menu;
+  hud: Hud;
+  _saveTimer: ReturnType<typeof setInterval>;
+
+  constructor(rootEl: HTMLElement, { createGame, restoreGame, renderer }: AppOptions) {
     this.rootEl = rootEl;
     this.createGame = createGame;
     this.restoreGame = restoreGame;
@@ -76,23 +147,25 @@ export class App {
   }
 
   // =================================================================== DOM helpers
-  buildRotateNotice() {
+  buildRotateNotice(): HTMLElement {
     return h('div', { class: 'os-rotate' },
       h('div', { html: '<svg viewBox="0 0 48 48" aria-hidden="true"><rect x="14" y="4" width="20" height="40" rx="4" fill="none" stroke="#ffd27a" stroke-width="3"/><circle cx="24" cy="38" r="2" fill="#ffd27a"/></svg>' }),
       h('div', null, 'Please rotate to landscape'));
   }
 
-  openModal(title, content, o = {}) {
+  openModal(title: string, content: Node, o: ModalOptions = {}): ModalHandle {
     const dismissable = o.dismissable !== false;
     const layer = h('div', { class: 'os-modal-layer' });
-    const handle = { el: layer, dismissable, onClose: o.onClose || null };
-    handle.close = () => {
-      const i = this.modals.indexOf(handle);
-      if (i < 0) return;
-      this.modals.splice(i, 1);
-      layer.remove();
-      if (handle.onClose) handle.onClose();
-      this.hudDirty = true;
+    const handle: ModalHandle = {
+      el: layer, dismissable, onClose: o.onClose || null,
+      close: () => {
+        const i = this.modals.indexOf(handle);
+        if (i < 0) return;
+        this.modals.splice(i, 1);
+        layer.remove();
+        if (handle.onClose) handle.onClose();
+        this.hudDirty = true;
+      },
     };
     const closeBtn = dismissable ? h('button', { class: 'os-iconbtn', type: 'button', title: 'Close (Esc)', onclick: () => handle.close() }, '×') : null;
     const foot = o.buttons ? h('div', { class: 'os-modal-foot' }, ...o.buttons.map((b) => {
@@ -106,26 +179,26 @@ export class App {
     if (dismissable) layer.addEventListener('pointerdown', (e) => { if (e.target === layer) handle.close(); });
     this.root.append(layer);
     this.modals.push(handle);
-    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     return handle;
   }
 
-  modalOpen() { return this.modals.length > 0; }
-  closeAllModals() { while (this.modals.length) this.modals[this.modals.length - 1].close(); }
+  modalOpen(): boolean { return this.modals.length > 0; }
+  closeAllModals(): void { while (this.modals.length) this.modals[this.modals.length - 1].close(); }
 
-  openSettings() {
+  openSettings(): void {
     if (this.modals.some((m) => m.kind === 'settings')) return;
     const m = this.openModal('Settings', buildSettings(this), { cls: '', buttons: [{ label: 'Done', cls: 'primary', onClick: (hd) => hd.close() }] });
     m.kind = 'settings';
   }
-  toggleSettings() {
+  toggleSettings(): void {
     const open = this.modals.find((m) => m.kind === 'settings');
     if (open) open.close(); else this.openSettings();
   }
-  openHelp() { this.openModal('How to play', buildHelp(), { cls: 'wide', buttons: [{ label: 'Close', cls: 'primary', onClick: (hd) => hd.close() }] }); }
-  openScores(highlight) { this.openModal('High scores', buildScores(this, highlight), { cls: 'narrow wide', buttons: [{ label: 'Close', cls: 'primary', onClick: (hd) => hd.close() }] }); }
+  openHelp(): void { this.openModal('How to play', buildHelp(), { cls: 'wide', buttons: [{ label: 'Close', cls: 'primary', onClick: (hd) => hd.close() }] }); }
+  openScores(highlight?: ScoreHighlight): void { this.openModal('High scores', buildScores(this, highlight), { cls: 'narrow wide', buttons: [{ label: 'Close', cls: 'primary', onClick: (hd) => hd.close() }] }); }
 
-  openGameMenu() {
+  openGameMenu(): void {
     if (!this.game || this.modals.some((m) => m.kind === 'gamemenu')) return;
     this._autoPaused = false;
     const wasPaused = this.game.state.paused;
@@ -150,7 +223,7 @@ export class App {
   }
 
   // =================================================================== settings, unlocks
-  updateSettings(patch) {
+  updateSettings(patch: Partial<storage.Settings>): void {
     Object.assign(this.settings, patch);
     storage.saveSettings(this.settings);
     if ('volume' in patch) this.audio.setVolume(this.settings.volume);
@@ -159,18 +232,19 @@ export class App {
     if ('unlockAll' in patch || 'waveInterval' in patch) this.menu.refresh();
   }
 
-  applyFps() { this.hud.fps.style.display = this.settings.showFps ? '' : 'none'; if (!this.settings.showFps) this.hud.fps.textContent = ''; }
+  applyFps(): void { this.hud.fps.style.display = this.settings.showFps ? '' : 'none'; if (!this.settings.showFps) this.hud.fps.textContent = ''; }
 
-  isDifficultyUnlocked(id) { return !DIFFICULTIES[id]?.unlock || this.settings.unlockAll || !!this.unlocks[id]; }
-  isModeUnlocked(id) { return !MODES[id]?.unlock || this.settings.unlockAll || !!this.unlocks[id]; }
+  // only ids that have an `unlock` rule ('extreme', 'sandbox') ever reach the unlocks lookup
+  isDifficultyUnlocked(id: string): boolean { return !DIFFICULTIES[id]?.unlock || this.settings.unlockAll || !!this.unlocks[id as keyof storage.Unlocks]; }
+  isModeUnlocked(id: string): boolean { return !MODES[id]?.unlock || this.settings.unlockAll || !!this.unlocks[id as keyof storage.Unlocks]; }
 
-  resetProgress() {
+  resetProgress(): void {
     storage.resetProgress();
     this.unlocks = storage.getUnlocks();
     this.menu.refresh();
   }
 
-  checkUnlocks(wave) {
+  checkUnlocks(wave: number): void {
     const g = this.game;
     if (!g || g.state.mode !== 'normal') return;
     let changed = false;
@@ -186,19 +260,19 @@ export class App {
   }
 
   // =================================================================== game lifecycle
-  startGame(sel) {
+  startGame(sel: { mapId: string; difficulty: string; mode: string }): void {
     this.closeAllModals();
-    const opts = { mapId: sel.mapId, difficulty: sel.difficulty, mode: sel.mode, unlockAll: !!this.settings.unlockAll };
+    const opts: GameOptions = { mapId: sel.mapId, difficulty: sel.difficulty, mode: sel.mode, unlockAll: !!this.settings.unlockAll };
     if (this.settings.waveInterval > 0) opts.waveInterval = this.settings.waveInterval * 1000;
-    let game;
+    let game: AppGame;
     try { game = this.createGame(opts); } catch (e) { console.error(e); this.menu.show(); this.menu.flash('Could not start the game.'); return; }
     this.attachGame(game);
   }
 
-  continueGame() {
+  continueGame(): void {
     const save = storage.loadGame();
     if (!save) return;
-    let game;
+    let game: AppGame;
     try { game = this.restoreGame(save.data); } catch (e) {
       console.error(e);
       storage.clearGame();
@@ -210,21 +284,23 @@ export class App {
     this.attachGame(game);
   }
 
-  restart() {
+  restart(): void {
     if (!this.game) return;
     const s = this.game.state;
     this.startGame({ mapId: s.mapId, difficulty: s.difficulty, mode: s.mode });
   }
 
-  attachGame(game) {
+  attachGame(game: AppGame): void {
     this.detachGame();
     this.game = game;
     this.renderer.setGame(game);
     this.renderer.resetView();
     this.handlers = GAME_EVENTS.map((name) => {
-      const fn = (p) => this.onGameEvent(name, p || {});
+      const fn = (p: GameEvents[GameEventName]): void => this.onGameEvent(name, p || {});
+      // name is the union of all events here; the handler accepts every payload
+      // (typed as the generic K = GameEventName)
       game.on(name, fn);
-      return [name, fn];
+      return [name, fn] as [GameEventName, (p: GameEvents[GameEventName]) => void];
     });
     this.resetInput();
     this._overShown = false;
@@ -239,7 +315,7 @@ export class App {
     this.attachCanvas();
   }
 
-  detachGame() {
+  detachGame(): void {
     if (this.game) for (const [name, fn] of this.handlers) { try { this.game.off(name, fn); } catch (e) { /* ignore */ } }
     this.handlers = [];
     this.game = null;
@@ -249,14 +325,14 @@ export class App {
     this.pushOverlay();
   }
 
-  resetInput() {
+  resetInput(): void {
     this.mode = 'none'; this.armed = null; this.moveId = null; this.selectedId = null; this.focusId = null;
     this.ghost = null; this.hoverId = null; this.showCombo = false; this.showRanges = 'selected';
     this.setCanvasCursor();
     this.overlayDirty = true;
   }
 
-  toMenu() {
+  toMenu(): void {
     this.closeAllModals();
     this.autosave();
     this.detachGame();
@@ -264,38 +340,39 @@ export class App {
     this.menu.show();
   }
 
-  autosave() {
+  autosave(): void {
     const g = this.game;
     if (!g || g.state.over) return;
     try {
       const s = g.state;
       const data = g.serialize();
       // the Esc menu pauses the game only while it is open, so never save that pause
-      if (this._pausedByMenu && data && data.state) data.state.paused = false;
+      const saved = data as { state?: { paused?: boolean } } | null;
+      if (this._pausedByMenu && saved && saved.state) saved.state.paused = false;
       storage.saveGame({ v: 1, at: Date.now(), meta: { mapId: s.mapId, difficulty: s.difficulty, mode: s.mode, wave: s.wave }, data });
     } catch (e) { /* never break the game over a failed save */ }
   }
 
   // =================================================================== game events
-  onGameEvent(name, p) {
+  onGameEvent(name: GameEventName, p: LooseEvent): void {
     const a = this.audio;
     switch (name) {
       case 'shot': {
-        let kind = p.kind;
+        let kind: string | null | undefined = p.kind;
         if (!kind && p.turretId != null && this.game) { const t = this.game.state.turrets.find((x) => x.id === p.turretId); kind = t && t.kind; }
         a.shot(kind);
         break;
       }
       case 'kill': a.play('kill'); break;
-      case 'blast': a.play('blast_' + (BLAST_SOUND[p.size] || 'small')); break;
+      case 'blast': a.play('blast_' + (BLAST_SOUND[p.size as string | number] || 'small')); break;
       case 'combo': a.play('combo'); this.hud.toast('Combo: ' + (p.name || 'Combo') + '!', 'combo'); break;
-      case 'wave': a.play('horn'); this.checkUnlocks(p.wave != null ? p.wave : this.game.state.wave); break;
+      case 'wave': a.play('horn'); this.checkUnlocks(p.wave != null ? p.wave : this.game!.state.wave); break;
       case 'leak': a.play('alarm'); this.hud.flashLeak(); break;
       case 'build': a.play('build'); break;
       case 'sell': a.play('sell'); if (p.refund != null) this.hud.addLog('Sold for ' + formatCash(p.refund)); break;
       case 'upgrade': a.play('upgrade'); break;
       case 'unlock': {
-        const def = TURRETS[p.kind];
+        const def = p.kind != null ? TURRETS[p.kind] : undefined;
         this.hud.toast('Unlocked: ' + (def ? def.name : p.kind), 'unlock');
         this.hud.addLog('New turret available: ' + (def ? def.name : p.kind));
         a.play('unlock');
@@ -308,18 +385,18 @@ export class App {
     }
   }
 
-  showError(reason) {
+  showError(reason: string): void {
     const c = this.cursor;
     this.hud.showError(String(reason), c.known ? c.cx : window.innerWidth / 2, c.known ? c.cy : window.innerHeight / 2);
     this.audio.play('error');
   }
 
-  onGameOver(p) {
+  onGameOver(p: { score?: number; kills?: number; wave?: number }): void {
     const g = this.game;
     if (!g || this._overShown) return;
     this._overShown = true;
     const s = g.state;
-    const info = { score: p.score != null ? p.score : s.score, kills: p.kills != null ? p.kills : s.kills, wave: p.wave != null ? p.wave : s.wave, mapId: s.mapId, difficulty: s.difficulty, mode: s.mode };
+    const info: GameOverInfo = { rank: 0, score: p.score != null ? p.score : s.score, kills: p.kills != null ? p.kills : s.kills, wave: p.wave != null ? p.wave : s.wave, mapId: s.mapId, difficulty: s.difficulty, mode: s.mode };
     info.rank = info.score > 0 ? storage.addScore(info.mapId, info.difficulty, info.mode, { score: info.score, kills: info.kills, wave: info.wave, date: new Date().toISOString() }) : 0;
     storage.clearGame();
     this.checkUnlocks(info.wave);
@@ -338,7 +415,7 @@ export class App {
   }
 
   // =================================================================== per frame
-  frame(dtMs) {
+  frame(dtMs: number): void {
     if (!this.canvas || !this.canvas.isConnected) this.attachCanvas();
     this.fpsAcc += dtMs; this.fpsN++;
     if (this.fpsAcc >= 500) {
@@ -358,8 +435,8 @@ export class App {
     if (game.state.over && !this._overShown) this.onGameOver({});
   }
 
-  tick() {
-    const game = this.game;
+  tick(): void {
+    const game = this.game!;
     const s = game.state;
     this.audio.setSpeed(s.speed);
     if (this.focusId != null && !s.attackers.some((a) => a.id === this.focusId)) {
@@ -371,14 +448,14 @@ export class App {
   }
 
   // =================================================================== overlay and cursor
-  setCanvasCursor() { if (this.canvas) this.canvas.style.cursor = this.mode !== 'none' ? 'crosshair' : ''; }
+  setCanvasCursor(): void { if (this.canvas) this.canvas.style.cursor = this.mode !== 'none' ? 'crosshair' : ''; }
 
-  snap(x, y) {
+  snap(x: number, y: number): { x: number; y: number } {
     if (!this.settings.snap) return { x, y };
     return { x: Math.round(x / GRID) * GRID, y: Math.round(y / GRID) * GRID };
   }
 
-  ghostKind() {
+  ghostKind(): string | null {
     if (this.mode === 'build') return this.armed;
     if (this.mode === 'move') {
       const t = this.selectedTurret();
@@ -387,12 +464,12 @@ export class App {
     return null;
   }
 
-  selectedTurret() {
+  selectedTurret(): TurretState | null {
     if (!this.game || this.selectedId == null) return null;
     return this.game.state.turrets.find((t) => t.id === this.selectedId) || null;
   }
 
-  updateCursorWorld() {
+  updateCursorWorld(): void {
     const game = this.game;
     const c = this.cursor;
     if (!game || !c.over) { if (this.ghost || this.hoverId != null) { this.ghost = null; this.hoverId = null; this.overlayDirty = true; } return; }
@@ -405,13 +482,13 @@ export class App {
       try {
         const r = game.canBuild(kind, p.x, p.y);
         valid = !!(r && r.ok);
-        if (!valid && this.mode === 'move' && r && /cash|afford|money/i.test(String(r.reason || ''))) valid = true;
+        if (!valid && this.mode === 'move' && r && !r.ok && /cash|afford|money/i.test(String(r.reason || ''))) valid = true;
       } catch (e) { valid = false; }
       this.ghost = { kind, x: p.x, y: p.y, valid };
       this.hoverId = null;
     } else {
       this.ghost = null;
-      let hid = null;
+      let hid: number | null | undefined = null;
       try { hid = game.turretAt(w.x, w.y); } catch (e) { hid = null; }
       if (hid === undefined) hid = null;
       this.hoverId = hid;
@@ -419,7 +496,7 @@ export class App {
     this.overlayDirty = true;
   }
 
-  pushOverlay() {
+  pushOverlay(): void {
     this.overlayDirty = false;
     try {
       this.renderer.setOverlay({
@@ -433,10 +510,10 @@ export class App {
     } catch (e) { console.error(e); }
   }
 
-  worldAt(clientX, clientY) { return this.renderer.screenToWorld(clientX, clientY); }
+  worldAt(clientX: number, clientY: number): { x: number; y: number } { return this.renderer.screenToWorld(clientX, clientY); }
 
   // =================================================================== pointer input
-  bindGlobal() {
+  bindGlobal(): void {
     const unlockAudio = () => this.audio.unlock();
     window.addEventListener('pointerdown', unlockAudio, true);
     window.addEventListener('keydown', unlockAudio, true);
@@ -459,18 +536,18 @@ export class App {
     window.addEventListener('pagehide', () => this.autosave());
     // UI click / hover sounds
     this.root.addEventListener('click', (e) => {
-      const b = e.target.closest && e.target.closest('button');
+      const b = e.target instanceof Element ? e.target.closest('button') : null;
       if (b && !b.disabled) this.audio.play('click');
     });
     this.root.addEventListener('pointerover', (e) => {
       if (e.pointerType === 'touch') return;
-      const b = e.target.closest && e.target.closest('button');
-      if (b && !b.disabled && !(e.relatedTarget && b.contains(e.relatedTarget))) this.audio.play('hover');
+      const b = e.target instanceof Element ? e.target.closest('button') : null;
+      if (b && !b.disabled && !(e.relatedTarget instanceof Node && b.contains(e.relatedTarget))) this.audio.play('hover');
     });
   }
 
-  attachCanvas() {
-    const c = document.querySelector('#game canvas');
+  attachCanvas(): void {
+    const c = document.querySelector<HTMLCanvasElement>('#game canvas');
     if (!c || c === this.canvas) return;
     this.canvas = c;
     c.addEventListener('pointerdown', (e) => this.onPointerDown(e));
@@ -480,21 +557,21 @@ export class App {
     this.setCanvasCursor();
   }
 
-  trackCursor(e) {
+  trackCursor(e: PointerEvent): void {
     const c = this.cursor;
     c.cx = e.clientX; c.cy = e.clientY; c.known = true;
     c.over = e.target === this.canvas;
     this.cursorDirty = true;
   }
 
-  onPointerMove(e) {
+  onPointerMove(e: PointerEvent): void {
     this.trackCursor(e);
     if (this.down && this.down.id === e.pointerId && !this.down.moved) {
       if (Math.hypot(e.clientX - this.down.x, e.clientY - this.down.y) > 10) this.down.moved = true;
     }
   }
 
-  onPointerDown(e) {
+  onPointerDown(e: PointerEvent): void {
     this.trackCursor(e);
     this.ptrs.set(e.pointerId, true);
     if (this.ptrs.size > 1) { this.multi = true; this.down = null; this.ghost = null; this.overlayDirty = true; return; }
@@ -502,7 +579,7 @@ export class App {
     this.down = { id: e.pointerId, x: e.clientX, y: e.clientY, button: e.button, moved: false, touch: e.pointerType === 'touch' };
   }
 
-  onPointerUp(e) {
+  onPointerUp(e: PointerEvent): void {
     const d = this.down;
     this.ptrs.delete(e.pointerId);
     const multi = this.multi;
@@ -518,8 +595,8 @@ export class App {
     this.onLeftClick(e);
   }
 
-  onLeftClick(e) {
-    const game = this.game;
+  onLeftClick(e: PointerEvent): void {
+    const game = this.game!;
     const w = this.worldAt(e.clientX, e.clientY);
     switch (this.mode) {
       case 'build': this.placeAt(this.armed, w.x, w.y, e.shiftKey); break;
@@ -527,7 +604,7 @@ export class App {
       case 'join': this.joinAt(w.x, w.y); break;
       case 'focus': this.focusAt(w.x, w.y); break;
       default: {
-        let id = null;
+        let id: number | null | undefined = null;
         try { id = game.turretAt(w.x, w.y); } catch (err) { id = null; }
         if (id != null) this.select(id); else this.deselect();
       }
@@ -537,19 +614,19 @@ export class App {
   }
 
   // =================================================================== command helpers
-  run(fn) {
+  run(fn: () => CommandResult | void): CommandResult | void | null {
     const seq = this.errSeq;
-    let res = null;
+    let res: CommandResult | void | null = null;
     try { res = fn(); } catch (e) { console.error(e); return null; }
     if (res && res.ok === false && this.errSeq === seq) this.showError(res.reason || 'Not possible');
     this.hudDirty = true;
     return res;
   }
 
-  placeAt(kind, wx, wy, keep) {
+  placeAt(kind: string | null, wx: number, wy: number, keep?: boolean): CommandResult | void | null {
     if (!kind || !this.game) return null;
     const p = this.snap(wx, wy);
-    const res = this.run(() => this.game.build(kind, p.x, p.y));
+    const res = this.run(() => this.game!.build(kind, p.x, p.y));
     if (res && res.ok) {
       if (!keep) {
         this.cancelMode();
@@ -559,37 +636,38 @@ export class App {
     return res;
   }
 
-  moveTo(wx, wy) {
+  moveTo(wx: number, wy: number): void {
     const p = this.snap(wx, wy);
-    const res = this.run(() => this.game.move(this.moveId, p.x, p.y));
+    const res = this.run(() => this.game!.move(this.moveId!, p.x, p.y));
     if (res && res.ok) this.cancelMode();
   }
 
-  joinAt(wx, wy) {
-    let id = null;
-    try { id = this.game.turretAt(wx, wy); } catch (e) { id = null; }
+  joinAt(wx: number, wy: number): void {
+    let id: number | null | undefined = null;
+    try { id = this.game!.turretAt(wx, wy); } catch (e) { id = null; }
     const from = this.selectedId;
     if (id == null) { this.cancelMode(); return; }
-    if (id === from) this.run(() => this.game.join(from, null));
-    else this.run(() => this.game.join(from, id));
+    if (id === from) this.run(() => this.game!.join(from!, null));
+    else this.run(() => this.game!.join(from!, id!));
     this.cancelMode();
   }
 
-  focusAt(wx, wy) {
-    let best = null;
+  focusAt(wx: number, wy: number): void {
+    let best: Attacker | null = null;
     let bd = FOCUS_RADIUS;
-    for (const a of this.game.state.attackers) {
+    for (const a of this.game!.state.attackers) {
       const d = Math.hypot(a.x - wx, a.y - wy);
       if (d <= bd) { bd = d; best = a; }
     }
     if (!best) { this.showError('No attacker there'); return; }
-    this.focusId = best.id;
-    this.run(() => this.game.focusFire(best.id));
+    const target: Attacker = best;
+    this.focusId = target.id;
+    this.run(() => this.game!.focusFire(target.id));
     if (this.mode === 'focus') this.setMode('none');
   }
 
   // =================================================================== modes and selection
-  setMode(m) {
+  setMode(m: InputMode): void {
     this.mode = m;
     this.setCanvasCursor();
     this.overlayDirty = true;
@@ -597,32 +675,32 @@ export class App {
     this.hudDirty = true;
   }
 
-  cancelMode() {
+  cancelMode(): void {
     this.armed = null;
     this.moveId = null;
     this.ghost = null;
     this.setMode('none');
   }
 
-  select(id) {
+  select(id: number): void {
     if (this.mode === 'build') this.cancelMode();
     this.selectedId = id;
     this.overlayDirty = true;
     this.hudDirty = true;
   }
 
-  deselect() {
+  deselect(): void {
     if (this.mode === 'move' || this.mode === 'join') this.cancelMode();
     this.selectedId = null;
     this.overlayDirty = true;
     this.hudDirty = true;
   }
 
-  cancelOrDeselect() {
+  cancelOrDeselect(): void {
     if (this.mode !== 'none') this.cancelMode(); else this.deselect();
   }
 
-  clearFocus() {
+  clearFocus(): void {
     if (this.focusId != null || this.mode === 'focus') {
       this.focusId = null;
       if (this.mode === 'focus') this.cancelMode();
@@ -631,9 +709,9 @@ export class App {
     }
   }
 
-  modeHint() {
+  modeHint(): string {
     switch (this.mode) {
-      case 'build': return `Placing ${TURRETS[this.armed]?.name || ''}: click to build, Shift+click to keep building, Esc cancels`;
+      case 'build': return `Placing ${TURRETS[this.armed ?? '']?.name || ''}: click to build, Shift+click to keep building, Esc cancels`;
       case 'move': return `Click the new spot (costs ${formatCash(MOVE_COST)}), Esc cancels`;
       case 'join': return 'Click the turret to join with (click the Targeter itself to unjoin), Esc cancels';
       case 'focus': return 'Click an attacker to focus fire on it, Esc cancels';
@@ -641,7 +719,7 @@ export class App {
     }
   }
 
-  armKind(kind, keep, noToggle) {
+  armKind(kind: string, keep?: boolean, noToggle?: boolean): void {
     const game = this.game;
     if (!game) return;
     const def = TURRETS[kind];
@@ -660,8 +738,8 @@ export class App {
     void keep;
   }
 
-  rackStep(dir) {
-    const s = this.game.state;
+  rackStep(dir: number): void {
+    const s = this.game!.state;
     let i = this.rackIndex;
     for (let n = 0; n < BUILD_ORDER.length; n++) {
       i = (i + dir + BUILD_ORDER.length) % BUILD_ORDER.length;
@@ -672,9 +750,9 @@ export class App {
     this.hudDirty = true;
   }
 
-  buildAtCursor() {
-    const kind = this.mode === 'build' ? this.armed : BUILD_ORDER[this.rackIndex];
-    const s = this.game.state;
+  buildAtCursor(): void {
+    const kind = (this.mode === 'build' ? this.armed : BUILD_ORDER[this.rackIndex]) as string;
+    const s = this.game!.state;
     const def = TURRETS[kind];
     if (!s.unlocked || !s.unlocked[kind]) { this.showError(`${def.name} is locked`); return; }
     const c = this.cursor;
@@ -682,70 +760,71 @@ export class App {
     this.placeAt(kind, w.x, w.y, true);
   }
 
-  toggleInfo() {
+  toggleInfo(): void {
     this.updateSettings({ infoCollapsed: !this.settings.infoCollapsed });
     this.hudDirty = true;
   }
 
   // =================================================================== commands (buttons and keys)
-  needSelection() {
+  needSelection(): TurretState | null {
     const t = this.selectedTurret();
     if (!t) this.showError('Select a turret first');
     return t;
   }
 
-  upgrade(stat, toMax) {
+  upgrade(stat: Stat, toMax?: boolean): void {
     const t = this.needSelection();
     if (!t) return;
-    let cost = null;
-    try { cost = this.game.upgradeCost(t.id, stat); } catch (e) { cost = null; }
+    let cost: number | null = null;
+    try { cost = this.game!.upgradeCost(t.id, stat); } catch (e) { cost = null; }
     if (cost == null) { this.showError('Nothing to upgrade there'); return; }
-    this.run(() => this.game.upgrade(t.id, stat, !!toMax));
+    this.run(() => this.game!.upgrade(t.id, stat, !!toMax));
   }
 
-  sell() {
+  sell(): void {
     const t = this.needSelection();
     if (!t) return;
-    const res = this.run(() => this.game.sell(t.id));
+    const res = this.run(() => this.game!.sell(t.id));
     if (res && res.ok) { this.deselect(); }
   }
 
-  startMove() {
+  startMove(): void {
     const t = this.needSelection();
     if (!t) return;
     if (this.mode === 'move') { this.cancelMode(); return; }
-    if (this.game.state.cash < MOVE_COST) { this.showError(`Moving costs ${formatCash(MOVE_COST)}`); return; }
+    if (this.game!.state.cash < MOVE_COST) { this.showError(`Moving costs ${formatCash(MOVE_COST)}`); return; }
     this.cancelMode();
     this.moveId = t.id;
     this.setMode('move');
   }
 
-  cycleTarget() {
+  cycleTarget(): void {
     const t = this.needSelection();
     if (!t) return;
-    if (typeof this.game.cycleTargetMode === 'function') this.run(() => this.game.cycleTargetMode(t.id));
+    const game = this.game!;
+    if (typeof game.cycleTargetMode === 'function') this.run(() => game.cycleTargetMode(t.id));
     else {
       const i = TARGET_MODES.indexOf(t.targetMode);
-      this.run(() => this.game.setTargetMode(t.id, TARGET_MODES[(i + 1) % TARGET_MODES.length]));
+      this.run(() => game.setTargetMode(t.id, TARGET_MODES[(i + 1) % TARGET_MODES.length]));
     }
   }
 
-  toggleLock() { const t = this.needSelection(); if (t) this.run(() => this.game.toggleLock(t.id)); }
+  toggleLock(): void { const t = this.needSelection(); if (t) this.run(() => this.game!.toggleLock(t.id)); }
 
-  cycleDirectional() { const t = this.needSelection(); if (t) this.run(() => this.game.cycleDirectional(t.id)); }
+  cycleDirectional(): void { const t = this.needSelection(); if (t) this.run(() => this.game!.cycleDirectional(t.id)); }
 
-  aimDirectional() {
+  aimDirectional(): void {
     const t = this.needSelection();
     if (!t) return;
     const c = this.cursor;
     if (!c.known) return;
     const w = this.worldAt(c.cx, c.cy);
     const angle = Math.atan2(w.y - t.y, w.x - t.x);
-    const mode = t.directional && t.directional.mode && t.directional.mode !== 'normal' ? t.directional.mode : 'medium';
-    this.run(() => this.game.setDirectional(t.id, mode, angle));
+    const mode: DirectionalMode = t.directional && t.directional.mode && t.directional.mode !== 'normal' ? t.directional.mode : 'medium';
+    this.run(() => this.game!.setDirectional(t.id, mode, angle));
   }
 
-  toggleJoin() {
+  toggleJoin(): void {
     const t = this.needSelection();
     if (!t) return;
     if (t.kind !== 'targeter') { this.showError('Only a Targeter can join'); return; }
@@ -754,29 +833,29 @@ export class App {
     this.setMode('join');
   }
 
-  cycleColor() {
+  cycleColor(): void {
     const t = this.needSelection();
     if (!t) return;
     if (t.kind !== 'comboOnly') { this.showError('Only Combo-only has a colour'); return; }
     const i = COMBO_COLORS.indexOf(t.comboColor || 'red');
-    this.run(() => this.game.setComboColor(t.id, COMBO_COLORS[(i + 1) % COMBO_COLORS.length]));
+    this.run(() => this.game!.setComboColor(t.id, COMBO_COLORS[(i + 1) % COMBO_COLORS.length]));
   }
 
-  toggleFocusMode() {
+  toggleFocusMode(): void {
     if (this.mode === 'focus' || this.focusId != null) { this.clearFocus(); return; }
     this.cancelMode();
     this.setMode('focus');
   }
 
-  sendWave() { if (this.game) this.run(() => this.game.sendWave()); }
-  setSpeed(s) { if (this.game) { this.run(() => this.game.setSpeed(s)); this.audio.setSpeed(s); } }
-  togglePause() { this._autoPaused = false; if (this.game) this.run(() => this.game.togglePause()); }
+  sendWave(): void { const g = this.game; if (g) this.run(() => g.sendWave()); }
+  setSpeed(s: number): void { const g = this.game; if (g) { this.run(() => g.setSpeed(s)); this.audio.setSpeed(s); } }
+  togglePause(): void { this._autoPaused = false; const g = this.game; if (g) this.run(() => g.togglePause()); }
 
-  toggleRanges() { this.showRanges = this.showRanges === 'all' ? 'selected' : 'all'; this.overlayDirty = true; }
-  toggleCombo() { this.showCombo = !this.showCombo; this.overlayDirty = true; }
+  toggleRanges(): void { this.showRanges = this.showRanges === 'all' ? 'selected' : 'all'; this.overlayDirty = true; }
+  toggleCombo(): void { this.showCombo = !this.showCombo; this.overlayDirty = true; }
 
   // =================================================================== keyboard
-  escapeAction() {
+  escapeAction(): void {
     if (this.modals.length) {
       const top = this.modals[this.modals.length - 1];
       if (top.dismissable) top.close();
@@ -789,12 +868,12 @@ export class App {
     this.openGameMenu();
   }
 
-  onKey(e) {
+  onKey(e: KeyboardEvent): void {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
-    const tg = e.target;
+    const tg = e.target instanceof HTMLElement ? e.target : null;
     const tag = tg && tg.tagName;
-    const typing = tag === 'TEXTAREA' || tag === 'SELECT' || (tag === 'INPUT' && tg.type !== 'range' && tg.type !== 'checkbox') || (tg && tg.isContentEditable);
-    if (typing) { if (e.key === 'Escape' && tg.blur) tg.blur(); return; }
+    const typing = tag === 'TEXTAREA' || tag === 'SELECT' || (tag === 'INPUT' && (tg as HTMLInputElement).type !== 'range' && (tg as HTMLInputElement).type !== 'checkbox') || (tg && tg.isContentEditable);
+    if (typing) { if (e.key === 'Escape' && tg && tg.blur) tg.blur(); return; }
 
     if (e.key === 'Escape') { e.preventDefault(); if (!e.repeat) this.escapeAction(); return; }
     const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
