@@ -22,6 +22,7 @@ function remove(key) {
   try { localStorage.removeItem(PREFIX + key); } catch (e) { /* ignore */ }
 }
 
+/** Defaults for every stored setting; getSettings() falls back to these. */
 export const DEFAULT_SETTINGS = {
   volume: 0.7,
   muted: false,
@@ -37,28 +38,42 @@ export const DEFAULT_SETTINGS = {
   lastMode: 'normal',
 };
 
+/** Stored settings merged over the defaults; values of the wrong type are dropped. */
 export function getSettings() {
   const s = read('settings', {});
-  return { ...DEFAULT_SETTINGS, ...(s && typeof s === 'object' ? s : {}) };
+  const src = s && typeof s === 'object' && !Array.isArray(s) ? s : {};
+  const out = { ...DEFAULT_SETTINGS };
+  for (const k of Object.keys(DEFAULT_SETTINGS)) {
+    const d = DEFAULT_SETTINGS[k], v = src[k];
+    if (d === null) { // panelPos: null or a { x, y } pair of finite numbers
+      if (v && typeof v === 'object' && Number.isFinite(v.x) && Number.isFinite(v.y)) out[k] = v;
+    } else if (typeof v === typeof d && (typeof d !== 'number' || Number.isFinite(v))) out[k] = v;
+  }
+  return out;
 }
 
+/** Persist the settings object. */
 export function saveSettings(settings) { write('settings', settings); }
 
+/** Unlock flags { extreme, sandbox }. */
 export function getUnlocks() {
   const u = read('unlocks', {});
   return { extreme: !!(u && u.extreme), sandbox: !!(u && u.sandbox) };
 }
 
+/** Persist the unlock flags. */
 export function saveUnlocks(unlocks) { write('unlocks', unlocks); }
 
 // ---- High scores: top 10 per map + difficulty + mode
 const scoreKey = (mapId, difficulty, mode) => `${mapId}|${difficulty}|${mode}`;
 
+/** All high score tables keyed by map|difficulty|mode. */
 export function getAllScores() {
   const s = read('scores', {});
   return s && typeof s === 'object' ? s : {};
 }
 
+/** Top 10 list for one map, difficulty and mode (empty array if none). */
 export function getScores(mapId, difficulty, mode) {
   const list = getAllScores()[scoreKey(mapId, difficulty, mode)];
   return Array.isArray(list) ? list : [];
@@ -81,10 +96,12 @@ export function addScore(mapId, difficulty, mode, entry) {
 
 // ---- Autosave of the running game
 export function saveGame(wrapper) { return write('save', wrapper); }
+/** The autosave wrapper { v, at, meta, data } or null. */
 export function loadGame() {
   const s = read('save', null);
   return s && typeof s === 'object' && s.data ? s : null;
 }
+/** Delete the autosave. */
 export function clearGame() { remove('save'); }
 
 // Resets unlocks, high scores and the autosave (settings are kept).

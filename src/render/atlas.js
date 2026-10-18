@@ -1,7 +1,8 @@
 // Procedural art: every sprite is drawn once with the 2D canvas API into texture atlases.
 // Nothing here is copied from any existing game; shapes and palettes are original.
 //
-// Atlases (all 1024 x 1024, 4 x 4 cells of 256 px, flipY = false so v = 0 is the canvas top):
+// Atlases (fx and units are 1024 x 1024 with 4 x 4 cells of 256 px; the turret atlases tBase and
+// tWeapon are 2048 x 2048 with 4 x 4 cells of 512 px; flipY = false so v = 0 is the canvas top):
 //   fx        generic glows, puffs, flames, beam band, projectile bodies, flag ...
 //   units     the 9 attacker silhouettes (cell = 32 world units)
 //   tBase     16 turret base plates (cell = 64 world units)

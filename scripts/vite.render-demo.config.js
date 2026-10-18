@@ -1,4 +1,4 @@
-// Builds only the renderer demo (render-demo.html), independent of src/game and src/ui.
+// Builds only the renderer demo (render-demo.html), independent of src/game and src/ui. Output: dist-render-demo/
 // Usage: npx vite build --config scripts/vite.render-demo.config.js
 import { defineConfig } from 'vite';
 import { resolve } from 'node:path';

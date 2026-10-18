@@ -31,6 +31,10 @@ const save = game.serialize();          // plain JSON-able object
 const g2 = Game.deserialize(save);      // restore a running game
 ```
 
+The constructor's default `seed` is a fixed constant, so callers that want a different game each time pass `opts.seed`
+(`src/main.js` does). `Game.deserialize(d)` validates its input and throws `Error('Invalid save: ...')` on a malformed save
+(version, arrays, entity caps, unknown turret kind); it ignores `__proto__`, `constructor` and `prototype` keys.
+
 ### 1.1 `game.state` (read-only for render/ui; plain objects and arrays)
 
 ```js
@@ -59,7 +63,7 @@ const g2 = Game.deserialize(save);      // restore a running game
                links: [turretId],                     // Green: linked Greens
                targetMode /*rules.TARGET_MODES*/, locked /*bool*/, targetId /*or null*/,
                directional: { mode: 'normal'|'wide'|'medium'|'tight'|'small'|'pinpoint', angle }, // 360/180/90/60/45/30 degrees
-               joinedTo /*Targeter: turret id or null*/, comboColor /*Combo-only: 'red'|'green'|'blue'|'yellow'*/,
+               joinedTo /*Targeter: turret id or null*/, comboColor /*'red'|'green'|'blue'|'yellow' or null: weapons have their own colour, Combo-only the chosen one, else null*/,
                modRange /*modifiers: current influence radius*/,
                combosFired, combosAssisted,           // combos led / joined as partner (weapons and Combo-only)
                comboLog: [ { id /*recipe id*/, time /*game ms*/, role: 'lead'|'partner' } ] /*newest first, max COMBO_LOG_MAX*/ } ],
@@ -67,7 +71,8 @@ const g2 = Game.deserialize(save);      // restore a running game
   focusId,              // optional: attacker id under focus fire, or null (renderer draws a reticle on it)
   projectiles: [ { id, kind, x, y, angle, armed? } ],   // armed (mines only): false while travelling, true once placed
     // kind: 'shell' | 'rocket' | 'nuke' | 'poisonRocket' | 'laserRocket' | 'napalmRocket' | 'tazerRocket'
-    //       | 'bfg' | 'clusterBomb' | 'cluster' | 'mine' | 'sniper' | 'rail'
+    //       | 'bfg' | 'clusterBomb' | 'cluster' | 'mine'
+    // other fields (speed, mode, blast, ttl, orbit, goto, ...): comment header of src/game/projectiles.js
 
   beams: [ { kind, x1, y1, x2, y2, age, ttl } ],
     // short-lived lines; kind: 'laser' | 'chain' (laser link between Greens) | 'spark' | 'fusion' | 'rail' | 'sniper'
@@ -79,6 +84,9 @@ const g2 = Game.deserialize(save);      // restore a running game
 }
 ```
 
+Other fields (not part of the render contract): turret internals (`cd`, `ramp`, `kills`, ...) are listed in the comment header
+of `src/game/Turret.js`, attacker internals (`swallowed`, `dead`, ...) in `src/game/Attacker.js`, projectile fields in `src/game/projectiles.js`.
+
 Entity `id`s are unique integers that never repeat within a game. Renderer syncs meshes by id.
 
 ### 1.2 Commands (return `{ ok: true, ... }` or `{ ok: false, reason: 'text' }`)
@@ -86,7 +94,7 @@ Entity `id`s are unique integers that never repeat within a game. Renderer syncs
 ```js
 game.canBuild(kind, x, y)            // checks cash, unlock, field bounds, road, base, overlap
 game.build(kind, x, y)               // -> { ok, id }
-game.upgrade(id, stat, toMax=false)  // stat: 'damage'|'range'|'rate'; modifiers: 'range' only
+game.upgrade(id, stat, toMax=false)  // stat: 'damage'|'range'|'rate'; modifiers: 'range' only; -> { ok, levels } (levels bought)
 game.upgradeCost(id, stat)           // -> number | null (null = maxed / not upgradable)
 game.sell(id)                        // refund 70% of cashValue
 game.move(id, x, y)                  // costs $500, same placement checks
@@ -102,6 +110,9 @@ game.comboPreview(id)                // read-only, no rng: { leads, partners: [{
                                      //   wait = earliest ms until it could fire (Infinity = not possible), for the panel's Combos tab
 game.sendWave()                      // early wave, adds early bonus; refused while paused ('Game is paused')
 game.setSpeed(s); game.togglePause(); game.setPaused(bool)
+game.setWaveInterval(ms)             // fails unless ms is a finite number >= 1000; clamps nextWaveIn
+game.advance(steps)                  // exactly `steps` 1/60 s steps, ignores speed and pause (tests and tools)
+game.addAttacker(a)                  // push a ready-made attacker (tests); game.spawnAttacker(wave, hpOverride?) creates one from the wave formula
 game.turretAt(x, y)                  // -> id | null (within TURRET_SIZE/2)
 ```
 
@@ -109,7 +120,7 @@ game.turretAt(x, y)                  // -> id | null (within TURRET_SIZE/2)
 
 `shot {kind, turretId}`, `hit {attackerId}`, `kill {attackerId, x, y, bounty}`, `leak {lives}`,
 `wave {wave}`, `blast {size, x, y}`, `combo {id, name, turretId, partnerIds}`, `build {id, kind}`, `sell {id, refund}`,
-`upgrade {id, stat}`, `unlock {kind}`, `freakout {id, stage}`, `message {text}`, `gameover {score, kills, wave}`,
+`upgrade {id, stat, levels}`, `move {id, x, y}`, `unlock {kind}`, `freakout {id, stage}`, `message {text}`, `gameover {score, kills, wave}`,
 `error {reason}` (failed command, for UI feedback).
 
 ### 1.4 Rules the simulation must follow
@@ -134,7 +145,12 @@ r.setOverlay({                              // UI-driven overlays, call whenever
   joinFromId: id | null,                    // Targeter join mode: line to cursor
 });
 r.resetView();                              // fit field to screen
+r.setViewInsets({ top, right, bottom, left }) // optional: CSS px covered by HUD panels, the fitted field avoids them
+r.getZoom()                                 // -> current zoom factor
+r.dispose();                                // remove listeners and the canvas, release WebGL
+r.canvas                                    // the canvas element
 ```
+`setGame(null)` clears the view (no game, nothing drawn).
 
 Camera: orthographic top-down. Fits the field on load with a small margin; mouse wheel zooms toward the cursor
 (0.5× to 4×), right- or middle-button drag pans, two-finger pinch/drag on touch. Left button is reserved for the UI.
@@ -150,8 +166,8 @@ pooled meshes for attackers/projectiles).
 
 ## 3. UI: `src/ui/`
 
-`src/ui/App.js` exports `class App { constructor(rootEl, { createGame, renderer }) }` where
-`createGame(opts) -> Game` and `renderer` is the Renderer instance. The App owns screens and input:
+`src/ui/App.js` exports `class App { constructor(rootEl, { createGame, restoreGame, renderer }) }` where
+`createGame(opts) -> Game`, `restoreGame(save) -> Game` (`Game.deserialize`) and `renderer` is the Renderer instance. The App owns screens and input:
 
 - **Main menu**: map picker (10 maps with a mini path preview drawn on a 2D canvas), difficulty, mode (Normal/Sandbox),
   Continue (if a mid-game save exists), high scores, settings, how-to-play.
@@ -166,7 +182,8 @@ pooled meshes for attackers/projectiles).
   settings, unlocks (Extreme after reaching wave 100 on Medium, Sandbox after wave 50 on anything),
   high scores per map+difficulty (top 10), autosave of the running game every 10 s and on page hide.
 - **Settings**: master volume / mute, wave interval override, snap-to-grid toggle (grid 22 units), unlock-all switch,
-  show FPS.
+  show FPS, `autoPause` (pause while the tab is hidden), `panelPos` (moved turret panel). `getSettings()` drops stored values
+  whose type does not match the default.
 - **Audio** (`src/ui/audio.js`): Web Audio synthesized SFX driven by game events (cannon pop, laser zap, rocket whoosh,
   spark crackle, blasts by size, nuke boom, kill tick, leak alarm, wave horn, combo chord, UI clicks). Rate-limit
   per sound so 8× speed stays pleasant. Starts after the first user gesture.

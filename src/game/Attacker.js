@@ -17,6 +17,7 @@ export function waveBounty(n) {
   return Math.round(n * Math.pow(WAVES.lateBountyGrowth, n - WAVES.lateWave));
 }
 
+/** Builds a new attacker object for the given wave (hp from the wave curve unless hpOverride); does not add it to the game. */
 export function createAttacker(game, wave, hpOverride) {
   const hp = hpOverride != null ? hpOverride : waveHp(wave, game.hpGrowth);
   const a = {

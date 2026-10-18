@@ -1,5 +1,5 @@
-// Temporary config to build only the UI demo while src/game and src/render may not exist yet:
-//   npx vite build --config scripts/vite.demo.config.js
+// Builds only the UI demo (ui-demo.html, App with mocks), independent of src/game and src/render. Output: dist-demo/
+// Usage: npx vite build --config scripts/vite.demo.config.js
 import { defineConfig } from 'vite';
 import { resolve } from 'node:path';
 

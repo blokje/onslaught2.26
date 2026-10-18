@@ -1,8 +1,8 @@
 // OnSlaught2.26 simulation core. Pure logic: no DOM, no three.js, runs in Node.
-// Interface contract: ARCHITECTURE.md section 1. Rules: SPEC.md sections 2 to 5 and 9.
+// Interface contract: ARCHITECTURE.md section 1. Rules: SPEC.md sections 2 to 6 and 9.
 //
 // ---------------------------------------------------------------------------------------------
-// COMBO MODULE HOOKS (for src/game/combos.js, written later)
+// COMBO MODULE HOOKS (for src/game/combos.js)
 //
 // game.combos = new Combos(game)   created in the Game constructor; the engine calls
 //   combos.tryFire(lead)  -> boolean   before a NORMAL shot of a combo-capable lead whose
@@ -50,7 +50,7 @@ import { RNG } from './rng.js';
 import { Emitter } from './events.js';
 import { Path } from './Path.js';
 import { SpatialGrid } from './grid.js';
-import { Turret } from './Turret.js';
+import { Turret, assignSafe } from './Turret.js';
 import { emptyMods, addMod, computeStats, nextUpgradeCost, modRangeAt, STATS } from './modifiers.js';
 import { createAttacker, moveAttackers, applyPoison } from './Attacker.js';
 import { startWave, updateSpawners } from './Waves.js';
@@ -59,6 +59,13 @@ import { updateProjectiles } from './projectiles.js';
 import { Combos } from './combos.js';
 
 export const STEP_MS = 1000 / 60;
+// Seed used when opts.seed is missing (src/game must not call Math.random). Callers that want a
+// different game each time (src/main.js) pass opts.seed themselves.
+const DEFAULT_SEED = 0x2261;
+// Save format version and sanity caps for Game.deserialize (far above anything play can reach).
+const SAVE_VERSION = 1;
+const SAVE_LIMITS = { turrets: 2000, attackers: 5000, projectiles: 20000, beams: 5000, effects: 5000, spawners: 1000 };
+const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const MAX_BEAMS = 400;
 const MAX_EFFECTS = 300;
 const DIRECTIONAL_ORDER = Object.keys(DIRECTIONAL); // D cycle order
@@ -71,7 +78,7 @@ export class Game {
     if (!map) throw new Error(`Unknown map: ${o.mapId}`);
     if (!DIFFICULTIES[o.difficulty]) o.difficulty = 'medium';
     if (!MODES[o.mode]) o.mode = 'normal';
-    if (o.seed == null) o.seed = (Math.random() * 4294967296) >>> 0;
+    if (o.seed == null) o.seed = DEFAULT_SEED;
     const diff = DIFFICULTIES[o.difficulty];
     const mode = MODES[o.mode];
     this.opts = {
@@ -217,6 +224,7 @@ export class Game {
   setPaused(p) { this.state.paused = !!p; return { ok: true }; }
   togglePause() { this.state.paused = !this.state.paused; return { ok: true, paused: this.state.paused }; }
   setWaveInterval(ms) {
+    if (!Number.isFinite(ms) || ms < 1000) return this._fail('Invalid wave interval');
     this.waveInterval = ms;
     this.opts.waveInterval = ms;
     if (this.state.nextWaveIn > ms) this.state.nextWaveIn = ms;
@@ -384,6 +392,7 @@ export class Game {
 
   // ------------------------------------------------------------------ placement
   _placementProblem(kind, x, y, excludeId = null) {
+    if (typeof x !== 'number' || !Number.isFinite(x) || typeof y !== 'number' || !Number.isFinite(y)) return 'Invalid position';
     const m = this.state.map;
     const half = TURRET_SIZE / 2;
     if (!(x >= half && x <= FIELD.width - half && y >= half && y <= FIELD.height - half)) return 'Outside the field';
@@ -402,7 +411,7 @@ export class Game {
   }
 
   canBuild(kind, x, y) {
-    const def = TURRETS[kind];
+    const def = Object.hasOwn(TURRETS, kind) ? TURRETS[kind] : null;
     const s = this.state;
     if (s.over) return { ok: false, reason: 'Game over' };
     if (!def) return { ok: false, reason: 'Unknown turret' };
@@ -418,9 +427,10 @@ export class Game {
     if (!c.ok) return this._fail(c.reason);
     const s = this.state;
     const def = TURRETS[kind];
+    const t = new Turret(this.nextId, kind, x, y); // construct first so a failure cannot cost cash
+    this.nextId++;
     s.cash -= def.cost;
     s.spent += def.cost;
-    const t = new Turret(this.nextId++, kind, x, y);
     s.turrets.push(t);
     this.turretMap.set(t.id, t);
     this._recompute();
@@ -676,7 +686,7 @@ export class Game {
   serialize() {
     const s = this.state;
     return JSON.parse(JSON.stringify({
-      version: 1,
+      version: SAVE_VERSION,
       opts: this.opts,
       rng: this.rng.s,
       nextId: this.nextId,
@@ -697,7 +707,30 @@ export class Game {
   }
 
   static deserialize(save) {
+    const bad = (why) => new Error(`Invalid save: ${why}`);
+    if (!isObj(save)) throw bad('not an object');
+    if (save.version !== SAVE_VERSION) throw bad(`unsupported version ${save.version}`);
     const d = JSON.parse(JSON.stringify(save));
+    if (!isObj(d.state)) throw bad('state missing');
+    if (d.opts != null && !isObj(d.opts)) throw bad('opts is not an object');
+    for (const [key, max] of Object.entries(SAVE_LIMITS)) {
+      if (!Array.isArray(d[key])) throw bad(`${key} is not an array`);
+      if (d[key].length > max) throw bad(`too many ${key}`);
+    }
+    for (const k of ['time', 'cash', 'lives', 'kills', 'spent', 'wave', 'nextWaveIn', 'score']) {
+      if (!Number.isFinite(d.state[k])) throw bad(`state.${k} is not a finite number`);
+    }
+    for (const k of ['nextId', 'acc', 'stepCount', 'waveInterval']) {
+      if (!Number.isFinite(d[k])) throw bad(`${k} is not a finite number`);
+    }
+    if (!Number.isFinite(d.rng)) throw bad('rng is not a finite number');
+    for (const o of d.turrets) {
+      if (!isObj(o) || typeof o.kind !== 'string' || !Object.hasOwn(TURRETS, o.kind)) throw bad('unknown turret kind');
+      if (!Number.isFinite(o.x) || !Number.isFinite(o.y) || !Number.isFinite(o.id)) throw bad('bad turret');
+    }
+    for (const key of ['attackers', 'projectiles', 'beams', 'effects']) {
+      for (const o of d[key]) if (!isObj(o)) throw bad(`${key} holds a non-object`);
+    }
     const g = new Game(d.opts);
     g.rng.s = d.rng;
     g.nextId = d.nextId;
@@ -707,7 +740,7 @@ export class Game {
     g.spawners = d.spawners;
     g.waveInterval = d.waveInterval;
     const s = g.state;
-    Object.assign(s, d.state);
+    assignSafe(s, d.state);
     for (const o of d.turrets) { const t = Turret.fromJSON(o); s.turrets.push(t); g.turretMap.set(t.id, t); }
     for (const a of d.attackers) { s.attackers.push(a); g.attackerMap.set(a.id, a); }
     s.projectiles.push(...d.projectiles);

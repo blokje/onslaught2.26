@@ -16,7 +16,9 @@ Use the `verify-in-browser` skill. Minimum: the game loads, a game starts, build
 
 ## Builds
 
-`npm run build` (dist/) and `npm run build:single` (dist-single/index.html, about 640 KB). Both must succeed.
+`npm run build` (dist/) and `npm run build:single` (dist-single/index.html, about 670 KB). Both must succeed.
+
+Optional demo builds (not part of the checks): `npx vite build --config scripts/vite.demo.config.js` (UI demo with mocks, `dist-demo/`) and `npx vite build --config scripts/vite.render-demo.config.js` (renderer demo, `dist-render-demo/`).
 
 ## Not covered by automation
 
