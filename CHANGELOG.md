@@ -5,6 +5,11 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
 
 ## Unreleased
 
+### Docs
+- New `docs/visual-design-3d.md`: a proposed visual design for a 3D version (tilted diorama camera, lit slab and
+  road channel, procedural turret and attacker meshes, combo effects, overlays as ground decals, performance budget,
+  build order). Proposal only, no code change. Docs: `docs/visual-design-3d.md`, `docs/claude/rendering.md`.
+
 ### Fixed
 - A rate change (rate upgrade, or a rate modifier built or sold nearby) during a combo recharge no longer shortens or
   lengthens it: the lead and partners now always stay quiet for exactly the recipe's recharge (Nuke 7.4 s). Normal shot

@@ -18,6 +18,10 @@ three.js 0.160.0, orthographic top-down. Contract: `ARCHITECTURE.md` section 2. 
 | `demo.ts` | Fake game (`DemoGame`) whose objects satisfy the real `TurretState`, `Attacker` and `Projectile` types, used by `/render-demo.html` via `render-demo.ts`. |
 | `context.ts` | Types only: `RenderGame` (what `setGame` accepts: a `state` and an optional `comboPartners`), `Res`, `Frame`, `Batches`, `Cells`. Add every new batch to `Batches`. |
 
+## 3D proposal
+
+`docs/visual-design-3d.md` describes a proposed 3D look (camera, lighting, meshes, effects, budget). Not built yet.
+
 ## Rules
 
 - Coordinates: world x right, y down (720 x 450). Only `camera.ts` converts to three.js space.
