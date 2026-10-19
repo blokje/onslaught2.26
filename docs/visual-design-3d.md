@@ -4,6 +4,22 @@ Status: **proposal**, nothing built yet. This describes how the game could look 
 simulation, the 720 x 450 playfield and the renderer contract (`ARCHITECTURE.md` section 2) unchanged.
 It is a design target for a future `src/render3d/` (or a 3D mode inside `src/render/`), not a rule change.
 
+## Concept renders
+
+Rough mock renders of map 1 (Classic), made with a throwaway three.js scene (`docs/img/3d/mock3d.html`, plain meshes
+rather than instanced batches, not part of the game). They show the direction, not final art.
+
+| Default view (pitch 55) | Lean-in when zoomed |
+|---|---|
+| ![default](img/3d/default.png) | ![lean](img/3d/lean.png) |
+| **Close-up: turrets, gold combo rings, selection** | **Nuke combo** |
+| ![closeup](img/3d/closeup.png) | ![combo](img/3d/combo.png) |
+| **Top-down toggle** | **Rotated 90 degrees** |
+| ![topdown](img/3d/topdown.png) | ![rotated](img/3d/rotated.png) |
+
+To re-render: serve `docs/img/3d/` with `node_modules/three` linked next to the page as `three/`, open
+`mock3d.html?shot=default` (also `lean`, `closeup`, `combo`, `topdown`, `rotated`) and screenshot once `window.READY` is true.
+
 ## 1. Concept in one line
 
 **"Circuit board diorama":** the playfield is a slab of dark sandstone with a glowing circuit etched into it, seen as a

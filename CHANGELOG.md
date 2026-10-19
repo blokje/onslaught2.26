@@ -8,7 +8,7 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
 ### Docs
 - New `docs/visual-design-3d.md`: a proposed visual design for a 3D version (tilted diorama camera, lit slab and
   road channel, procedural turret and attacker meshes, combo effects, overlays as ground decals, performance budget,
-  build order). Proposal only, no code change. Docs: `docs/visual-design-3d.md`, `docs/claude/rendering.md`.
+  build order), with six concept renders in `docs/img/3d/` from a throwaway mock scene. Proposal only, no game code change. Docs: `docs/visual-design-3d.md`, `docs/claude/rendering.md`.
 
 ### Fixed
 - A rate change (rate upgrade, or a rate modifier built or sold nearby) during a combo recharge no longer shortens or
