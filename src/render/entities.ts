@@ -17,6 +17,14 @@ export function rgb(c: string): RGB {
 
 const PIP_STATS: ['damage' | 'range' | 'rate', RGB][] = [['damage', [1, 0.45, 0.25]], ['range', [0.35, 0.85, 1]], ['rate', [0.7, 1, 0.35]]];
 
+// Upgrade ring: outer edge stays inside TURRET_SIZE / 2 so neighbours at the minimum spacing never overlap.
+const RING_W = 3;                                // tick band width
+const RING_R = TURRET_SIZE / 2 - 0.5 - RING_W / 2; // tick band centre
+const RING_ACC_W = 1;                            // inner stat-colour arc
+const RING_ACC_R = RING_R - RING_W / 2 - 0.4 - RING_ACC_W / 2;
+const RING_GAP = 1.8;                            // gap between stat segments (world units of arc)
+const RING_MIN_TICK_PX = 2.5;                    // narrower ticks merge into a solid arc
+
 /** Rendering tint for a turret kind (used for glow, rings). */
 export function turretColor(t: TurretState): RGB {
   if (t.kind === 'comboOnly' && t.comboColor && COMBO_COLOR[t.comboColor]) return rgb(COMBO_COLOR[t.comboColor]);
@@ -93,27 +101,27 @@ export function drawTurrets(R: Res, f: Frame): void {
       b.ringAdd.add(x, y, 22, 1.4, 0, 0.3, 0, 1, 1, 0.85, 0.55 + 0.25 * Math.sin(t0 * 6 + seed));
     }
 
-    // upgrade pips (3 bars: damage / range / rate as a fraction of maxLevels)
+    // upgrade ring: one segment per upgradable stat (clockwise from the top: damage, range, rate),
+    // one tick per level, yellow while the stat is below max, green at max
     if (t.levels && t.maxLevels) {
-      let row = 0, full = true, shown = 0;
-      for (const [stat] of PIP_STATS) if (t.maxLevels[stat] > 0) shown++;
+      let n = 0;
+      for (const [stat] of PIP_STATS) if (t.maxLevels[stat] > 0) n++;
+      const gap = n > 1 ? RING_GAP / (TAU * RING_R) : 0;
+      const sweep = 1 / n - gap;
+      let i = 0;
       for (const [stat, pc] of PIP_STATS) {
         const m = t.maxLevels[stat];
         if (!m) continue;
+        const start = -0.25 + i / n + gap / 2;
         const fr = clamp((t.levels[stat] || 0) / m, 0, 1);
-        if (fr < 1) full = false;
-        const py = y + 24.4 + row * 2.7;
-        b.tTop.add(x, py, 0, 17, 2.3, c.fx.whiteSolid, 0.05, 0.06, 0.08, 0.7);
-        if (fr > 0) {
-          const w = 16 * fr;
-          const gold = fr >= 1;
-          b.tTop.add(x - 8 + w / 2, py, 0, w, 1.5, c.fx.whiteSolid, gold ? 1 : pc[0], gold ? 0.85 : pc[1], gold ? 0.25 : pc[2], 1);
-        }
-        row++;
+        const ticks = (sweep * TAU * RING_R) / m / wpp >= RING_MIN_TICK_PX ? m : 0;
+        b.tRing.arc(x, y, RING_R, RING_W, start, sweep, ticks, 1, 0.12, 0.14, 0.17, 0.85);
+        if (fr >= 1) b.tRing.arc(x, y, RING_R, RING_W, start, sweep, ticks, 1, 0.55, 0.88, 0.3, 1);
+        else b.tRing.arc(x, y, RING_R, RING_W, start, sweep, ticks, fr, 1, 0.78, 0.2, 1);
+        b.tRing.arc(x, y, RING_ACC_R, RING_ACC_W, start, sweep, 0, 1, pc[0], pc[1], pc[2], 0.9);
+        i++;
       }
-      void full; void shown;
     }
-    void TURRET_SIZE; void wpp;
   }
 }
 

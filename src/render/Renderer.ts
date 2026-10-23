@@ -111,7 +111,7 @@ export class Renderer {
       tWeap: mk(new SpriteBatch(TW, 400, { order: 5 })),
       tWeapAdd: mk(new SpriteBatch(TW, 800, { additive: true, order: 5.1 })),
       tIcon: mk(new SpriteBatch(TI, 400, { order: 5.2 })),
-      tTop: mk(new SpriteBatch(FXT, 1400, { order: 5.5 })),
+      tRing: mk(new RingBatch(1600, { order: 5.4 })),
       groundRing: mk(new RingBatch(200, { order: 6 })),
       groundFx: mk(new SpriteBatch(FXT, 1200, { order: 6.2 })),
       groundFxAdd: mk(new SpriteBatch(FXT, 3000, { additive: true, order: 6.3 })),
@@ -133,8 +133,8 @@ export class Renderer {
       ovAdd: mk(new SpriteBatch(FXT, 800, { additive: true, order: 12.6 })),
     };
     this.res.b = b;
-    this.sprites = ['tGlow', 'tBase', 'tWeap', 'tWeapAdd', 'tIcon', 'tTop', 'groundFx', 'groundFxAdd', 'attSh', 'attGlow', 'att', 'attTop', 'smoke', 'proj', 'projAdd', 'beams', 'blastAdd', 'text', 'ghostBase', 'ghostWeap', 'ghostIcon', 'ovAdd'].map((n) => b[n as keyof Batches] as SpriteBatch);
-    this.rings = (['ringUnder', 'groundRing', 'ringAdd', 'ringTop'] as const).map((n) => b[n]);
+    this.sprites = ['tGlow', 'tBase', 'tWeap', 'tWeapAdd', 'tIcon', 'groundFx', 'groundFxAdd', 'attSh', 'attGlow', 'att', 'attTop', 'smoke', 'proj', 'projAdd', 'beams', 'blastAdd', 'text', 'ghostBase', 'ghostWeap', 'ghostIcon', 'ovAdd'].map((n) => b[n as keyof Batches] as SpriteBatch);
+    this.rings = (['ringUnder', 'tRing', 'groundRing', 'ringAdd', 'ringTop'] as const).map((n) => b[n]);
 
     // --- camera + input
     this.view = new CameraController(this.canvas);

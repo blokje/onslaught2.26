@@ -7,7 +7,7 @@
 import * as THREE from 'three';
 
 const SPRITE_STRIDE = 13; // x y rot | sx sy | u0 v0 u1 v1 | r g b a
-const RING_STRIDE = 11;   // x y R | width fill soft dash | r g b a
+const RING_STRIDE = 15;   // x y R | width fill soft dash | start sweep ticks clip | r g b a
 
 /** Texture rectangle of one sprite (texture coords; v0 = top row of the canvas). */
 export interface Cell { u0: number; v0: number; u1: number; v1: number }
@@ -52,19 +52,19 @@ void main() {
 }`;
 
 const RING_VERT = /* glsl */ `
-attribute vec3 aPR; attribute vec4 aW; attribute vec4 aCol;
+attribute vec3 aPR; attribute vec4 aW; attribute vec4 aArc; attribute vec4 aCol;
 uniform float uWpp;
-varying vec2 vLocal; varying vec3 vPR; varying vec4 vW; varying vec4 vCol;
+varying vec2 vLocal; varying vec3 vPR; varying vec4 vW; varying vec4 vArc; varying vec4 vCol;
 void main() {
   float h = aPR.z + aW.x * 0.5 + uWpp * 2.0;
   vec2 l = position.xy * 2.0 * h;
-  vLocal = l; vPR = aPR; vW = aW; vCol = aCol;
+  vLocal = l; vPR = aPR; vW = aW; vArc = aArc; vCol = aCol;
   gl_Position = projectionMatrix * viewMatrix * vec4(aPR.x + l.x, -(aPR.y + l.y), 0.0, 1.0);
 }`;
 
 const RING_FRAG = /* glsl */ `
 uniform float uWpp; uniform float uTime;
-varying vec2 vLocal; varying vec3 vPR; varying vec4 vW; varying vec4 vCol;
+varying vec2 vLocal; varying vec3 vPR; varying vec4 vW; varying vec4 vArc; varying vec4 vCol;
 void main() {
   float R = vPR.z;
   float r = length(vLocal);
@@ -76,6 +76,22 @@ void main() {
     float ang = atan(vLocal.y, vLocal.x) / 6.2831853;
     float m = fract(ang * vW.w + uTime * 0.08);
     line *= smoothstep(0.0, 0.06, m) * (1.0 - smoothstep(0.5, 0.56, m));
+  }
+  if (vArc.y > 0.0) {
+    // arc: s = arc length clockwise (on screen) from start; keep [0, sweep * clip], AA in world units
+    float circ = 6.2831853 * R;
+    float s = fract(atan(vLocal.y, vLocal.x) / 6.2831853 - vArc.x) * circ;
+    float len = vArc.y * circ;
+    float end = len * vArc.w;
+    float sd = s <= end ? -min(s, end - s) : min(s - end, circ - s);
+    line *= 1.0 - smoothstep(-aa * 0.5, aa * 0.5, sd);
+    if (vArc.z > 0.5) {
+      // ticks: sweep split into vArc.z equal ticks with a fixed world-unit gap
+      float tl = len / vArc.z;
+      float m = mod(s, tl);
+      float e = min(m - 0.45, tl - 0.45 - m);
+      line *= smoothstep(-aa * 0.5, aa * 0.5, e);
+    }
   }
   float fillM = (1.0 - smoothstep(R - aa, R + aa, r)) * vW.y;
   float a = line + fillM * (1.0 - line);
@@ -147,7 +163,7 @@ export class RingBatch {
   constructor(capacity: number, { additive = false, order = 0 }: BatchOptions = {}) {
     this.capacity = capacity;
     this.count = 0;
-    const { geometry, data, buf } = makeGeometry(RING_STRIDE, capacity, [['aPR', 3], ['aW', 4], ['aCol', 4]]);
+    const { geometry, data, buf } = makeGeometry(RING_STRIDE, capacity, [['aPR', 3], ['aW', 4], ['aArc', 4], ['aCol', 4]]);
     this.geometry = geometry; this.data = data; this.buf = buf;
     this.uniforms = { uWpp: { value: 1 }, uTime: { value: 0 } };
     this.material = new THREE.ShaderMaterial(baseMaterial(additive, {
@@ -166,6 +182,18 @@ export class RingBatch {
     let o = this.count++ * RING_STRIDE;
     d[o++] = x; d[o++] = y; d[o++] = R;
     d[o++] = width; d[o++] = fill; d[o++] = soft; d[o++] = dash;
+    d[o++] = 0; d[o++] = 0; d[o++] = 0; d[o++] = 1;
+    d[o++] = r; d[o++] = g; d[o++] = b; d[o] = a;
+  }
+  /** Partial ring. start: circle fraction (0 = right, 0.25 = down, clockwise on screen). sweep: 0..1 of the circle.
+   *  ticks: equal ticks with a small gap (0 = solid). clip: 0..1 of the sweep that is drawn (fill level). */
+  arc(x: number, y: number, R: number, width: number, start: number, sweep: number, ticks: number, clip: number, r: number, g: number, b: number, a: number): void {
+    if (this.count >= this.capacity || sweep <= 0 || clip <= 0) return;
+    const d = this.data;
+    let o = this.count++ * RING_STRIDE;
+    d[o++] = x; d[o++] = y; d[o++] = R;
+    d[o++] = width; d[o++] = 0; d[o++] = 0; d[o++] = 0;
+    d[o++] = start; d[o++] = Math.min(sweep, 1); d[o++] = ticks; d[o++] = Math.min(clip, 1);
     d[o++] = r; d[o++] = g; d[o++] = b; d[o] = a;
   }
   end(): void {

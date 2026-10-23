@@ -13,6 +13,12 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
   No gameplay change. Docs: `docs/claude/testing.md`, `docs/claude/gotchas.md`.
 
 ### Changed
+- Upgrade progress on the map is now a ring around each turret instead of 3 bars below it: one segment per upgradable
+  stat (clockwise from the top: damage, range, rate; a single stat fills the whole circle), one tick per level, yellow
+  while the stat is below max and green at max, with a thin inner arc in the stat colour. The ring stays inside
+  `TURRET_SIZE / 2`, so neighbouring turrets never overlap; zoomed far out the ticks merge into a solid arc.
+  `RingBatch` gained `arc()` (partial, ticked rings); the `tTop` batch was replaced by `tRing`. No gameplay change.
+  Docs: `docs/claude/rendering.md`, `docs/claude/gotchas.md`.
 - The codebase is now TypeScript with `strict` on (was plain JavaScript): every `src/` file, the test scripts and the
   Vite configs are `.ts`. Shared contract types live in the new `src/types.ts`; `npm run typecheck` runs `tsc`, and
   `npm run build` / `build:single` type-check first. The tests still run without a build step (`node scripts/sim-test.ts`,
