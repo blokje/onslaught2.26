@@ -26,6 +26,17 @@ three.js 0.160.0, orthographic top-down. Contract: `ARCHITECTURE.md` section 2. 
 - Never consume left-button or single-touch events: those belong to the UI.
 - DPR is capped at 2. Antialiasing is off because edges are shader or texture antialiased.
 
+## Upgrade ring
+
+Every upgradable turret has a ring around it (`drawTurrets` in `entities.ts`, `RingBatch` `tRing` at order 5.4, capacity 1600), replacing the old 3 bars and their `tTop` sprite batch:
+
+- One segment per stat with `maxLevels > 0`, clockwise from the top in Q/W/E order (damage, range, rate). One stat (modifiers, Targeter) = a full circle; three stats = three equal thirds with a small gap.
+- Each segment has one tick per level. Bought ticks are yellow, all ticks of a stat turn green once that stat is maxed, unbought ticks are dark grey. Level 0 shows an empty grey ring; turrets without upgrades (Combo-only) have no ring.
+- A thin inner arc in the stat colour (orange damage, cyan range, lime rate) says which segment is which.
+- The outer edge stays inside `TURRET_SIZE / 2`, so the rings of two turrets at the minimum spacing never overlap.
+- Zoomed far out (a tick narrower than about 2.5 screen pixels) the ticks merge into a continuous arc.
+- Drawn with `RingBatch.arc()` (start, sweep, ticks, clip; `add()` still draws full rings), at most 9 instances per turret: a grey track, the filled ticks (`clip = level / max`) and the stat-colour arc per stat. Sizes are the `RING_*` constants at the top of `entities.ts`.
+
 ## Demo
 
 `npm run dev`, then open `/render-demo.html` (`?map=0` to `?map=9`). Keys: R ranges, C combo, G ghost (Tab cycles kind), J join line, P pause, 1 to 4 set the speed to 1x/2x/4x/8x (5 to 8 repeat the same cycle), X stress test, M next map, 0 reset view, F hide the HUD.

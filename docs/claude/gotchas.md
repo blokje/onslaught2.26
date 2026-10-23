@@ -24,6 +24,7 @@
 - **The Combos tab countdown is the earliest possible time.** `comboPreview` waits on `cd` and `comboNext` only; a lead also needs a target, and partners that shoot normal shots reset their `cd`, so a combo can come later than shown.
 - **Turret panel panes are hidden with the `off` class, not `show()`.** An inline `style.display` would override `.os-side.collapsed .os-side-body { display: none }`.
 - **Paused games refuse `sendWave()`.** Spawners only run inside `step()`, so a wave started while paused would pay the bonus and spawn nothing.
+- **The upgrade ring radius is tied to `TURRET_SIZE / 2`.** Turrets may stand `TURRET_SIZE` apart, so a larger ring would overlap its neighbour. Draw other always-on turret decorations inside that radius too.
 - **The `fx.beam` atlas cell is mostly transparent.** It is a soft gradient meant for additive batches. Thin lines in a normal-blend batch (`groundFx`, the firing cone) need `fx.whiteSolid`, and additive lines wash out on the light terrain.
 - **TypeScript runs unbuilt in Node.** The tests import `src/` directly and Node strips the types, so only erasable syntax works:
   no `enum`, `namespace` or constructor parameter properties (`erasableSyntaxOnly` enforces it), relative imports carry the

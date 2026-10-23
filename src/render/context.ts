@@ -27,7 +27,7 @@ export interface Cells {
 /** The ~25 instanced batches, in draw order (see Renderer). */
 export interface Batches {
   ringUnder: RingBatch;
-  tGlow: SpriteBatch; tBase: SpriteBatch; tWeap: SpriteBatch; tWeapAdd: SpriteBatch; tIcon: SpriteBatch; tTop: SpriteBatch;
+  tGlow: SpriteBatch; tBase: SpriteBatch; tWeap: SpriteBatch; tWeapAdd: SpriteBatch; tIcon: SpriteBatch; tRing: RingBatch;
   groundRing: RingBatch;
   groundFx: SpriteBatch; groundFxAdd: SpriteBatch;
   attSh: SpriteBatch; attGlow: SpriteBatch; att: SpriteBatch; attTop: SpriteBatch;
