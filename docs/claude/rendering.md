@@ -26,6 +26,14 @@ three.js 0.160.0, orthographic top-down. Contract: `ARCHITECTURE.md` section 2. 
 - Never consume left-button or single-touch events: those belong to the UI.
 - DPR is capped at 2. Antialiasing is off because edges are shader or texture antialiased.
 
+## Reduce motion (accessibility)
+
+`renderer.setOptions({ reduceMotion })` stores the flag in `R.opts`. When on: the combo halo stays at a steady alpha,
+the freak-out warning tints instead of blinking, a freaking-out turret gets a steady glow instead of jitter and shimmer
+copies (`drawTurrets`), and blasts keep a dimmer white core (35%), skip the star flash and spawn half the debris
+(`drawEffects`). There is no full-screen flash anywhere, keep it that way. Any new blinking, pulsing or shaking effect
+must check `R.opts.reduceMotion`.
+
 ## Colour symbols (accessibility)
 
 Combo colours are also shapes: red triangle, green circle, blue square, yellow diamond (`COLOR_SHAPES` in `atlas.ts`, the

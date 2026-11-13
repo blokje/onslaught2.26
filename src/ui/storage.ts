@@ -25,6 +25,8 @@ export interface Settings {
   /** UI size factor (UI_SCALE range). */
   uiScale: number;
   highContrast: boolean;
+  /** No blinking, pulsing, jitter or bright flashes. */
+  reduceMotion: boolean;
   infoCollapsed: boolean;
   panelPos: PanelPos | null;
   /** Rebound keys (action -> KeyboardEvent.code); actions not listed use the default in keymap.ts. */
@@ -81,6 +83,7 @@ export const DEFAULT_SETTINGS: Settings = {
   colorSymbols: true,   // accessibility: shape badge of the combo colour on every turret on the map
   uiScale: 1,           // accessibility: UI size factor, UI_SCALE.min to UI_SCALE.max
   highContrast: false,  // accessibility: solid panels, brighter secondary text, stronger outlines
+  reduceMotion: false,  // accessibility: calm UI and map; when never saved, getSettings() follows prefers-reduced-motion
   infoCollapsed: false,
   panelPos: null,       // turret panel { x, y } in px from the HUD's top-left, null = default dock
   keys: {},             // rebound keys: { action: KeyboardEvent.code }, only the ones that differ from src/ui/keymap.ts
@@ -95,6 +98,11 @@ export const UI_SCALE = { min: 0.8, max: 1.6, step: 0.1 };
 export function clampScale(v: unknown): number {
   if (typeof v !== 'number' || !Number.isFinite(v)) return 1;
   return Math.round(Math.min(UI_SCALE.max, Math.max(UI_SCALE.min, v)) * 10) / 10;
+}
+
+/** The OS/browser asks for less motion (false where matchMedia is missing, e.g. in Node). */
+function prefersReducedMotion(): boolean {
+  try { return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; }
 }
 
 /** Stored settings merged over the defaults; values of the wrong type are dropped. */
@@ -112,6 +120,7 @@ export function getSettings(): Settings {
     } else if (typeof v === typeof d && (typeof d !== 'number' || Number.isFinite(v))) out[k] = v;
   }
   out.uiScale = clampScale(out.uiScale);
+  if (typeof src.reduceMotion !== 'boolean') out.reduceMotion = prefersReducedMotion(); // first start: follow the OS
   return out as unknown as Settings; // every key was checked against the type of its default
 }
 

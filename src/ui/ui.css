@@ -238,6 +238,12 @@
 .os-root.os-hc .os-panel, .os-root.os-hc .os-modal { border-width: 2px; }
 .os-root.os-hc .os-btn { border-color: rgba(255, 210, 122, 0.75); }
 .os-root.os-hc .os-btn.is-on, .os-root.os-hc .os-tab.is-on { outline: 2px solid #fff; outline-offset: 1px; }
+/* reduce motion (Settings > Reduce motion and flashes): no pulsing or spinning, a soft leak cue, toasts only fade */
+.os-root.os-rm .os-stat.low .os-stat-v, .os-root.os-rm .os-chip.hot, .os-root.os-rm .os-keybtn.is-on, .os-root.os-rm .os-rotate svg { animation: none; }
+.os-root.os-rm .os-leak { box-shadow: inset 0 0 0 0.35em rgba(255, 70, 50, 0.7); }
+.os-root.os-rm .os-leak.show { animation: os-leak 1.2s ease-out; }
+.os-root.os-rm .os-toast { animation-name: os-fade; }
+.os-root.os-rm .os-err.show { animation-name: os-fade; }
 .os-set-h { margin: 0.9em 0 0.1em; font-size: 0.95em; color: var(--amber-hi); letter-spacing: 0.04em; }
 .os-field { display: flex; align-items: center; justify-content: space-between; gap: 1em; padding: 0.35em 0; border-bottom: 1px dashed rgba(255, 255, 255, 0.08); }
 .os-field label, .os-field .os-lab { font-weight: 600; }

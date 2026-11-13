@@ -264,17 +264,19 @@ export class App {
     if ('volume' in patch) this.audio.setVolume(this.settings.volume);
     if ('muted' in patch) this.audio.setMuted(this.settings.muted);
     if ('showFps' in patch) this.applyFps();
-    if ('uiScale' in patch || 'highContrast' in patch) this.applyLook();
+    if ('uiScale' in patch || 'highContrast' in patch || 'reduceMotion' in patch) this.applyLook();
     if ('keys' in patch) this.applyKeys();
     if ('colorSymbols' in patch) this.overlayDirty = true;
     if ('unlockAll' in patch || 'waveInterval' in patch) this.menu.refresh();
   }
 
-  /** Accessibility look on the UI root: --ui-scale, high contrast (os-hc). */
+  /** Accessibility look: --ui-scale, high contrast (os-hc), reduce motion (os-rm and the renderer option). */
   applyLook(): void {
     const sc = clampScale(this.settings.uiScale);
     this.root.style.setProperty('--ui-scale', String(sc));
     this.root.classList.toggle('os-hc', !!this.settings.highContrast);
+    this.root.classList.toggle('os-rm', !!this.settings.reduceMotion);
+    try { this.renderer.setOptions?.({ reduceMotion: !!this.settings.reduceMotion }); } catch (e) { console.error(e); }
     this.hud.applyPanelPos(); // the panel size changed with the scale; keep it on screen
   }
 

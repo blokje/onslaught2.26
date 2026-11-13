@@ -1,6 +1,6 @@
 // Types shared by the renderer modules (types only, no runtime code).
 
-import type { GameState, Overlay, TurretState, Effect } from '../types.ts';
+import type { GameState, Overlay, TurretState, Effect, RenderOptions } from '../types.ts';
 import type { SpriteBatch, RingBatch, Cell } from './batches.ts';
 import type { Particles } from './particles.ts';
 import type { TextAtlas } from './atlas.ts';
@@ -51,6 +51,7 @@ export interface Res {
   game: RenderGame | null;
   trailSeen: Map<number, { x: number; y: number; s: number }>; // projectile id -> last trail point + frame stamp
   fxSeen: Map<number, number>;                                  // effect id -> frame stamp
+  opts: RenderOptions;                                          // renderer.setOptions (reduceMotion)
 }
 
 /** Per-frame values shared by the draw functions. */

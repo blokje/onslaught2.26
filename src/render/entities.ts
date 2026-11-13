@@ -45,6 +45,7 @@ export function rangeOf(t: TurretState): number {
 export function drawTurrets(R: Res, f: Frame): void {
   const { b, c } = R, t0 = f.t;
   const wpp = f.wpp;
+  const calm = R.opts.reduceMotion; // accessibility: no blinking, jitter or pulsing
   for (const t of f.state.turrets) {
     const idx = KIND_INDEX[t.kind];
     if (idx === undefined) continue;
@@ -56,13 +57,13 @@ export function drawTurrets(R: Res, f: Frame): void {
 
     // halo when a combo is possible
     if (t.comboCapable) {
-      const a = 0.26 + 0.1 * Math.sin(t0 * 2.2 + seed);
+      const a = calm ? 0.3 : 0.26 + 0.1 * Math.sin(t0 * 2.2 + seed);
       b.tGlow.add(x, y, 0, 74, 74, c.fx.glow, col[0], col[1], col[2], a);
     }
 
     // base plate (tinted red and flashing during the freak-out warning)
     let br = 1, bg = 1, bb = 1;
-    if (t.freak === 'warn') { const fl = 0.5 + 0.5 * Math.sin(t0 * 16); bg = bb = 1 - 0.55 * fl; }
+    if (t.freak === 'warn') { const fl = calm ? 0.6 : 0.5 + 0.5 * Math.sin(t0 * 16); bg = bb = 1 - 0.55 * fl; }
     b.tBase.add(x, y, 0, 64, 64, c.tb[idx], br, bg, bb, 1);
 
     // weapon
@@ -71,9 +72,11 @@ export function drawTurrets(R: Res, f: Frame): void {
     else if (t.kind === 'comboOnly') rot = t0 * 0.4 + seed;
     let wr = 1, wg = 1, wb = 1;
     if (t.kind === 'comboOnly') { wr = col[0]; wg = col[1]; wb = col[2]; }
-    if (t.freak === 'warn') { const fl = 0.5 + 0.5 * Math.sin(t0 * 16); wg = wb = 1 - 0.45 * fl; }
+    if (t.freak === 'warn') { const fl = calm ? 0.6 : 0.5 + 0.5 * Math.sin(t0 * 16); wg = wb = 1 - 0.45 * fl; }
     let jx = 0, jy = 0;
-    if (t.freak === 'on') { // heat jitter + shimmer copies + glow
+    if (t.freak === 'on' && calm) { // steady glow instead of jitter and shimmer
+      b.tGlow.add(x, y, 0, 92, 92, c.fx.glow, 1, 0.45, 0.1, 0.38);
+    } else if (t.freak === 'on') { // heat jitter + shimmer copies + glow
       jx = (Math.random() - 0.5) * 1.3; jy = (Math.random() - 0.5) * 1.3;
       const fl = 0.8 + 0.2 * Math.random();
       b.tGlow.add(x, y, 0, 92, 92, c.fx.glow, 1, 0.45, 0.1, 0.42 * fl);

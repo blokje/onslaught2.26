@@ -103,8 +103,9 @@ export function drawEffects(R: Res, f: Frame): void {
         const big = r0 > 70;
         b.blastAdd.add(x, y, 0, r0 * 2.1 * (0.5 + 0.7 * easeOut(u)), r0 * 2.1 * (0.5 + 0.7 * easeOut(u)), c.fx.glow, 1, 0.72, 0.3, 0.9 * Math.pow(a, 1.6));
         const cs = r0 * 1.25 * (1 - u * 0.6);
-        b.blastAdd.add(x, y, 0, cs, cs, c.fx.glow, 1, 0.96, 0.82, Math.pow(a, 3));
-        if (u < 0.28) b.blastAdd.add(x, y, u * 3, r0 * 1.9, r0 * 1.9, c.fx.star, 1, 0.9, 0.6, (1 - u / 0.28) * 0.8);
+        const calm = R.opts.reduceMotion; // accessibility: dimmer white core, no star flash, half the debris
+        b.blastAdd.add(x, y, 0, cs, cs, c.fx.glow, 1, 0.96, 0.82, Math.pow(a, 3) * (calm ? 0.35 : 1));
+        if (u < 0.28 && !calm) b.blastAdd.add(x, y, u * 3, r0 * 1.9, r0 * 1.9, c.fx.star, 1, 0.9, 0.6, (1 - u / 0.28) * 0.8);
         b.ringAdd.add(x, y, r0 * easeOut(u, 2.6), Math.max(1.5, r0 * 0.16 * a), 0, 0.65, 0, 1, 0.62, 0.22, 0.9 * Math.pow(a, 1.3));
         if (big) b.ringAdd.add(x, y, r0 * 0.8 * easeOut(u, 3.4), Math.max(1, r0 * 0.07 * a), 0, 0.4, 0, 1, 0.95, 0.75, 0.7 * a);
         if (u > 0.12) { // dark smoke bloom
@@ -112,7 +113,7 @@ export function drawEffects(R: Res, f: Frame): void {
           b.smoke.add(x, y, u, ss, ss, c.fx.puff, 0.22, 0.19, 0.17, 0.4 * Math.min(1, (u - 0.12) * 5) * a);
         }
         if (first) { // debris + smoke puffs
-          const n = clamp(Math.round(r0 / 3.5), 8, 44);
+          const n = Math.round(clamp(Math.round(r0 / 3.5), 8, 44) * (R.opts.reduceMotion ? 0.5 : 1));
           for (let i = 0; i < n; i++) {
             const ang = Math.random() * TAU, sp = 40 + Math.random() * r0 * 2.2;
             particles.spawn(1, x, y, Math.cos(ang) * sp, Math.sin(ang) * sp, 320 + Math.random() * 450, 4 + r0 * 0.05, 0.8, 1, 0.65 + Math.random() * 0.3, 0.25, 0.9, 2.6);

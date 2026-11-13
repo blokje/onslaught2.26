@@ -17,6 +17,12 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
   The docked turret panel now starts below the measured top bar, which wraps at large sizes; before it covered the speed
   and pause buttons there. Checked in Chromium at 1024x640 and 1920x1080 with both ends of the scale (nothing off
   screen, no console errors). Docs: `ARCHITECTURE.md`, `docs/claude/ui.md`, `docs/claude/gotchas.md`.
+- Reduce motion and flashes (setting `reduceMotion`, starts on when the system asks for less motion): no pulsing,
+  blinking or spinning in the UI, a calm leak cue, and on the map no freak-out jitter or blinking, a steady combo halo
+  and dimmer blasts with less debris. New optional `renderer.setOptions({ reduceMotion })` and type `RenderOptions`.
+  New sim-test checks (acc). Checked in Chromium with emulated `prefers-reduced-motion` (class set, no infinite
+  animations, calm leak cue, no console errors); the calmer blasts were checked by code review and type check only.
+  Docs: `ARCHITECTURE.md`, `docs/claude/rendering.md`, `docs/claude/ui.md`, `docs/claude/gotchas.md`, `docs/claude/testing.md`.
 
 ### Added (2026 roadmap, phase 1: player information)
 - Incoming-wave preview in the top bar: "Wave N" with the HP and bounty of each attacker in the next wave, and a

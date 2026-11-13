@@ -18,7 +18,7 @@ import { Particles } from './particles.ts';
 import { drawTurrets, drawAttackers, drawProjectiles } from './entities.ts';
 import { drawBeams, drawEffects, drawOverlay } from './fxlayer.ts';
 import { clamp } from './util.ts';
-import type { Overlay, ViewInsets } from '../types.ts';
+import type { Overlay, ViewInsets, RenderOptions } from '../types.ts';
 import type { RenderGame, Res, Batches, Frame, FxCells } from './context.ts';
 import type { TurretState, Effect } from '../types.ts';
 
@@ -101,6 +101,7 @@ export class Renderer {
       game: null,
       trailSeen: new Map(),
       fxSeen: new Map(),
+      opts: { reduceMotion: false },
     };
     const mk = <T extends SpriteBatch | RingBatch>(batch: T): T => { this.scene.add(batch.mesh); return batch; };
     const FXT = fxA.texture, UT = unitA.texture, TB = turA.base, TW = turA.weapon, TI = turA.icon, TT = this.text.texture;
@@ -166,6 +167,9 @@ export class Renderer {
 
   screenToWorld(clientX: number, clientY: number): { x: number; y: number } { return this.view.screenToWorld(clientX, clientY); }
   worldToScreen(x: number, y: number): { x: number; y: number } { return this.view.worldToScreen(x, y); }
+
+  /** Presentation options (accessibility); partial objects merge. Never touches game state. */
+  setOptions(o: Partial<RenderOptions>): void { Object.assign(this.res.opts, o); }
 
   /** Merge overlay settings (full or partial objects both work). */
   setOverlay(o?: Partial<Overlay> | null): void { Object.assign(this.overlay, o || {}); }

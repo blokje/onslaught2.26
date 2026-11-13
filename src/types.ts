@@ -291,4 +291,10 @@ export interface Overlay {
   colorSymbols?: boolean;
 }
 
+/** Presentation options (renderer.setOptions). */
+export interface RenderOptions {
+  /** Accessibility: no jitter or blinking, dimmer and shorter blast flashes, fewer debris particles. */
+  reduceMotion: boolean;
+}
+
 export interface ViewInsets { top: number; right: number; bottom: number; left: number }

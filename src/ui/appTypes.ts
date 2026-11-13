@@ -4,7 +4,7 @@
 // argument types (for example a TurretKind union) still fits.
 import type {
   GameState, GameOptions, GameEvents, GameEventName, Result, ComboPreview, Overlay,
-  Stat, TargetMode, DirectionalMode, KeyColor, WavePreview, UpgradePreview,
+  Stat, TargetMode, DirectionalMode, KeyColor, WavePreview, UpgradePreview, RenderOptions,
 } from '../types.ts';
 
 export type CommandResult = Result<{ id?: number; refund?: number; levels?: number }>;
@@ -48,6 +48,8 @@ export interface AppRenderer {
   setOverlay(overlay: Overlay): void;
   screenToWorld(clientX: number, clientY: number): { x: number; y: number };
   render(realDtMs?: number): void;
+  /** Optional: presentation options (the mock renderer has none). */
+  setOptions?(o: Partial<RenderOptions>): void;
 }
 
 export interface AppOptions {

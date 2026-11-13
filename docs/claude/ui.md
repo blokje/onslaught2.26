@@ -43,6 +43,10 @@ DOM overlay over the canvas, input, persistence and audio. Contract: `ARCHITECTU
   sets `--ui-scale` on `.os-root`, and `--u` (the size everything is built on) is multiplied by it.
 - High contrast (`highContrast`): class `os-hc` on `.os-root` (near-solid panels, brighter `--ink-dim`, 2 px borders,
   white outline on active buttons and tabs).
+- Reduce motion and flashes (`reduceMotion`): on the first start (no stored value) `getSettings()` follows
+  `prefers-reduced-motion`. `App.applyLook()` toggles `os-rm` on `.os-root` and calls `renderer.setOptions` (optional on
+  `AppRenderer`, the mock has none). CSS under `.os-rm`: no infinite pulses or the rotate spin, the leak cue is a thin red
+  frame instead of the big red glow, toasts and error bubbles only fade.
 - The docked turret panel starts below the top bar's measured height (`--top-h` on the HUD, kept current by a
   ResizeObserver), because the top bar wraps to two or three rows at a large scale or in a narrow window.
 
