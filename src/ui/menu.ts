@@ -5,6 +5,9 @@ import { DIFFICULTIES, MODES } from '../data/rules.ts';
 import { LOCK_SVG } from './icons.ts';
 import * as storage from './storage.ts';
 import type { App } from './App.ts';
+
+/** Columns of the map grid (6 x 3, see .os-maps in ui.css). */
+const MAP_COLS = 6;
 import type { MapDef } from '../types.ts';
 
 const FIELD_W = 720;
@@ -97,6 +100,16 @@ export class Menu {
       this.mapBtns.set(m.id, b);
       maps.append(b);
     });
+    // arrow keys move between maps (the grid has MAP_COLS columns); Enter or Space picks one
+    maps.addEventListener('keydown', (e) => {
+      const step = ({ ArrowLeft: -1, ArrowRight: 1, ArrowUp: -MAP_COLS, ArrowDown: MAP_COLS } as Record<string, number>)[e.key];
+      if (!step) return;
+      const list = [...this.mapBtns.values()];
+      const i = list.indexOf(document.activeElement as HTMLButtonElement);
+      if (i < 0) return;
+      e.preventDefault();
+      list[Math.max(0, Math.min(list.length - 1, i + step))].focus();
+    });
 
     const diff = h('div', { class: 'os-seg' });
     for (const [id, d] of Object.entries(DIFFICULTIES)) {
@@ -157,7 +170,7 @@ export class Menu {
     const app = this.app;
     if (!app.isDifficultyUnlocked(this.sel.difficulty)) this.sel.difficulty = 'medium';
     if (!app.isModeUnlocked(this.sel.mode)) this.sel.mode = 'normal';
-    for (const [id, b] of this.mapBtns) b.classList.toggle('sel', id === this.sel.mapId);
+    for (const [id, b] of this.mapBtns) { b.classList.toggle('sel', id === this.sel.mapId); b.setAttribute('aria-pressed', String(id === this.sel.mapId)); }
     for (const [id, b] of this.diffBtns) {
       b.classList.toggle('is-on', id === this.sel.difficulty);
       b.classList.toggle('locked', !app.isDifficultyUnlocked(id));

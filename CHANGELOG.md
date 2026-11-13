@@ -27,6 +27,12 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
   The audio engine now has two buses before the compressor. New sim-test checks (acc). Checked in Chromium (sliders store
   their values, no console errors); the sound itself could not be listened to here.
   Docs: `ARCHITECTURE.md`, `docs/claude/ui.md`, `docs/claude/testing.md`.
+- Keyboard and screen-reader support in menus and dialogs: dialogs are real `role="dialog"` elements that take focus,
+  keep Tab inside and return focus on close; arrow keys move through the map grid; a visible focus ring; labelled icon
+  buttons and tab panels; a polite live region announces log lines, toasts, wave starts and leaks (at most once per
+  second). Checked in Chromium (keyboard-only map choice, focus trap and return, ARIA snapshot, live region, earlier
+  checks for the Controls dialog and undo still pass, no console errors). Not checked with a real screen reader.
+  Docs: `SPEC.md` §8, `docs/claude/ui.md`, `docs/claude/gotchas.md`, `docs/claude/testing.md`.
 
 ### Added (2026 roadmap, phase 1: player information)
 - Incoming-wave preview in the top bar: "Wave N" with the HP and bounty of each attacker in the next wave, and a

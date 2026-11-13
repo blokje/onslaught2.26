@@ -58,6 +58,19 @@ export interface RunReport {
 export interface ScoreHighlight { mapId: string; difficulty: string; mode: string; rank: number }
 type GhostState = Overlay['ghost'];
 
+let modalSeq = 0;
+
+/** Keep Tab and Shift+Tab inside an open dialog (wraps around). */
+function trapTab(e: KeyboardEvent, box: HTMLElement): void {
+  if (e.key !== 'Tab') return;
+  const items = [...box.querySelectorAll<HTMLElement>('button, input, select, textarea, [tabindex]')]
+    .filter((el) => el.tabIndex >= 0 && !(el as HTMLButtonElement).disabled && el.offsetParent !== null);
+  if (!items.length) { e.preventDefault(); return; }
+  const first = items[0], last = items[items.length - 1], at = document.activeElement;
+  if (e.shiftKey && (at === first || at === box)) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && (at === last || !box.contains(at))) { e.preventDefault(); first.focus(); }
+}
+
 /** Report data from the final game state (history, totals, top 5 turrets by damage). */
 export function buildReportData(s: GameState): RunReport {
   const top = s.turrets
@@ -192,6 +205,9 @@ export class App {
 
   openModal(title: string, content: Node, o: ModalOptions = {}): ModalHandle {
     const dismissable = o.dismissable !== false;
+    const titleId = 'os-dlg-' + (++modalSeq);
+    // keyboard focus returns here when the dialog closes (only if it was a real, tabbable control)
+    const prev = document.activeElement instanceof HTMLElement && document.activeElement.tabIndex >= 0 ? document.activeElement : null;
     const layer = h('div', { class: 'os-modal-layer' });
     const handle: ModalHandle = {
       el: layer, dismissable, onClose: o.onClose || null,
@@ -202,21 +218,25 @@ export class App {
         layer.remove();
         if (handle.onClose) handle.onClose();
         this.hudDirty = true;
+        if (prev && prev.isConnected) prev.focus();
       },
     };
-    const closeBtn = dismissable ? h('button', { class: 'os-iconbtn', type: 'button', title: 'Close (Esc)', onclick: () => handle.close() }, '×') : null;
+    const closeBtn = dismissable ? h('button', { class: 'os-iconbtn', type: 'button', title: 'Close (Esc)', 'aria-label': 'Close', onclick: () => handle.close() }, '×') : null;
     const foot = o.buttons ? h('div', { class: 'os-modal-foot' }, ...o.buttons.map((b) => {
       const el = h('button', { class: 'os-btn ' + (b.cls || ''), type: 'button' }, b.label);
       el.addEventListener('click', () => b.onClick(handle, el));
       return el;
     })) : null;
-    layer.append(h('div', { class: 'os-modal ' + (o.cls || '') },
-      h('div', { class: 'os-modal-head' }, h('h2', null, title), closeBtn),
-      h('div', { class: 'os-modal-body' }, content), foot));
+    // a dialog for screen readers; the box itself takes focus (not a button, so a stray Space or Enter does nothing)
+    const box = h('div', { class: 'os-modal ' + (o.cls || ''), role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': titleId, tabindex: -1 },
+      h('div', { class: 'os-modal-head' }, h('h2', { id: titleId }, title), closeBtn),
+      h('div', { class: 'os-modal-body' }, content), foot);
+    layer.append(box);
+    layer.addEventListener('keydown', (e) => trapTab(e, box));
     if (dismissable) layer.addEventListener('pointerdown', (e) => { if (e.target === layer) handle.close(); });
     this.root.append(layer);
     this.modals.push(handle);
-    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    box.focus({ preventScroll: true });
     return handle;
   }
 
@@ -418,8 +438,8 @@ export class App {
       case 'kill': a.play('kill'); break;
       case 'blast': a.play('blast_' + (BLAST_SOUND[p.size as string | number] || 'small')); break;
       case 'combo': a.play('combo'); this.hud.toast('Combo: ' + (p.name || 'Combo') + '!', 'combo'); break;
-      case 'wave': a.play('horn'); this.checkUnlocks(p.wave != null ? p.wave : this.game!.state.wave); break;
-      case 'leak': a.play('alarm'); this.hud.flashLeak(); break;
+      case 'wave': a.play('horn'); this.hud.announce('Wave ' + (p.wave ?? '') + ' started'); this.checkUnlocks(p.wave != null ? p.wave : this.game!.state.wave); break;
+      case 'leak': a.play('alarm'); this.hud.flashLeak(); this.hud.announce('Leak! ' + (p.lives ?? '') + ' lives left'); break;
       case 'build': a.play('build'); break;
       case 'sell': a.play('sell'); if (p.refund != null) this.hud.addLog('Sold for ' + formatCash(p.refund)); break;
       case 'upgrade': a.play('upgrade'); break;

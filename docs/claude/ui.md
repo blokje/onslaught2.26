@@ -49,6 +49,15 @@ DOM overlay over the canvas, input, persistence and audio. Contract: `ARCHITECTU
   `prefers-reduced-motion`. `App.applyLook()` toggles `os-rm` on `.os-root` and calls `renderer.setOptions` (optional on
   `AppRenderer`, the mock has none). CSS under `.os-rm`: no infinite pulses or the rotate spin, the leak cue is a thin red
   frame instead of the big red glow, toasts and error bubbles only fade.
+- Keyboard and screen readers. Menus and dialogs work with Tab, Shift+Tab, Enter and Space; in-game HUD buttons keep
+  `tabindex: -1` so Space and Enter stay game keys. `App.openModal` makes the box a `role="dialog"` with `aria-modal` and
+  `aria-labelledby` (its title), focuses the box itself (not a button, so a stray Space or Enter does nothing, which
+  matters for the game-over dialog), keeps Tab inside it (`trapTab`) and gives focus back to the control that opened it.
+  The map grid moves with the arrow keys (`MAP_COLS` 6 in `menu.ts`) and marks the chosen map with `aria-pressed`.
+  Turret panel tabs are `role="tab"` with `aria-controls` to `role="tabpanel"` panes; icon-only buttons have an
+  `aria-label`. `:focus-visible` draws an amber ring.
+- Live region: `Hud.announce(text)` writes to a visually hidden `role="status"` `aria-live="polite"` element (`.os-sr`),
+  at most once per second (the newest message wins). `addLog` and `toast` announce, and so do wave starts and leaks.
 - The docked turret panel starts below the top bar's measured height (`--top-h` on the HUD, kept current by a
   ResizeObserver), because the top bar wraps to two or three rows at a large scale or in a narrow window.
 

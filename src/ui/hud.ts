@@ -103,6 +103,10 @@ export class Hud {
   paused!: HTMLElement;
   collapseBtn: HTMLButtonElement | null = null;
   incomingEl: HTMLElement | null = null;
+  /** Screen-reader live region (visually hidden) and its rate limit state. */
+  live: HTMLElement = h('div', { class: 'os-sr', role: 'status', 'aria-live': 'polite', 'aria-atomic': 'true' });
+  livePending: string | null = null;
+  liveTimer: ReturnType<typeof setTimeout> | null = null;
   incomingWave = -1;
   /** Stat whose "+ cost" button is hovered (Upgrades tab preview), or null. */
   previewStat: Stat | null = null;
@@ -194,11 +198,29 @@ export class Hud {
     // the pause tint goes first so the top bar, side panel and rack stay above it and clickable
     this.el.append(this.paused, this.leak, this.top, this.log, this.toasts, this.focusBadge, this.modeHint, this.side, this.rack);
     // the error bubble sits outside of the clipped root so it can sit anywhere
-    this.el.append(this.err);
+    this.el.append(this.err, this.live);
   }
 
   // ------------------------------------------------------------ feedback
+  /**
+   * Tell screen readers (polite live region). At most one message per second: the latest wins, so 8x speed does not
+   * flood the reader.
+   */
+  announce(text: string): void {
+    this.livePending = text;
+    if (this.liveTimer) return;
+    const flush = (): void => {
+      this.liveTimer = null;
+      if (this.livePending == null) return;
+      this.live.textContent = this.livePending;
+      this.livePending = null;
+      this.liveTimer = setTimeout(flush, 1000);
+    };
+    flush();
+  }
+
   addLog(text: string): void {
+    this.announce(text);
     const line = h('div', { class: 'os-log-line' }, text);
     this.log.append(line);
     this.logLines.push(line);
@@ -207,6 +229,7 @@ export class Hud {
   }
 
   toast(text: string, cls?: string): void {
+    this.announce(text);
     const t = h('div', { class: 'os-toast ' + (cls || '') }, text);
     this.toasts.append(t);
     while (this.toasts.children.length > 3) this.toasts.firstChild!.remove();
@@ -399,10 +422,10 @@ export class Hud {
   header(kind: string, title: string, subtitle: string): { head: HTMLElement; sub: HTMLElement } {
     const app = this.app;
     const sub = h('span', null, subtitle);
-    const collapse = h('button', { class: 'os-iconbtn', type: 'button', tabindex: -1, title: 'Collapse or expand (I)' }, app.settings.infoCollapsed ? '+' : '–');
+    const collapse = h('button', { class: 'os-iconbtn', type: 'button', tabindex: -1, title: 'Collapse or expand (I)', 'aria-label': 'Collapse or expand the panel' }, app.settings.infoCollapsed ? '+' : '–');
     collapse.addEventListener('click', () => { app.toggleInfo(); collapse.textContent = app.settings.infoCollapsed ? '+' : '–'; collapse.blur(); });
     this.collapseBtn = collapse;
-    const close = h('button', { class: 'os-iconbtn', type: 'button', tabindex: -1, title: 'Close (Esc)' }, '×');
+    const close = h('button', { class: 'os-iconbtn', type: 'button', tabindex: -1, title: 'Close (Esc)', 'aria-label': 'Close the panel' }, '×');
     close.addEventListener('click', () => { app.cancelOrDeselect(); close.blur(); });
     const head = h('div', { class: 'os-side-head', title: 'Drag to move, double-click to reset' },
       h('div', { class: 'os-ico', html: iconSvg(kind) }),
@@ -543,14 +566,19 @@ export class Hud {
     if (ids.length > 1) {
       const strip = h('div', { class: 'os-tabs', role: 'tablist' });
       for (const id of ids) {
-        const b = h('button', { class: 'os-tab', type: 'button', tabindex: -1, role: 'tab' }, TAB_NAMES[id]);
+        const b = h('button', { class: 'os-tab', type: 'button', tabindex: -1, role: 'tab', id: 'os-tab-' + id, 'aria-controls': 'os-pane-' + id }, TAB_NAMES[id]);
         b.addEventListener('click', () => { this.tabPref = id; this.showTab(); b.blur(); });
         refs.tabBtns[id] = b;
         strip.append(b);
       }
       this.side.append(strip);
     }
-    for (const id of ids) this.side.append(refs.panes[id]!);
+    for (const id of ids) {
+      const pn = refs.panes[id]!;
+      pn.id = 'os-pane-' + id;
+      if (ids.length > 1) { pn.setAttribute('role', 'tabpanel'); pn.setAttribute('aria-labelledby', 'os-tab-' + id); }
+      this.side.append(pn);
+    }
     for (const key of ['target', 'lock', 'dir', 'join', 'color'] as const) { const b = refs[key]; if (b) b._label = b.firstChild; }
     this.refs = refs;
     this.showTab();

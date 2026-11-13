@@ -11,6 +11,7 @@
 - **Colours for new weapons:** Sniper counts as blue, Fusion green, Railgun red in combos.
 - **`comboPartners`** excludes modifiers and Targeters.
 - **`spent` never decreases, except through undo.** Sell refunds do not lower the score; the move cost is added to `spent` but not to the turret's `cashValue`. The optional `game.undo()` takes the undone cost back out of `spent`.
+- **In-game HUD buttons stay `tabindex: -1`.** Otherwise Space or Enter would press the last clicked button instead of sending a wave or building. Menus and dialogs keep normal tab order; a new dialog must go through `App.openModal` to get the dialog role, focus trap and focus return.
 - **New animations must respect reduce motion.** UI: add a `.os-root.os-rm` rule; renderer: check `R.opts.reduceMotion`. No infinite CSS animation should run with it on.
 - **The top bar can wrap.** At a large UI scale or a narrow window it takes two or three rows. Place things below it with `var(--top-h)` (set by `Hud`), not a fixed `em` offset.
 - **A new way for a turret to fire must call `game.markFired(t.id)`** (or emit `shot`), or the optional undo could take back a turret that already did damage.

@@ -19,6 +19,7 @@ The tests run the `.ts` sources directly with Node's type stripping (Node 22.18+
 ## In the browser
 
 Use the `verify-in-browser` skill. Minimum: the game loads, a game starts, building, a wave, no console errors. For renderer or UI work also check the demo pages.
+For accessibility work also check: keyboard-only menu (Tab to the map grid, arrows, Enter), focus stays inside an open dialog and returns after Esc, `locator.ariaSnapshot()` (this Playwright has no `page.accessibility`), the live region text after a wave, a context with `reducedMotion: 'reduce'` (no infinite `document.getAnimations()`), and Interface size 0.8 and 1.6 at 1024x640 and 1920x1080.
 
 ## Builds
 

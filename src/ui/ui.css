@@ -244,6 +244,11 @@
 .os-root.os-rm .os-leak.show { animation: os-leak 1.2s ease-out; }
 .os-root.os-rm .os-toast { animation-name: os-fade; }
 .os-root.os-rm .os-err.show { animation-name: os-fade; }
+/* keyboard focus (menus and dialogs; HUD buttons are not tabbable) */
+.os-root :focus-visible { outline: 2px solid var(--amber-hi); outline-offset: 2px; }
+.os-modal:focus { outline: none; }
+/* visually hidden, still read by screen readers */
+.os-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .os-set-h { margin: 0.9em 0 0.1em; font-size: 0.95em; color: var(--amber-hi); letter-spacing: 0.04em; }
 .os-field { display: flex; align-items: center; justify-content: space-between; gap: 1em; padding: 0.35em 0; border-bottom: 1px dashed rgba(255, 255, 255, 0.08); }
 .os-field label, .os-field .os-lab { font-weight: 600; }
