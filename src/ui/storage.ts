@@ -22,6 +22,9 @@ export interface Settings {
   undo: boolean;
   /** Accessibility: draw the combo-colour shape on each turret on the map. */
   colorSymbols: boolean;
+  /** UI size factor (UI_SCALE range). */
+  uiScale: number;
+  highContrast: boolean;
   infoCollapsed: boolean;
   panelPos: PanelPos | null;
   /** Rebound keys (action -> KeyboardEvent.code); actions not listed use the default in keymap.ts. */
@@ -76,6 +79,8 @@ export const DEFAULT_SETTINGS: Settings = {
   autoSend: false,      // send the next wave as soon as the field is clear (A key, Auto button)
   undo: false,          // relaxed rule: U takes back the last build or upgrade until that turret fires
   colorSymbols: true,   // accessibility: shape badge of the combo colour on every turret on the map
+  uiScale: 1,           // accessibility: UI size factor, UI_SCALE.min to UI_SCALE.max
+  highContrast: false,  // accessibility: solid panels, brighter secondary text, stronger outlines
   infoCollapsed: false,
   panelPos: null,       // turret panel { x, y } in px from the HUD's top-left, null = default dock
   keys: {},             // rebound keys: { action: KeyboardEvent.code }, only the ones that differ from src/ui/keymap.ts
@@ -83,6 +88,14 @@ export const DEFAULT_SETTINGS: Settings = {
   lastDifficulty: 'medium',
   lastMode: 'normal',
 };
+
+/** Allowed UI scale factors (Settings slider, step 0.1). */
+export const UI_SCALE = { min: 0.8, max: 1.6, step: 0.1 };
+/** A valid UI scale: clamped to UI_SCALE and rounded to its step; anything else -> 1. */
+export function clampScale(v: unknown): number {
+  if (typeof v !== 'number' || !Number.isFinite(v)) return 1;
+  return Math.round(Math.min(UI_SCALE.max, Math.max(UI_SCALE.min, v)) * 10) / 10;
+}
 
 /** Stored settings merged over the defaults; values of the wrong type are dropped. */
 export function getSettings(): Settings {
@@ -98,6 +111,7 @@ export function getSettings(): Settings {
       if (v && typeof v === 'object' && Number.isFinite(v.x) && Number.isFinite(v.y)) out[k] = v;
     } else if (typeof v === typeof d && (typeof d !== 'number' || Number.isFinite(v))) out[k] = v;
   }
+  out.uiScale = clampScale(out.uiScale);
   return out as unknown as Settings; // every key was checked against the type of its default
 }
 

@@ -13,6 +13,10 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
   batch. Fixed the render demo's fake turrets, which had no weapon `comboColor`. New sim-test checks (acc). Checked in
   Chromium (render demo, a real game, setting off, no console errors).
   Docs: `ARCHITECTURE.md`, `README.md`, `docs/claude/rendering.md`, `docs/claude/ui.md`, `docs/claude/testing.md`.
+- Interface size (80% to 160%) and High contrast in Settings > Accessibility (settings `uiScale`, `highContrast`).
+  The docked turret panel now starts below the measured top bar, which wraps at large sizes; before it covered the speed
+  and pause buttons there. Checked in Chromium at 1024x640 and 1920x1080 with both ends of the scale (nothing off
+  screen, no console errors). Docs: `ARCHITECTURE.md`, `docs/claude/ui.md`, `docs/claude/gotchas.md`.
 
 ### Added (2026 roadmap, phase 1: player information)
 - Incoming-wave preview in the top bar: "Wave N" with the HP and bounty of each attacker in the next wave, and a

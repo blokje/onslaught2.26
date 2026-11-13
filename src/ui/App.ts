@@ -9,6 +9,7 @@ import { Menu } from './menu.ts';
 import { Hud } from './hud.ts';
 import { buildSettings, buildHelp, buildScores, buildGameOver, buildKeys } from './dialogs.ts';
 import { codeLookup, keyLabel, resolveBindings } from './keymap.ts';
+import { clampScale } from './storage.ts';
 import type { KeyAction } from './keymap.ts';
 import { formatCash, formatNum } from './format.ts';
 import type { AppGame, AppRenderer, AppOptions, CommandResult } from './appTypes.ts';
@@ -173,6 +174,7 @@ export class App {
     rootEl.append(this.root);
     this.menu.show();
     this.applyFps();
+    this.applyLook();
 
     this.bindGlobal();
     this.attachCanvas();
@@ -262,9 +264,18 @@ export class App {
     if ('volume' in patch) this.audio.setVolume(this.settings.volume);
     if ('muted' in patch) this.audio.setMuted(this.settings.muted);
     if ('showFps' in patch) this.applyFps();
+    if ('uiScale' in patch || 'highContrast' in patch) this.applyLook();
     if ('keys' in patch) this.applyKeys();
     if ('colorSymbols' in patch) this.overlayDirty = true;
     if ('unlockAll' in patch || 'waveInterval' in patch) this.menu.refresh();
+  }
+
+  /** Accessibility look on the UI root: --ui-scale, high contrast (os-hc). */
+  applyLook(): void {
+    const sc = clampScale(this.settings.uiScale);
+    this.root.style.setProperty('--ui-scale', String(sc));
+    this.root.classList.toggle('os-hc', !!this.settings.highContrast);
+    this.hud.applyPanelPos(); // the panel size changed with the scale; keep it on screen
   }
 
   applyFps(): void { this.hud.fps.style.display = this.settings.showFps ? '' : 'none'; if (!this.settings.showFps) this.hud.fps.textContent = ''; }

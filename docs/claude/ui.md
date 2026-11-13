@@ -39,6 +39,12 @@ DOM overlay over the canvas, input, persistence and audio. Contract: `ARCHITECTU
   and carry `role="img"` and an `aria-label`; the Combo-only colour button names the shape. Always on.
 - Settings section "Accessibility" (`buildSettings`): Colour shapes on the map (`colorSymbols`, default on, sent to the
   renderer as `overlay.colorSymbols`).
+- Interface size (`uiScale`, 0.8 to 1.6 in steps of 0.1, `UI_SCALE` and `clampScale` in `storage.ts`): `App.applyLook()`
+  sets `--ui-scale` on `.os-root`, and `--u` (the size everything is built on) is multiplied by it.
+- High contrast (`highContrast`): class `os-hc` on `.os-root` (near-solid panels, brighter `--ink-dim`, 2 px borders,
+  white outline on active buttons and tabs).
+- The docked turret panel starts below the top bar's measured height (`--top-h` on the HUD, kept current by a
+  ResizeObserver), because the top bar wraps to two or three rows at a large scale or in a narrow window.
 
 ## Game-over report
 

@@ -362,6 +362,10 @@ export class Hud {
     side.addEventListener('pointerup', end);
     side.addEventListener('pointercancel', end);
     window.addEventListener('resize', () => this.applyPanelPos());
+    // the docked panel sits below the top bar; the bar wraps to more rows at a large UI scale or a narrow window
+    if (typeof ResizeObserver === 'function') {
+      new ResizeObserver(() => { const hgt = this.top.offsetHeight; if (hgt) this.el.style.setProperty('--top-h', (this.top.offsetTop + hgt) + 'px'); }).observe(this.top);
+    }
   }
 
   /** Put the panel at the saved position (clamped), or back in the CSS dock when there is none. */

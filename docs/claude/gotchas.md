@@ -11,6 +11,7 @@
 - **Colours for new weapons:** Sniper counts as blue, Fusion green, Railgun red in combos.
 - **`comboPartners`** excludes modifiers and Targeters.
 - **`spent` never decreases, except through undo.** Sell refunds do not lower the score; the move cost is added to `spent` but not to the turret's `cashValue`. The optional `game.undo()` takes the undone cost back out of `spent`.
+- **The top bar can wrap.** At a large UI scale or a narrow window it takes two or three rows. Place things below it with `var(--top-h)` (set by `Hud`), not a fixed `em` offset.
 - **A new way for a turret to fire must call `game.markFired(t.id)`** (or emit `shot`), or the optional undo could take back a turret that already did damage.
 - **Beams age at `dt / speed`** so they stay visible at 8x; effects age in game ms. Beams are capped at 400, effects at 300.
 - **First wave** starts after one full `waveInterval`.

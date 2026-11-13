@@ -27,7 +27,7 @@ export function buildSettings(app: App): HTMLElement {
     wave.value = String(v);
     app.updateSettings({ waveInterval: v });
   });
-  const check = (key: 'snap' | 'unlockAll' | 'showFps' | 'autoPause' | 'autoSend' | 'undo' | 'colorSymbols'): HTMLInputElement => {
+  const check = (key: 'snap' | 'unlockAll' | 'showFps' | 'autoPause' | 'autoSend' | 'undo' | 'colorSymbols' | 'highContrast'): HTMLInputElement => {
     const c = h('input', { type: 'checkbox' });
     c.checked = !!s[key];
     c.addEventListener('change', () => app.updateSettings({ [key]: c.checked } as Partial<storage.Settings>)); // key is one of the boolean settings above
@@ -35,6 +35,9 @@ export function buildSettings(app: App): HTMLElement {
   };
   const field = (label: string, sub: string | null, control: HTMLElement): HTMLElement => h(control && control.tagName === 'INPUT' && (control as HTMLInputElement).type === 'checkbox' ? 'label' : 'div', { class: 'os-field' }, h('div', { class: 'os-lab' }, label, sub ? h('small', null, sub) : null), control);
 
+  const scale = h('input', { type: 'range', min: storage.UI_SCALE.min, max: storage.UI_SCALE.max, step: storage.UI_SCALE.step, value: s.uiScale, 'aria-label': 'Interface size' });
+  const scaleTxt = h('span', { class: 'os-hint' }, Math.round(s.uiScale * 100) + '%');
+  scale.addEventListener('input', () => { const v = storage.clampScale(Number(scale.value)); scaleTxt.textContent = Math.round(v * 100) + '%'; app.updateSettings({ uiScale: v }); });
   const keysBtn = h('button', { class: 'os-btn small', type: 'button' }, 'Keys...');
   keysBtn.addEventListener('click', () => app.openKeys());
 
@@ -64,6 +67,8 @@ export function buildSettings(app: App): HTMLElement {
     field('Relaxed: undo', 'U takes back your last build or upgrade with a full refund, until that turret fires. High scores of such games get a U mark.', check('undo')),
     field('Controls', 'See and change the keyboard keys (also the ? key).', keysBtn),
     h('h3', { class: 'os-set-h' }, 'Accessibility'),
+    field('Interface size', 'Scales all text, panels and buttons.', h('div', { style: 'display:flex;align-items:center;gap:.6em' }, scale, scaleTxt)),
+    field('High contrast', 'Solid panels, brighter text and stronger outlines.', check('highContrast')),
     field('Colour shapes on the map', 'Each turret shows the shape of its combo colour: red triangle, green circle, blue square, yellow diamond.', check('colorSymbols')),
     field('Saved progress', 'Unlocks, high scores and the autosave.', resetBtn));
 }

@@ -1,7 +1,7 @@
 /* OnSlaught2.26 UI. Everything scales with --u (about 13px at 1024x640, 15px at 1280x720, 34px max at 4K). */
 
 .os-root {
-  --u: clamp(12px, calc(0.45vw + 0.62vh + 5px), 34px);
+  --u: calc(clamp(12px, calc(0.45vw + 0.62vh + 5px), 34px) * var(--ui-scale, 1)); /* --ui-scale: Settings > Interface size */
   --amber: #f2a93b;
   --amber-hi: #ffd27a;
   --amber-lo: #a8701c;
@@ -147,7 +147,8 @@
 .os-slot .os-lockov span { position: absolute; left: 0; right: 0; bottom: 0.45em; font-size: 1.1em; color: var(--amber-hi); }
 
 /* side (info) panel */
-.os-side { position: absolute; right: 0.5em; top: 4.7em; width: 19em; max-height: calc(100% - 13.2em); display: none; flex-direction: column; overflow: hidden; }
+/* docked below the top bar, whose height (--top-h, measured by Hud) grows when it wraps at a large UI scale */
+.os-side { position: absolute; right: 0.5em; top: calc(var(--top-h, 4.2em) + 0.5em); width: 19em; max-height: calc(100% - var(--top-h, 4.2em) - 9em); display: none; flex-direction: column; overflow: hidden; }
 .os-side.on { display: flex; }
 .os-side-head { display: flex; align-items: center; gap: 0.5em; padding: 0.45em 0.5em; border-bottom: 1px solid var(--edge); }
 .os-side-head { cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
@@ -232,6 +233,11 @@
 .os-modal-head h2 { margin: 0; font-size: 1.35em; color: var(--amber-hi); letter-spacing: 0.02em; }
 .os-modal-body { padding: 0.9em; overflow-y: auto; display: flex; flex-direction: column; gap: 0.8em; }
 .os-modal-foot { display: flex; gap: 0.5em; justify-content: flex-end; padding: 0.6em 0.9em; border-top: 1px solid var(--edge); flex-wrap: wrap; }
+/* high contrast (Settings > High contrast) */
+.os-root.os-hc { --panel: rgba(12, 9, 6, 0.97); --panel-solid: #0c0906; --ink-dim: #e6d8bd; --edge: rgba(255, 196, 92, 0.9); }
+.os-root.os-hc .os-panel, .os-root.os-hc .os-modal { border-width: 2px; }
+.os-root.os-hc .os-btn { border-color: rgba(255, 210, 122, 0.75); }
+.os-root.os-hc .os-btn.is-on, .os-root.os-hc .os-tab.is-on { outline: 2px solid #fff; outline-offset: 1px; }
 .os-set-h { margin: 0.9em 0 0.1em; font-size: 0.95em; color: var(--amber-hi); letter-spacing: 0.04em; }
 .os-field { display: flex; align-items: center; justify-content: space-between; gap: 1em; padding: 0.35em 0; border-bottom: 1px dashed rgba(255, 255, 255, 0.08); }
 .os-field label, .os-field .os-lab { font-weight: 600; }
