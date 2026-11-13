@@ -26,6 +26,12 @@ three.js 0.160.0, orthographic top-down. Contract: `ARCHITECTURE.md` section 2. 
 - Never consume left-button or single-touch events: those belong to the UI.
 - DPR is capped at 2. Antialiasing is off because edges are shader or texture antialiased.
 
+## Range preview ring
+
+`overlay.previewRange` (`{ id, range }`, set by the UI while a stat row in the Upgrades tab is hovered) draws a dashed
+lime ring (48 dashes, `ringUnder`) around the selected turret at the range it would have after one more range level.
+Only drawn when `id` is the selected turret (`drawOverlay` in `fxlayer.ts`).
+
 ## Upgrade ring
 
 Every upgradable turret has a ring around it (`drawTurrets` in `entities.ts`, `RingBatch` `tRing` at order 5.4, capacity 1600), replacing the old 3 bars and their `tTop` sprite batch:

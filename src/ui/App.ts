@@ -63,6 +63,8 @@ export class App {
   showRanges: Overlay['showRanges'];
   showCombo: boolean;
   hoverId: number | null;
+  /** Range ring of the hovered range upgrade (set by the Hud's Upgrades tab). */
+  previewRange: Overlay['previewRange'] = null;
   rackIndex: number;
   cursor: CursorState;
   ghost: GhostState;
@@ -505,6 +507,7 @@ export class App {
         showRanges: this.showRanges,
         showCombo: this.showCombo,
         joinFromId: this.mode === 'join' ? this.selectedId : null,
+        previewRange: this.previewRange,
       });
     } catch (e) { console.error(e); }
   }
@@ -686,6 +689,14 @@ export class App {
     this.selectedId = id;
     this.overlayDirty = true;
     this.hudDirty = true;
+  }
+
+  /** Show (or clear with null) the dashed "range after upgrade" ring. */
+  setPreviewRange(p: Overlay['previewRange']): void {
+    const cur = this.previewRange;
+    if (cur === p || (cur && p && cur.id === p.id && cur.range === p.range)) return;
+    this.previewRange = p;
+    this.overlayDirty = true;
   }
 
   deselect(): void {

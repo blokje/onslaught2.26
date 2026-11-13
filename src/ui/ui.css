@@ -168,6 +168,7 @@
 .os-srow-top { display: flex; justify-content: space-between; align-items: baseline; grid-column: 1 / -1; }
 .os-srow-top span { font-size: 0.72em; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.06em; }
 .os-srow-top b { font-variant-numeric: tabular-nums; }
+.os-srow-top b.os-preview { color: #b5ff7a; }
 .os-pips { display: flex; gap: 0.18em; flex-wrap: wrap; }
 .os-pip { width: 0.62em; height: 0.62em; border-radius: 50%; background: rgba(255, 255, 255, 0.13); border: 1px solid rgba(255, 255, 255, 0.2); }
 .os-pip.on { background: var(--amber); border-color: var(--amber-hi); box-shadow: 0 0 0.35em rgba(242, 169, 59, 0.7); }

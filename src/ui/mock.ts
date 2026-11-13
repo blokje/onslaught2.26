@@ -8,7 +8,7 @@ import { COMBOS, COMBO_LOG_MAX } from '../data/combos.ts';
 import type { AppGame, AppRenderer, CommandResult } from './appTypes.ts';
 import type {
   GameState, GameOptions, GameEvents, GameEventName, Attacker, TurretState, Result, Fail, ComboPreview,
-  Overlay, Stat, DifficultyId, ModeId, TargetMode, DirectionalMode, KeyColor, ColorCounts, ComboRecipe, WavePreview,
+  Overlay, Stat, DifficultyId, ModeId, TargetMode, DirectionalMode, KeyColor, ColorCounts, ComboRecipe, WavePreview, UpgradePreview,
 } from '../types.ts';
 
 const STATS: Stat[] = ['damage', 'range', 'rate'];
@@ -287,6 +287,17 @@ class MockGame implements AppGame {
     if (!lad) return null;
     const lv = t.levels[stat];
     return lv >= lad.length ? null : lad[lv].cost;
+  }
+
+  upgradePreview(id: number, stat: Stat): UpgradePreview | null {
+    const t = this.find(id);
+    const cost = this.upgradeCost(id, stat);
+    if (!t || cost == null) return null;
+    const next: TurretState = { ...t, levels: { ...t.levels, [stat]: t.levels[stat] + 1 }, stats: { ...t.stats } };
+    this.recompute(next);
+    const from = TURRETS[t.kind].category === 'modifier' ? { ...t.stats, range: t.modRange } : { ...t.stats };
+    const to = TURRETS[t.kind].category === 'modifier' ? { ...next.stats, range: next.modRange } : next.stats;
+    return { stat, cost, from, to };
   }
 
   upgrade(id: number, stat: Stat, toMax = false): CommandResult {

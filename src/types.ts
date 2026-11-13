@@ -240,6 +240,9 @@ export interface ComboPreview {
 /** Outlook for one wave (game.wavePreview). */
 export interface WavePreview { wave: number; type: number; hp: number; bounty: number; count: number }
 
+/** Effective stats before and after one more level of `stat` (game.upgradePreview). */
+export interface UpgradePreview { stat: Stat; cost: number; from: StatValues; to: StatValues }
+
 // ------------------------------------------------------------------ events (ARCHITECTURE.md 1.3)
 export interface GameEvents {
   shot: { kind: string; turretId: number };
@@ -269,6 +272,8 @@ export interface Overlay {
   showRanges: 'selected' | 'all';
   showCombo: boolean;
   joinFromId: number | null;
+  /** Optional: range the selected turret would have after the hovered range upgrade (dashed ring). */
+  previewRange?: { id: number; range: number } | null;
 }
 
 export interface ViewInsets { top: number; right: number; bottom: number; left: number }

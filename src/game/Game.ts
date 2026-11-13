@@ -60,7 +60,7 @@ import { stepTurret, chainBonus, releaseOrbiter } from './weapons.ts';
 import { updateProjectiles } from './projectiles.ts';
 import type {
   Attacker, Beam, BeamKind, BlastSize, ComboPreview, DifficultyId, DirectionalMode, Effect, EffectKind, Fail, GameEventName, GameEvents,
-  GameOptions, GameState, KeyColor, ModeId, Projectile, ProjectileKind, Result, Stat, TargetMode, TurretState, WavePreview,
+  GameOptions, GameState, KeyColor, ModeId, Projectile, ProjectileKind, Result, Stat, StatValues, TargetMode, TurretState, UpgradePreview, WavePreview,
 } from '../types.ts';
 import type { Spawner } from './Waves.ts';
 import { Combos } from './combos.ts';
@@ -515,6 +515,23 @@ export class Game {
     return nextUpgradeCost(t.kind, stat, t.levels[stat]);
   }
 
+  /**
+   * Read-only: effective stats now and after one more level of `stat` (modifiers and freak-out included, as they
+   * are right now). Null when the turret is missing or the stat is maxed / not upgradable. No rng, no state change.
+   */
+  upgradePreview(id: number, stat: Stat): UpgradePreview | null {
+    const t = this.turretMap.get(id);
+    if (!t || !STATS.includes(stat)) return null;
+    const cost = nextUpgradeCost(t.kind, stat, t.levels[stat]);
+    if (cost == null) return null;
+    const mods = this.state.turrets.filter((m) => m.category === 'modifier');
+    const sum = this._modSumFor(t, mods);
+    const pick = (e: StatValues): StatValues => ({ damage: e.damage, range: e.range, rate: e.rate });
+    const from = pick(computeStats(t, sum));
+    const to = pick(computeStats({ kind: t.kind, freak: t.freak, levels: { ...t.levels, [stat]: t.levels[stat] + 1 } }, sum));
+    return { stat, cost, from, to };
+  }
+
   upgrade(id: number, stat: Stat, toMax = false): Result<{ levels: number }> {
     const t = this.turretMap.get(id);
     if (this.state.over) return this._fail('Game over');
@@ -668,6 +685,16 @@ export class Game {
   }
 
   // ------------------------------------------------------------------ derived turret state
+  /** Summed bonuses of the modifiers whose aura reaches a weapon (null for modifiers and support turrets). */
+  _modSumFor(t: TurretState, mods: TurretState[]): ModSum | null {
+    if (t.category !== 'weapon') return null;
+    const sum = emptyMods();
+    for (const m of mods) {
+      if (Math.hypot(m.x - t.x, m.y - t.y) <= m.modRange) addMod(sum, TURRETS[m.kind].mod!);
+    }
+    return sum;
+  }
+
   /** Recompute modifiers, effective stats, links, joins, combo capability and freak eligibility. */
   _recompute(): void {
     const s = this.state;
@@ -679,13 +706,7 @@ export class Game {
     const greens: TurretState[] = [];
     for (const t of turrets) {
       const def = TURRETS[t.kind];
-      let sum: ModSum | null = null;
-      if (t.category === 'weapon') {
-        sum = emptyMods();
-        for (const m of mods) {
-          if (Math.hypot(m.x - t.x, m.y - t.y) <= m.modRange) addMod(sum, TURRETS[m.kind].mod!);
-        }
-      }
+      const sum = this._modSumFor(t, mods);
       // freak-out eligibility
       if (def.freakout) {
         const ok = t.levels.damage >= def.freakout.damage && t.levels.rate >= def.freakout.rate;

@@ -348,6 +348,11 @@ export function drawOverlay(R: Res, f: Frame): void {
     }
     b.ringTop.add(sel.x, sel.y, 27.5, px(2.4), 0.05, 0.1, 16, 1, 0.9, 0.4, 0.95);
     b.ringTop.add(sel.x, sel.y, 25.4, px(1.2), 0, 0, 0, 1, 1, 0.8, 0.6 + 0.2 * Math.sin(t * 5));
+    // range after the hovered upgrade: a dashed lime ring around the selected turret
+    const pr = o.previewRange;
+    if (pr && pr.id === sel.id && pr.range > 0) {
+      b.ringUnder.add(sel.x, sel.y, pr.range, px(2), 0, 0, 48, 0.7, 1, 0.35, 0.95);
+    }
   }
 
   // combo partners

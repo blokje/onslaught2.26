@@ -10,6 +10,11 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
   tooltip for the next 5 waves. Backed by the new read-only command `game.wavePreview(n?)` (no rng, same formulas as
   spawning; type `WavePreview`). No gameplay change. New sim-test checks (q).
   Docs: `ARCHITECTURE.md`, `docs/claude/ui.md`, `docs/claude/testing.md`.
+- Upgrade preview: hovering a stat row in the Upgrades tab shows "now → after one more level" (modifiers and freak-out
+  included), and for range a dashed lime ring at the new range on the map. New read-only `game.upgradePreview(id, stat)`
+  (type `UpgradePreview`) and optional overlay field `previewRange`; the modifier sum moved into `Game._modSumFor`, shared
+  with `_recompute`. No gameplay change. New sim-test checks (q).
+  Docs: `ARCHITECTURE.md`, `docs/claude/ui.md`, `docs/claude/rendering.md`, `docs/claude/testing.md`.
 
 ### Fixed
 - A rate change (rate upgrade, or a rate modifier built or sold nearby) during a combo recharge no longer shortens or

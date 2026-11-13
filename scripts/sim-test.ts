@@ -3,6 +3,7 @@ import { Game, STEP_MS } from '../src/game/Game.ts';
 import { MAPS } from '../src/data/maps.ts';
 import { DIFFICULTIES, WAVES, WEAVE } from '../src/data/rules.ts';
 import { waveHp, waveBounty, laneOffset } from '../src/game/Attacker.ts';
+import { ladderValue } from '../src/game/modifiers.ts';
 import type { Turret } from '../src/game/Turret.ts';
 import type { Attacker, GameEvents, KeyColor, Projectile, Result, Stat, TargetMode } from '../src/types.ts';
 
@@ -458,6 +459,46 @@ function makePlayer(game: Game, spots: Spot[]): () => void {
     check(`(q) ${d}: preview of wave 1 equals the spawned attacker`, a && a.maxHp === first.hp && a.bounty === first.bounty && a.type === first.type);
     check(`(q) ${d}: after wave 1 starts the preview moves to wave 2`, g.wavePreview().wave === 2);
   }
+
+  // upgradePreview: equals the real stats after the upgrade, modifiers included, and changes nothing
+  const g = new Game({ mapId: 'map1', mode: 'sandbox', seed: 6 });
+  /** First legal spot within `r` of (cx, cy). */
+  const spotNear = (kind: string, cx: number, cy: number, r: number): { x: number; y: number } => {
+    for (let x = cx - r; x <= cx + r; x += 4) for (let y = cy - r; y <= cy + r; y += 4) {
+      if (Math.hypot(x - cx, y - cy) <= r && g.canBuild(kind, x, y).ok) return { x, y };
+    }
+    throw new Error('no spot near ' + cx + ',' + cy);
+  };
+  const s0 = spotNear('red', 360, 225, 300);
+  const red = must(g.build('red', s0.x, s0.y)).id;
+  const s1 = spotNear('damageUp', s0.x, s0.y, 70);
+  const boom = must(g.build('damageUp', s1.x, s1.y)).id;
+  const s2 = spotNear('rangeUp', s0.x, s0.y, 75);
+  must(g.build('rangeUp', s2.x, s2.y));
+  let allSame = true, untouched = true, detail = '';
+  for (const stat of ['damage', 'range', 'rate'] as const) {
+    for (let i = 0; i < 3; i++) {
+      const before = JSON.stringify(g.serialize());
+      const pv = g.upgradePreview(red, stat);
+      untouched &&= JSON.stringify(g.serialize()) === before;
+      if (!pv) { allSame = false; detail = 'null preview'; break; }
+      const cost = g.upgradeCost(red, stat);
+      must(g.upgrade(red, stat));
+      const st = tur(g, red).stats;
+      const same = pv.cost === cost && near(pv.to.damage, st.damage) && near(pv.to.range, st.range) && near(pv.to.rate, st.rate);
+      if (!same) detail = `${stat}: preview ${JSON.stringify(pv.to)} real ${JSON.stringify(st)}`;
+      allSame &&= same;
+    }
+  }
+  check('(q) upgradePreview equals the stats after the real upgrade (inside Boom and Ranger auras)', allSame, detail);
+  check('(q) upgradePreview changes no game state', untouched);
+  const tr = tur(g, red);
+  check('(q) upgradePreview includes modifier bonuses (Boom +40%)',
+    near(tr.stats.damage, ladderValue('red', 'damage', tr.levels.damage) * 1.4) && g.upgradePreview(red, 'damage')!.from.damage === tr.stats.damage);
+  g.upgrade(red, 'damage', true);
+  check('(q) upgradePreview is null for a maxed stat and a missing turret', g.upgradePreview(red, 'damage') === null && g.upgradePreview(99999, 'range') === null);
+  const mp = g.upgradePreview(boom, 'range');
+  check('(q) modifier preview: influence 80 -> 130', !!mp && mp.from.range === 80 && mp.to.range === 130, JSON.stringify(mp));
 }
 
 // ------------------------------------------------------------------ (m) extra maps (SPEC.md section 7a)

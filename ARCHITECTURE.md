@@ -99,6 +99,8 @@ game.canBuild(kind, x, y)            // checks cash, unlock, field bounds, road,
 game.build(kind, x, y)               // -> { ok, id }
 game.upgrade(id, stat, toMax=false)  // stat: 'damage'|'range'|'rate'; modifiers: 'range' only; -> { ok, levels } (levels bought)
 game.upgradeCost(id, stat)           // -> number | null (null = maxed / not upgradable)
+game.upgradePreview(id, stat)        // read-only, no rng: { stat, cost, from, to } effective stats now and after one more level
+                                     //   (current modifiers and freak-out included; modifiers: range = influence); null when maxed
 game.sell(id)                        // refund 70% of cashValue
 game.move(id, x, y)                  // costs $500, same placement checks
 game.setTargetMode(id, mode)         // or game.cycleTargetMode(id)
@@ -147,6 +149,7 @@ r.setOverlay({                              // UI-driven overlays, call whenever
   showRanges: 'selected' | 'all',           // R key toggles to 'all'
   showCombo: bool,                          // C key: lines from selected turret to comboPartners
   joinFromId: id | null,                    // Targeter join mode: line to cursor
+  previewRange: { id, range } | null,       // optional: dashed lime ring, the selected turret's range after the hovered upgrade
 });
 r.resetView();                              // fit field to screen
 r.setViewInsets({ top, right, bottom, left }) // optional: CSS px covered by HUD panels, the fitted field avoids them

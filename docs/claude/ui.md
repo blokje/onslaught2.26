@@ -31,7 +31,7 @@ A horizontal tab strip under the header; only the active pane is shown, so the p
 | Tab | Shown for | Contents |
 |---|---|---|
 | General | all | Blurb, Damage/Range/Rate values, status chips (holding, combo, links, kills, lock), Sell, Move, targeting, lock, cone, join, colour, range hint |
-| Upgrades | kinds with stat rows | Stat rows with pips, `+ cost` and Max buttons (modifiers: Influence) |
+| Upgrades | kinds with stat rows | Stat rows with pips, `+ cost` and Max buttons (modifiers: Influence). Hovering a row shows "now → after one more level" in lime (`game.upgradePreview`) and, for range, a dashed ring on the map (`App.setPreviewRange` -> `overlay.previewRange`). The hover sits on the row because a disabled button gets no pointer events |
 | Combos | weapons and Combo-only | Fired / Assisted counts; partners in range ("Combo with", dimmed while recharging); "Next combo" with `in 2.4s`, `ready` or `n/a` plus the recipe name; the recipes of its colour with colour dots for the partners they need and `needs 1 blue` / a countdown (next one highlighted; a Combo-only lists the recipes of leads in range that need its colour); the last 5 combos (fired/assisted, time ago) |
 | Freakout | kinds with `freakout` in their data | Status chip: upgrade progress toward the requirement ("Freak-out at 4 dmg + 4 rate (2/4, 1/4)") until eligible, then ready, incoming and active, plus a one-line explanation |
 

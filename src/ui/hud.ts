@@ -96,6 +96,8 @@ export class Hud {
   collapseBtn: HTMLButtonElement | null = null;
   incomingEl: HTMLElement | null = null;
   incomingWave = -1;
+  /** Stat whose "+ cost" button is hovered (Upgrades tab preview), or null. */
+  previewStat: Stat | null = null;
   incomingGame: AppGame | null = null;
 
   constructor(app: App) {
@@ -278,6 +280,8 @@ export class Hud {
     if (key !== this.panelKey) {
       this.panelKey = key;
       this.refs = null;
+      this.previewStat = null;
+      app.setPreviewRange(null);
       this.side.replaceChildren();
       if (t) this.refs = this.buildTurretView(t);
       else if (buildKind) this.buildKindView(buildKind);
@@ -459,6 +463,10 @@ export class Hud {
       const row = h('div', { class: 'os-srow' },
         h('div', { class: 'os-srow-top' }, h('span', null, label), val), pips,
         h('div', { class: 'os-upg' }, upBtn, maxBtn));
+      // hovering a stat row previews the value after one more level (and the new range ring); on the row, not the
+      // button, because a disabled button (not enough cash) gets no pointer events
+      row.addEventListener('pointerenter', () => { this.previewStat = stat; this.refreshUpgrades(); });
+      row.addEventListener('pointerleave', () => { if (this.previewStat === stat) { this.previewStat = null; this.refreshUpgrades(); } });
       statsEl.append(row);
       refs.rows[stat] = { val, pips: [...pips.children], upBtn, upTxt: upBtn.firstChild!, maxBtn, lvl: -1 };
     }
@@ -535,6 +543,7 @@ export class Hud {
     const app = this.app;
     setClass(this.side, 'collapsed', app.settings.infoCollapsed);
     if (this.collapseBtn) setText(this.collapseBtn, app.settings.infoCollapsed ? '+' : '–');
+    if (app.settings.infoCollapsed || r.active !== 'upgrades') app.setPreviewRange(null);
     if (app.settings.infoCollapsed) return;
     if (r.active === 'upgrades') this.updateUpgrades(t, s);
     else if (r.active === 'combos') this.updateCombos(t, s);
@@ -585,12 +594,34 @@ export class Hud {
     setText(r.rangeHint, r.cat === 'modifier' ? 'Boosts every turret whose centre is inside the circle.' : (t.kind === 'targeter' ? 'Join it to a turret to lend it this range.' : ''));
   }
 
+  /** Re-run the Upgrades tab now (hover changes should not wait for the next 10 Hz tick). */
+  refreshUpgrades(): void {
+    const game = this.app.game;
+    if (!game || !this.refs || this.refs.active !== 'upgrades') return;
+    const t = game.state.turrets.find((x) => x.id === this.app.selectedId);
+    if (t) this.updateUpgrades(t, game.state);
+  }
+
+  /** A stat value in the panel's format (damage 1.2K, range 130, rate 60/min). */
+  formatStat(stat: Stat, v: number): string {
+    if (stat === 'damage') return formatNum(v);
+    if (stat === 'range') return String(Math.round(v));
+    return Math.round(v) + '/min';
+  }
+
   updateUpgrades(t: TurretState, s: GameState): void {
     const r = this.refs!;
     const game = this.app.game!;
+    let ring: { id: number; range: number } | null = null;
     for (const stat of Object.keys(r.rows) as Stat[]) {
       const row = r.rows[stat];
-      setText(row.val, this.statValue(t, stat));
+      let pv = null;
+      if (this.previewStat === stat) { try { pv = game.upgradePreview(t.id, stat); } catch (e) { pv = null; } }
+      setClass(row.val, 'os-preview', !!pv);
+      if (pv) {
+        setText(row.val, this.formatStat(stat, pv.from[stat]) + ' → ' + this.formatStat(stat, pv.to[stat]));
+        if (stat === 'range') ring = { id: t.id, range: pv.to.range };
+      } else setText(row.val, this.statValue(t, stat));
       const lvl = t.levels ? t.levels[stat] || 0 : 0;
       if (row.lvl !== lvl) { row.lvl = lvl; row.pips.forEach((p, i) => setClass(p, 'on', i < lvl)); }
       let cost = null;
@@ -606,6 +637,7 @@ export class Hud {
         setProp(row.maxBtn, 'disabled', !can);
       }
     }
+    this.app.setPreviewRange(ring);
   }
 
   updateFreak(t: TurretState): void {

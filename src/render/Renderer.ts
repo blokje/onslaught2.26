@@ -24,7 +24,7 @@ import type { TurretState, Effect } from '../types.ts';
 
 export type { RenderGame } from './context.ts';
 
-const DEFAULT_OVERLAY: Overlay = { ghost: null, selectedId: null, hoverId: null, showRanges: 'selected', showCombo: false, joinFromId: null };
+const DEFAULT_OVERLAY: Overlay = { ghost: null, selectedId: null, hoverId: null, showRanges: 'selected', showCombo: false, joinFromId: null, previewRange: null };
 const CLEAR = 0x120e0b;
 
 export class Renderer {
