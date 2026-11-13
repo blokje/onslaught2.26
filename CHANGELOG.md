@@ -23,6 +23,10 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
   New sim-test checks (acc). Checked in Chromium with emulated `prefers-reduced-motion` (class set, no infinite
   animations, calm leak cue, no console errors); the calmer blasts were checked by code review and type check only.
   Docs: `ARCHITECTURE.md`, `docs/claude/rendering.md`, `docs/claude/ui.md`, `docs/claude/gotchas.md`, `docs/claude/testing.md`.
+- Separate volumes for game effects and interface sounds (settings `sfxVolume`, `uiVolume`), on top of the master volume.
+  The audio engine now has two buses before the compressor. New sim-test checks (acc). Checked in Chromium (sliders store
+  their values, no console errors); the sound itself could not be listened to here.
+  Docs: `ARCHITECTURE.md`, `docs/claude/ui.md`, `docs/claude/testing.md`.
 
 ### Added (2026 roadmap, phase 1: player information)
 - Incoming-wave preview in the top bar: "Wave N" with the HP and bounty of each attacker in the next wave, and a

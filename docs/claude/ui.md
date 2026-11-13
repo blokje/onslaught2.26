@@ -11,7 +11,7 @@ DOM overlay over the canvas, input, persistence and audio. Contract: `ARCHITECTU
 | `hud.ts` | Top bar, build rack, selected-turret panel, message log, toasts, leak flash, error bubble. Values update through cached setters at about 10 Hz. The selected-turret panel is tabbed (see below). |
 | `dialogs.ts` | Settings, how to play, high scores, game over, in-game menu. |
 | `storage.ts` | All persistence, prefix `os226.`, try/catch with an in-memory fallback. `getSettings()` sanitises: stored values whose type does not match `DEFAULT_SETTINGS` are dropped. Autosave format `{ v, at, meta, data: game.serialize() }` under `os226.save`. Exports the types `Settings`, `Unlocks`, `ScoreEntry`, `SaveWrapper`: a new setting goes into both `Settings` and `DEFAULT_SETTINGS`. |
-| `audio.ts` | Web Audio synthesized SFX, created on the first user gesture, rate limited, master gain plus compressor. |
+| `audio.ts` | Web Audio synthesized SFX, created on the first user gesture, rate limited, master gain plus compressor. Two buses feed the compressor: `sfx` (game effects) and `ui` (`UI_SOUNDS`: click, hover, error, build, sell, upgrade, unlock); `busOf(name)` routes, `setBusVolume(bus, v)` sets each. A new interface sound goes into `UI_SOUNDS`. |
 | `dps.ts` | `DpsTracker`: per-turret DPS from `damageDealt` samples in game time (no DOM, tested in `sim-test`). Resets when the game object changes or time goes back. |
 | `format.ts` | Big numbers: 1,234 then 12.3K, 4.56M, 7.89B, 1.23T, then 1.23e15. |
 | `icons.ts`, `dom.ts`, `ui.css` | SVG icons, tiny DOM helpers, styles. `h(tag, attrs, ...kids)` returns the matching element type; the `setText`/`setClass`/`setProp`/`show` caches live in a `WeakMap`. |
@@ -43,6 +43,8 @@ DOM overlay over the canvas, input, persistence and audio. Contract: `ARCHITECTU
   sets `--ui-scale` on `.os-root`, and `--u` (the size everything is built on) is multiplied by it.
 - High contrast (`highContrast`): class `os-hc` on `.os-root` (near-solid panels, brighter `--ink-dim`, 2 px borders,
   white outline on active buttons and tabs).
+- Separate volumes: Game effects (`sfxVolume`) and Interface (`uiVolume`), 0 to 1 on top of the master volume, sliders in
+  Settings; releasing a slider plays a sample of that bus. A bus at 0 skips synthesis entirely.
 - Reduce motion and flashes (`reduceMotion`): on the first start (no stored value) `getSettings()` follows
   `prefers-reduced-motion`. `App.applyLook()` toggles `os-rm` on `.os-root` and calls `renderer.setOptions` (optional on
   `AppRenderer`, the mock has none). CSS under `.os-rm`: no infinite pulses or the rotate spin, the leak cue is a thin red

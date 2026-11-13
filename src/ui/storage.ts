@@ -27,6 +27,8 @@ export interface Settings {
   highContrast: boolean;
   /** No blinking, pulsing, jitter or bright flashes. */
   reduceMotion: boolean;
+  sfxVolume: number;
+  uiVolume: number;
   infoCollapsed: boolean;
   panelPos: PanelPos | null;
   /** Rebound keys (action -> KeyboardEvent.code); actions not listed use the default in keymap.ts. */
@@ -83,6 +85,8 @@ export const DEFAULT_SETTINGS: Settings = {
   colorSymbols: true,   // accessibility: shape badge of the combo colour on every turret on the map
   uiScale: 1,           // accessibility: UI size factor, UI_SCALE.min to UI_SCALE.max
   highContrast: false,  // accessibility: solid panels, brighter secondary text, stronger outlines
+  sfxVolume: 1,         // game effects bus (shots, blasts, combos), on top of the master volume
+  uiVolume: 1,          // interface bus (clicks, build, upgrade, sell, errors)
   reduceMotion: false,  // accessibility: calm UI and map; when never saved, getSettings() follows prefers-reduced-motion
   infoCollapsed: false,
   panelPos: null,       // turret panel { x, y } in px from the HUD's top-left, null = default dock
@@ -120,6 +124,7 @@ export function getSettings(): Settings {
     } else if (typeof v === typeof d && (typeof d !== 'number' || Number.isFinite(v))) out[k] = v;
   }
   out.uiScale = clampScale(out.uiScale);
+  for (const k of ['sfxVolume', 'uiVolume'] as const) out[k] = Math.max(0, Math.min(1, out[k] as number));
   if (typeof src.reduceMotion !== 'boolean') out.reduceMotion = prefersReducedMotion(); // first start: follow the OS
   return out as unknown as Settings; // every key was checked against the type of its default
 }

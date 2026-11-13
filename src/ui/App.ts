@@ -135,6 +135,8 @@ export class App {
     this.audio = new AudioEngine();
     this.audio.setVolume(this.settings.volume);
     this.audio.setMuted(this.settings.muted);
+    this.audio.setBusVolume('sfx', this.settings.sfxVolume);
+    this.audio.setBusVolume('ui', this.settings.uiVolume);
 
     // input state
     this.mode = 'none';            // 'none' | 'build' | 'move' | 'join' | 'focus'
@@ -263,6 +265,8 @@ export class App {
     storage.saveSettings(this.settings);
     if ('volume' in patch) this.audio.setVolume(this.settings.volume);
     if ('muted' in patch) this.audio.setMuted(this.settings.muted);
+    if ('sfxVolume' in patch) this.audio.setBusVolume('sfx', this.settings.sfxVolume);
+    if ('uiVolume' in patch) this.audio.setBusVolume('ui', this.settings.uiVolume);
     if ('showFps' in patch) this.applyFps();
     if ('uiScale' in patch || 'highContrast' in patch || 'reduceMotion' in patch) this.applyLook();
     if ('keys' in patch) this.applyKeys();

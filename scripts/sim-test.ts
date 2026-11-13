@@ -7,6 +7,7 @@ import { ladderValue } from '../src/game/modifiers.ts';
 import { DpsTracker } from '../src/ui/dps.ts';
 import { COLOR_SYMBOL } from '../src/ui/colors.ts';
 import { clampScale, getSettings } from '../src/ui/storage.ts';
+import { AudioEngine, UI_SOUNDS, busOf } from '../src/ui/audio.ts';
 import { COLOR_SHAPES } from '../src/render/atlas.ts';
 import { KEY_ACTIONS, RESERVED_CODES, cleanKeyOverrides, codeLookup, keyLabel, rebind, resolveBindings } from '../src/ui/keymap.ts';
 import type { Turret } from '../src/game/Turret.ts';
@@ -613,9 +614,17 @@ function makePlayer(game: Game, spots: Spot[]): () => void {
   check('(acc) UI shapes and map badge shapes are the same table', cols.every((c) => COLOR_SHAPES[c] === COLOR_SYMBOL[c]));
   check('(acc) interface size is clamped to 0.8..1.6 in steps of 0.1, junk -> 1',
     clampScale(0.5) === 0.8 && clampScale(3) === 1.6 && clampScale(1.23) === 1.2 && clampScale('big') === 1 && clampScale(NaN) === 1);
+  const proto = AudioEngine.prototype as unknown as Record<string, unknown>;
+  const sounds = Object.getOwnPropertyNames(AudioEngine.prototype).filter((n) => n.startsWith('s_')).map((n) => n.slice(2));
+  check('(acc) audio: every interface sound exists, shots/blasts/combos/alarm go to the effects bus',
+    [...UI_SOUNDS].every((n) => typeof proto['s_' + n] === 'function') && sounds.filter((n) => busOf(n) === 'ui').length === UI_SOUNDS.size
+    && ['shot_cannon', 'blast_huge', 'combo', 'alarm', 'horn', 'kill'].every((n) => busOf(n) === 'sfx'));
+  const ae = new AudioEngine();
+  ae.setBusVolume('ui', 2); ae.setBusVolume('sfx', Number.NaN);
+  check('(acc) audio: bus volume is clamped to 0..1, junk -> 1', ae.busVol.ui === 1 && ae.busVol.sfx === 1);
   const st = getSettings(); // Node: no localStorage, no matchMedia
   check('(acc) accessibility defaults: shapes on, size 1, contrast and reduce motion off', st.colorSymbols === true && st.uiScale === 1
-    && st.highContrast === false && st.reduceMotion === false);
+    && st.highContrast === false && st.reduceMotion === false && st.sfxVolume === 1 && st.uiVolume === 1);
 }
 
 // ------------------------------------------------------------------ (q) waveActive (auto-send)

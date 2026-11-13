@@ -1,6 +1,12 @@
 // Synthesized sound effects (Web Audio, no audio files). The context is created on the first user gesture.
 // Every sound is rate limited (about 12 per second, fewer at high game speed) and everything runs through
-// a master gain and a compressor so it never clips.
+// a master gain and a compressor so it never clips. Two volume buses feed the compressor: game effects (sfx) and
+// interface sounds (ui), each with its own setting.
+
+/** Sounds on the interface bus; every other sound (shots, blasts, combos, leaks, wave horn) is a game effect. */
+export const UI_SOUNDS: ReadonlySet<string> = new Set(['click', 'hover', 'error', 'build', 'sell', 'upgrade', 'unlock']);
+export type SoundBus = 'sfx' | 'ui';
+export const busOf = (name: string): SoundBus => (UI_SOUNDS.has(name) ? 'ui' : 'sfx');
 
 // Relative minimum gap per sound name (multiplier on the base gap).
 const GAP: Record<string, number> = {
@@ -29,6 +35,10 @@ export class AudioEngine {
   ctx: AudioContext | null;
   bus: GainNode | null;
   master: GainNode | null;
+  buses: Record<SoundBus, GainNode> | null;
+  busVol: Record<SoundBus, number>;
+  /** Bus the sound being synthesised right now goes to (set by play()). */
+  _out: SoundBus;
   noiseBuf: AudioBuffer | null;
   volume: number;
   muted: boolean;
@@ -42,6 +52,9 @@ export class AudioEngine {
     this.ctx = null;
     this.bus = null;
     this.master = null;
+    this.buses = null;
+    this.busVol = { sfx: 1, ui: 1 };
+    this._out = 'sfx';
     this.noiseBuf = null;
     this.volume = 0.7;
     this.muted = false;
@@ -55,11 +68,16 @@ export class AudioEngine {
   setVolume(v: number): void { this.volume = Math.max(0, Math.min(1, v)); this.apply(); }
   setMuted(m: boolean): void { this.muted = !!m; this.apply(); }
   setSpeed(s: number): void { this.speed = s || 1; }
+  /** Volume (0..1) of one bus, on top of the master volume. */
+  setBusVolume(bus: SoundBus, v: number): void { this.busVol[bus] = Math.max(0, Math.min(1, Number.isFinite(v) ? v : 1)); this.apply(); }
 
   apply(): void {
     if (!this.master || !this.ctx) return;
     const g = this.muted ? 0 : this.volume * 0.85;
     try { this.master.gain.setTargetAtTime(g, this.ctx.currentTime, 0.02); } catch (e) { /* ignore */ }
+    if (this.buses) for (const k of ['sfx', 'ui'] as const) {
+      try { this.buses[k].gain.setTargetAtTime(this.busVol[k], this.ctx.currentTime, 0.02); } catch (e) { /* ignore */ }
+    }
   }
 
   // Call from a user gesture handler.
@@ -80,6 +98,9 @@ export class AudioEngine {
         comp.release.value = 0.15;
         this.master = ctx.createGain();
         this.bus.connect(comp);
+        this.buses = { sfx: ctx.createGain(), ui: ctx.createGain() };
+        this.buses.sfx.connect(this.bus);
+        this.buses.ui.connect(this.bus);
         comp.connect(this.master);
         this.master.connect(ctx.destination);
         const len = ctx.sampleRate * 2;
@@ -115,6 +136,9 @@ export class AudioEngine {
     // cheap global cap: at most ~40 sounds per second across the board
     if (this._gStamp === undefined || now - this._gStamp > 1000) { this._gStamp = now; this._gCount = 0; }
     if (++this._gCount > 40) return;
+    const bus = busOf(name);
+    if (this.busVol[bus] <= 0) return;
+    this._out = bus;
     // sound methods are looked up by name (s_<name>); an unknown name is a silent no-op
     try { (this as unknown as Record<string, (() => void) | undefined>)['s_' + name]?.(); } catch (e) { /* ignore */ }
   }
@@ -141,7 +165,7 @@ export class AudioEngine {
       node = f;
     }
     node.connect(g);
-    g.connect(this.bus!);
+    g.connect(this.buses ? this.buses[this._out] : this.bus!);
     this.voices++;
     osc.onended = () => { this.voices--; };
     osc.start(t);
@@ -168,7 +192,7 @@ export class AudioEngine {
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     src.connect(f);
     f.connect(g);
-    g.connect(this.bus!);
+    g.connect(this.buses ? this.buses[this._out] : this.bus!);
     this.voices++;
     src.onended = () => { this.voices--; };
     src.start(t, Math.random() * 1.5);

@@ -18,6 +18,12 @@ export function buildSettings(app: App): HTMLElement {
   const vol = h('input', { type: 'range', min: 0, max: 100, step: 1, value: Math.round(s.volume * 100), 'aria-label': 'Master volume' });
   vol.addEventListener('input', () => app.updateSettings({ volume: Number(vol.value) / 100 }));
   vol.addEventListener('change', () => app.audio.play('click'));
+  const busSlider = (key: 'sfxVolume' | 'uiVolume', label: string): HTMLInputElement => {
+    const el = h('input', { type: 'range', min: 0, max: 100, step: 1, value: Math.round(s[key] * 100), 'aria-label': label });
+    el.addEventListener('input', () => app.updateSettings({ [key]: Number(el.value) / 100 } as Partial<storage.Settings>)); // key is one of the two bus volumes
+    el.addEventListener('change', () => app.audio.play(key === 'uiVolume' ? 'click' : 'shot_cannon'));
+    return el;
+  };
   const mute = h('input', { type: 'checkbox' });
   mute.checked = !!s.muted;
   mute.addEventListener('change', () => app.updateSettings({ muted: mute.checked }));
@@ -57,6 +63,8 @@ export function buildSettings(app: App): HTMLElement {
 
   return h('div', null,
     field('Master volume', null, h('div', { style: 'display:flex;align-items:center;gap:.6em' }, vol)),
+    field('Game effects volume', 'Shots, explosions, combos, alarms.', busSlider('sfxVolume', 'Game effects volume')),
+    field('Interface volume', 'Clicks, build, upgrade, sell, errors.', busSlider('uiVolume', 'Interface volume')),
     field('Mute', null, mute),
     field('Wave interval (seconds)', '0 = difficulty default. Applies to new games.', wave),
     field('Snap to grid', 'Snaps placement to a 22 unit grid.', check('snap')),
