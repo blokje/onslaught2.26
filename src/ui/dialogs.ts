@@ -27,7 +27,7 @@ export function buildSettings(app: App): HTMLElement {
     wave.value = String(v);
     app.updateSettings({ waveInterval: v });
   });
-  const check = (key: 'snap' | 'unlockAll' | 'showFps' | 'autoPause' | 'autoSend' | 'undo'): HTMLInputElement => {
+  const check = (key: 'snap' | 'unlockAll' | 'showFps' | 'autoPause' | 'autoSend' | 'undo' | 'colorSymbols'): HTMLInputElement => {
     const c = h('input', { type: 'checkbox' });
     c.checked = !!s[key];
     c.addEventListener('change', () => app.updateSettings({ [key]: c.checked } as Partial<storage.Settings>)); // key is one of the boolean settings above
@@ -63,6 +63,8 @@ export function buildSettings(app: App): HTMLElement {
     field('Auto-send waves', 'Sends the next wave (with the early bonus) as soon as the field is clear, from wave 1 on.', check('autoSend')),
     field('Relaxed: undo', 'U takes back your last build or upgrade with a full refund, until that turret fires. High scores of such games get a U mark.', check('undo')),
     field('Controls', 'See and change the keyboard keys (also the ? key).', keysBtn),
+    h('h3', { class: 'os-set-h' }, 'Accessibility'),
+    field('Colour shapes on the map', 'Each turret shows the shape of its combo colour: red triangle, green circle, blue square, yellow diamond.', check('colorSymbols')),
     field('Saved progress', 'Unlocks, high scores and the autosave.', resetBtn));
 }
 
@@ -135,7 +137,7 @@ export function buildHelp(app: App): HTMLElement {
     h('h3', null, 'Unlocks'),
     h('p', null, 'The four basic turrets are ready from the start. Modifiers and the extra weapons (Targeter, Sniper, Fusion, Railgun, Combo-only) unlock as your kill count grows during a game. Extreme difficulty unlocks after wave 100 on Medium, and Sandbox after wave 50 on any difficulty.'),
     h('h3', null, 'Combos'),
-    h('p', null, 'When turrets with fully upgraded damage stand close together (within 70 units), the one that fires first leads and the others join in. The mix of colours decides the result: nukes, cluster bombs, landmines, plasma balls, a black hole and more. Partners go on cooldown, so combos trade steady fire for one big hit. Press ' + keyLabel(bind.combo) + ' to see who is in range of the selected turret.'),
+    h('p', null, 'When turrets with fully upgraded damage stand close together (within 70 units), the one that fires first leads and the others join in. The mix of colours decides the result (each colour also has a shape: red triangle, green circle, blue square, yellow diamond): nukes, cluster bombs, landmines, plasma balls, a black hole and more. Partners go on cooldown, so combos trade steady fire for one big hit. Press ' + keyLabel(bind.combo) + ' to see who is in range of the selected turret.'),
     h('h3', null, 'Targeting'),
     h('p', null, 'Turrets pick the nearest attacker by default. Change that per turret (nearest, furthest along the road, weakest, strongest, slowest, fastest), lock onto a target, restrict the firing cone, or order every turret in reach to focus on one attacker. A Targeter lends its position and range to the turret you join to it.'),
     h('h3', null, 'Controls'),

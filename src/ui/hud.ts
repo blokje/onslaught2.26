@@ -10,6 +10,7 @@ import { COMBOS } from '../data/combos.ts';
 import type { App } from './App.ts';
 import type { AppGame } from './appTypes.ts';
 import { DpsTracker } from './dps.ts';
+import { COMBO_HEX, COLOR_SYMBOL, colorName } from './colors.ts';
 import type { KeyAction } from './keymap.ts';
 import type { TurretState, GameState, KeyColor, Stat, TargetMode, DirectionalMode, TurretDef, Category } from '../types.ts';
 
@@ -17,7 +18,6 @@ const TARGET_NAMES: Record<TargetMode, string> = { near: 'Nearest', far: 'Furthe
 const DIR_NAMES: Record<DirectionalMode, string> = { normal: 'All around', wide: 'Wide 180', medium: 'Medium 90', tight: 'Tight 60', small: 'Narrow 45', pinpoint: 'Pinpoint 30' };
 const STAT_NAMES: Record<Stat, string> = { damage: 'Damage', range: 'Range', rate: 'Rate' };
 const STAT_ACTION: Record<Stat, KeyAction> = { damage: 'upDamage', range: 'upRange', rate: 'upRate' };
-const COMBO_HEX: Record<string, string> = { red: '#ff6a4d', green: '#52d17a', blue: '#4da3ff', yellow: '#ffd54a' };
 
 const COLORS: KeyColor[] = ['red', 'green', 'blue', 'yellow'];
 const COMBO_NAMES: Record<string, string> = {};
@@ -29,7 +29,11 @@ type TabId = 'general' | 'upgrades' | 'combos' | 'freak';
 const TAB_ORDER: TabId[] = ['general', 'upgrades', 'combos', 'freak'];
 const TAB_NAMES: Record<TabId, string> = { general: 'General', upgrades: 'Upgrades', combos: 'Combos', freak: 'Freakout' };
 
-const dot = (color: string | null): HTMLElement => h('i', { class: 'os-cdot', style: 'background:' + (COMBO_HEX[color ?? ''] || '#888') });
+/** Colour dot with its shape (triangle, circle, square, diamond), so it reads without colour vision too. */
+const dot = (color: string | null): HTMLElement => {
+  const c = color && Object.hasOwn(COMBO_HEX, color) ? color as KeyColor : null;
+  return h('i', { class: 'os-cdot' + (c ? ' sym-' + COLOR_SYMBOL[c] : ''), style: 'background:' + (c ? COMBO_HEX[c] : '#888'), title: c ? colorName(c) : null, role: c ? 'img' : null, 'aria-label': c ? colorName(c) : null });
+};
 /** Combo wait in game ms -> "ready" or "2.4s". */
 const formatWait = (ms: number): string => (ms <= 0 ? 'ready' : (ms / 1000).toFixed(1) + 's');
 const formatAgo = (ms: number): string => { const sec = Math.max(0, Math.floor(ms / 1000)); return sec < 60 ? sec + 's ago' : Math.floor(sec / 60) + 'm ago'; };
@@ -604,7 +608,7 @@ export class Hud {
     }
     if (r.color) {
       const c = t.comboColor || 'red';
-      setText(r.color._label!, 'Colour: ' + c);
+      setText(r.color._label!, 'Colour: ' + colorName(c));
       r.color.style.borderColor = COMBO_HEX[c] || '';
     }
     const c = r.chips;

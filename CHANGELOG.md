@@ -5,6 +5,15 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
 
 ## Unreleased
 
+### Added (2026 roadmap, phase 3: accessibility)
+- Colour shapes, so combos never depend on colour vision alone: red triangle, green circle, blue square, yellow diamond.
+  Every weapon and Combo-only shows its shape as a small badge on the map (setting "Colour shapes on the map", default
+  on, new optional overlay field `colorSymbols`), and the colour dots in the Combos tab, the Combo-only button and How to
+  play use the same shapes. New `src/ui/colors.ts`, icon atlas grown to 4 x 3 for the shapes, badge in the existing icon
+  batch. Fixed the render demo's fake turrets, which had no weapon `comboColor`. New sim-test checks (acc). Checked in
+  Chromium (render demo, a real game, setting off, no console errors).
+  Docs: `ARCHITECTURE.md`, `README.md`, `docs/claude/rendering.md`, `docs/claude/ui.md`, `docs/claude/testing.md`.
+
 ### Added (2026 roadmap, phase 1: player information)
 - Incoming-wave preview in the top bar: "Wave N" with the HP and bounty of each attacker in the next wave, and a
   tooltip for the next 5 waves. Backed by the new read-only command `game.wavePreview(n?)` (no rng, same formulas as

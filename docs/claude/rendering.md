@@ -26,6 +26,15 @@ three.js 0.160.0, orthographic top-down. Contract: `ARCHITECTURE.md` section 2. 
 - Never consume left-button or single-touch events: those belong to the UI.
 - DPR is capped at 2. Antialiasing is off because edges are shader or texture antialiased.
 
+## Colour symbols (accessibility)
+
+Combo colours are also shapes: red triangle, green circle, blue square, yellow diamond (`COLOR_SHAPES` in `atlas.ts`, the
+same table as `COLOR_SYMBOL` in `src/ui/colors.ts`; sim-test (acc) keeps them equal). The shapes are white cells 8 to 11
+of the icon atlas (now 4 x 3, `symbolUV(color)`), tinted with `COMBO_COLOR` at draw time. `drawTurrets` puts one badge on
+every turret with a `comboColor` (weapons and Combo-only), `SYMBOL_SIZE` 15 units, `SYMBOL_DY` 14 below the centre, so it
+stays inside the upgrade ring. It uses the existing `tIcon` batch (no extra draw call). Off when `overlay.colorSymbols`
+is false. The render demo's fake turrets now carry their weapon colour as `comboColor`, like real ones.
+
 ## Range preview ring
 
 `overlay.previewRange` (`{ id, range }`, set by the UI while a stat row in the Upgrades tab is hovered) draws a dashed

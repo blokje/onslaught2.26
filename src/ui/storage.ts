@@ -20,6 +20,8 @@ export interface Settings {
   autoSend: boolean;
   /** Relaxed rule: allow undo of the last build or upgrade (SPEC.md section 9). */
   undo: boolean;
+  /** Accessibility: draw the combo-colour shape on each turret on the map. */
+  colorSymbols: boolean;
   infoCollapsed: boolean;
   panelPos: PanelPos | null;
   /** Rebound keys (action -> KeyboardEvent.code); actions not listed use the default in keymap.ts. */
@@ -73,6 +75,7 @@ export const DEFAULT_SETTINGS: Settings = {
   autoPause: true,      // pause while the tab is hidden, resume on return
   autoSend: false,      // send the next wave as soon as the field is clear (A key, Auto button)
   undo: false,          // relaxed rule: U takes back the last build or upgrade until that turret fires
+  colorSymbols: true,   // accessibility: shape badge of the combo colour on every turret on the map
   infoCollapsed: false,
   panelPos: null,       // turret panel { x, y } in px from the HUD's top-left, null = default dock
   keys: {},             // rebound keys: { action: KeyboardEvent.code }, only the ones that differ from src/ui/keymap.ts

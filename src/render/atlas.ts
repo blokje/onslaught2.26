@@ -545,8 +545,30 @@ const WEAPON_DRAW: Record<string, (ctx: Ctx) => void> = {
 export const T_PX = 8;                       // atlas pixels per world unit for turrets
 const T_CELL = 64 * T_PX, T_SIZE = T_CELL * COLS; // 512 px cells, 2048 px atlases
 export const MOD_KINDS = BUILD_ORDER.filter((k) => !!MOD_TINT[k]);
-export const MOD_ICON_UNITS = 32;            // icon cell = 32 world units at 8 px / unit (256 px), grid 4 x 2
-const ICON_W = 1024, ICON_H = 512;
+export const MOD_ICON_UNITS = 32;            // icon cell = 32 world units at 8 px / unit (256 px), grid 4 x 3
+const ICON_W = 1024, ICON_H = 768;
+/** Shape per combo colour, so colour is never the only cue (accessibility; same table as src/ui/colors.ts). */
+export const COLOR_SHAPES: Record<string, 'triangle' | 'circle' | 'square' | 'diamond'> = {
+  red: 'triangle', green: 'circle', blue: 'square', yellow: 'diamond',
+};
+const SYMBOL_ORDER = ['red', 'green', 'blue', 'yellow'];
+const SYMBOL_CELL0 = 8;                      // third row of the icon atlas (cells 8 to 11)
+/** UV of the white colour-symbol badge for a combo colour (tint it with the colour), or null. */
+export function symbolUV(color: string | null): Cell | null {
+  const k = color ? SYMBOL_ORDER.indexOf(color) : -1;
+  if (k < 0) return null;
+  const i = SYMBOL_CELL0 + k;
+  const x = (i % COLS) * 256, y = Math.floor(i / COLS) * 256;
+  return { u0: x / ICON_W, v0: y / ICON_H, u1: (x + 256) / ICON_W, v1: (y + 256) / ICON_H };
+}
+/** Path of a colour symbol centred on 0,0 with outer radius r. */
+function symbolPath(ctx: Ctx, shape: string, r: number): void {
+  ctx.beginPath();
+  if (shape === 'circle') ctx.arc(0, 0, r * 0.86, 0, TAU);
+  else if (shape === 'square') ctx.rect(-r * 0.76, -r * 0.76, r * 1.52, r * 1.52);
+  else if (shape === 'diamond') { ctx.moveTo(0, -r); ctx.lineTo(r, 0); ctx.lineTo(0, r); ctx.lineTo(-r, 0); ctx.closePath(); }
+  else { ctx.moveTo(0, -r); ctx.lineTo(r * 0.95, r * 0.72); ctx.lineTo(-r * 0.95, r * 0.72); ctx.closePath(); }
+}
 /** UV of the (non-rotating) modifier icon for a kind, or null for non-modifiers. */
 export function modIconUV(kind: string): Cell | null {
   const i = MOD_KINDS.indexOf(kind);
@@ -571,6 +593,14 @@ export function buildTurretAtlases(): { base: THREE.CanvasTexture; weapon: THREE
     circle(xi, 0, 0, 10.6); xi.fillStyle = 'rgba(14,17,24,0.72)'; xi.fill();
     circle(xi, 0, 0, 10.6); xi.lineWidth = 0.8; xi.strokeStyle = MOD_TINT[kind]; xi.globalAlpha = 0.85; xi.stroke(); xi.globalAlpha = 1;
     drawModIcon(xi, kind, MOD_TINT[kind]);
+    xi.restore();
+  });
+  // colour symbols: white shape with a dark rim, tinted at draw time
+  SYMBOL_ORDER.forEach((color, k) => {
+    beginCell(xi, SYMBOL_CELL0 + k, MOD_ICON_UNITS, 256);
+    symbolPath(xi, COLOR_SHAPES[color], 13);
+    xi.fillStyle = '#ffffff'; xi.fill();
+    xi.lineWidth = 2.4; xi.lineJoin = 'round'; xi.strokeStyle = 'rgba(10,12,18,0.95)'; xi.stroke();
     xi.restore();
   });
   return { base: toTexture(cb), weapon: toTexture(cw), icon: toTexture(ci) };

@@ -5,6 +5,8 @@ import { DIFFICULTIES, WAVES, WEAVE } from '../src/data/rules.ts';
 import { waveHp, waveBounty, laneOffset } from '../src/game/Attacker.ts';
 import { ladderValue } from '../src/game/modifiers.ts';
 import { DpsTracker } from '../src/ui/dps.ts';
+import { COLOR_SYMBOL } from '../src/ui/colors.ts';
+import { COLOR_SHAPES } from '../src/render/atlas.ts';
 import { KEY_ACTIONS, RESERVED_CODES, cleanKeyOverrides, codeLookup, keyLabel, rebind, resolveBindings } from '../src/ui/keymap.ts';
 import type { Turret } from '../src/game/Turret.ts';
 import type { Attacker, GameEvents, KeyColor, Projectile, Result, Stat, TargetMode } from '../src/types.ts';
@@ -600,6 +602,14 @@ function makePlayer(game: Game, spots: Spot[]): () => void {
   must(keep.build('blue', sp1.x, sp1.y));
   const k2 = Game.deserialize(keep.serialize());
   check('(u) a restored game starts without an undo (it is not saved)', k2.undoInfo() === null && keep.undoInfo() !== null);
+}
+
+// ------------------------------------------------------------------ (acc) accessibility tables (src/ui, src/render; pure)
+{
+  const cols = ['red', 'green', 'blue', 'yellow'] as const;
+  const shapes = cols.map((c) => COLOR_SYMBOL[c]);
+  check('(acc) every combo colour has its own shape', new Set(shapes).size === 4 && shapes.every(Boolean));
+  check('(acc) UI shapes and map badge shapes are the same table', cols.every((c) => COLOR_SHAPES[c] === COLOR_SYMBOL[c]));
 }
 
 // ------------------------------------------------------------------ (q) waveActive (auto-send)

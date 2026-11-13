@@ -11,7 +11,7 @@
 import * as THREE from 'three';
 import { FIELD } from '../data/rules.ts';
 import { SpriteBatch, RingBatch } from './batches.ts';
-import { buildFxAtlas, buildUnitAtlas, buildTurretAtlases, TextAtlas, cellUV, modIconUV, MOD_KINDS, FX, KIND_INDEX } from './atlas.ts';
+import { buildFxAtlas, buildUnitAtlas, buildTurretAtlases, TextAtlas, cellUV, modIconUV, symbolUV, MOD_KINDS, FX, KIND_INDEX } from './atlas.ts';
 import { Terrain } from './terrain.ts';
 import { CameraController } from './camera.ts';
 import { Particles } from './particles.ts';
@@ -24,7 +24,7 @@ import type { TurretState, Effect } from '../types.ts';
 
 export type { RenderGame } from './context.ts';
 
-const DEFAULT_OVERLAY: Overlay = { ghost: null, selectedId: null, hoverId: null, showRanges: 'selected', showCombo: false, joinFromId: null, previewRange: null };
+const DEFAULT_OVERLAY: Overlay = { ghost: null, selectedId: null, hoverId: null, showRanges: 'selected', showCombo: false, joinFromId: null, previewRange: null, colorSymbols: true };
 const CLEAR = 0x120e0b;
 
 export class Renderer {
@@ -91,6 +91,7 @@ export class Renderer {
         tb: Array.from({ length: nKinds }, (_, i) => cellUV(i)),
         tw: Array.from({ length: nKinds }, (_, i) => cellUV(i)),
         ti: Object.fromEntries(MOD_KINDS.map((k) => [k, modIconUV(k)])),
+        sym: Object.fromEntries(['red', 'green', 'blue', 'yellow'].map((k) => [k, symbolUV(k)])),
       },
       b: null as unknown as Batches, // filled right below, once the batches exist
       particles: new Particles(2600),

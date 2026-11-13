@@ -32,6 +32,14 @@ DOM overlay over the canvas, input, persistence and audio. Contract: `ARCHITECTU
   `game.wavePreview()`. Its tooltip lists the next 5 waves. Rebuilt only when the wave number or the game object
   changes (`Hud.updateIncoming`), not every tick.
 
+## Accessibility
+
+- Colours are never the only cue: `src/ui/colors.ts` holds `COMBO_HEX`, `COLOR_SYMBOL` (shape per colour) and
+  `colorName()` ("red (triangle)"). The colour dots in the Combos tab are shaped with CSS (`.os-cdot.sym-*`, `clip-path`)
+  and carry `role="img"` and an `aria-label`; the Combo-only colour button names the shape. Always on.
+- Settings section "Accessibility" (`buildSettings`): Colour shapes on the map (`colorSymbols`, default on, sent to the
+  renderer as `overlay.colorSymbols`).
+
 ## Game-over report
 
 `App.onGameOver` builds a `RunReport` with `buildReportData(state)` and passes it to `buildGameOver` (`dialogs.ts`),

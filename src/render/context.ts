@@ -22,6 +22,7 @@ export interface Cells {
   tb: Cell[];                        // turret base plates by KIND_INDEX
   tw: Cell[];                        // turret weapons by KIND_INDEX
   ti: Record<string, Cell | null>;   // modifier icons by kind
+  sym: Record<string, Cell | null>;  // colour-symbol badges by combo colour (icon atlas)
 }
 
 /** The ~25 instanced batches, in draw order (see Renderer). */

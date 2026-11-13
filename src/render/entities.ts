@@ -24,6 +24,9 @@ const RING_ACC_W = 1;                            // inner stat-colour arc
 const RING_ACC_R = RING_R - RING_W / 2 - 0.4 - RING_ACC_W / 2;
 const RING_GAP = 1.8;                            // gap between stat segments (world units of arc)
 const RING_MIN_TICK_PX = 2.5;                    // narrower ticks merge into a solid arc
+// colour-symbol badge: drawn size of the 32-unit icon cell (shape about 9 units) and its offset below the centre
+const SYMBOL_SIZE = 15;
+const SYMBOL_DY = 14;
 
 /** Rendering tint for a turret kind (used for glow, rings). */
 export function turretColor(t: TurretState): RGB {
@@ -85,6 +88,11 @@ export function drawTurrets(R: Res, f: Frame): void {
     b.tWeap.add(x + jx, y + jy, rot, ws, ws, c.tw[idx], wr, wg, wb, 1);
     const icon = c.ti[t.kind];
     if (isMod && icon) b.tIcon.add(x, y, 0, 32, 32, icon, wr, wg, wb, 1);
+    // colour-symbol badge (accessibility): the combo colour as a shape, low on the base, inside the upgrade ring
+    if (R.overlay.colorSymbols !== false && t.comboColor) {
+      const sym = c.sym[t.comboColor];
+      if (sym) { const sc = rgb(COMBO_COLOR[t.comboColor]); b.tIcon.add(x, y + SYMBOL_DY, 0, SYMBOL_SIZE, SYMBOL_SIZE, sym, sc[0], sc[1], sc[2], 1); }
+    }
 
     // freak indicators
     if (t.freak === 'available') {

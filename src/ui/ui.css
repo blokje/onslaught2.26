@@ -204,6 +204,10 @@
 .os-cpart { display: inline-flex; align-items: center; gap: 0.3em; font-size: 0.75em; font-weight: 700; padding: 0.1em 0.55em; border-radius: 1em; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.18); }
 .os-cpart.off { opacity: 0.55; }
 .os-cdot { display: inline-block; width: 0.62em; height: 0.62em; border-radius: 50%; border: 1px solid rgba(0, 0, 0, 0.4); flex: none; }
+/* colour shapes (accessibility): same shapes as the map badges */
+.os-cdot.sym-triangle { width: 0.72em; height: 0.66em; border: 0; border-radius: 0; clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+.os-cdot.sym-square { border-radius: 0.08em; }
+.os-cdot.sym-diamond { width: 0.72em; height: 0.72em; border: 0; border-radius: 0; clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
 .os-cnext { display: flex; align-items: baseline; gap: 0.45em; padding: 0.35em 0.5em; background: rgba(242, 169, 59, 0.14); border: 1px solid var(--edge); border-radius: 0.5em; }
 .os-cnext span { font-size: 0.72em; color: var(--ink-dim); }
 .os-cnext b { font-size: 1.1em; color: var(--amber-hi); font-variant-numeric: tabular-nums; }
@@ -228,6 +232,7 @@
 .os-modal-head h2 { margin: 0; font-size: 1.35em; color: var(--amber-hi); letter-spacing: 0.02em; }
 .os-modal-body { padding: 0.9em; overflow-y: auto; display: flex; flex-direction: column; gap: 0.8em; }
 .os-modal-foot { display: flex; gap: 0.5em; justify-content: flex-end; padding: 0.6em 0.9em; border-top: 1px solid var(--edge); flex-wrap: wrap; }
+.os-set-h { margin: 0.9em 0 0.1em; font-size: 0.95em; color: var(--amber-hi); letter-spacing: 0.04em; }
 .os-field { display: flex; align-items: center; justify-content: space-between; gap: 1em; padding: 0.35em 0; border-bottom: 1px dashed rgba(255, 255, 255, 0.08); }
 .os-field label, .os-field .os-lab { font-weight: 600; }
 .os-field small { display: block; font-weight: 400; color: var(--ink-dim); font-size: 0.78em; }

@@ -287,6 +287,8 @@ export interface Overlay {
   joinFromId: number | null;
   /** Optional: range the selected turret would have after the hovered range upgrade (dashed ring). */
   previewRange?: { id: number; range: number } | null;
+  /** Optional (default true): draw the shape badge of each turret's combo colour (accessibility). */
+  colorSymbols?: boolean;
 }
 
 export interface ViewInsets { top: number; right: number; bottom: number; left: number }

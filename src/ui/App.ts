@@ -263,6 +263,7 @@ export class App {
     if ('muted' in patch) this.audio.setMuted(this.settings.muted);
     if ('showFps' in patch) this.applyFps();
     if ('keys' in patch) this.applyKeys();
+    if ('colorSymbols' in patch) this.overlayDirty = true;
     if ('unlockAll' in patch || 'waveInterval' in patch) this.menu.refresh();
   }
 
@@ -558,6 +559,7 @@ export class App {
         showCombo: this.showCombo,
         joinFromId: this.mode === 'join' ? this.selectedId : null,
         previewRange: this.previewRange,
+        colorSymbols: this.settings.colorSymbols,
       });
     } catch (e) { console.error(e); }
   }

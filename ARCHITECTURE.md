@@ -158,6 +158,7 @@ r.setOverlay({                              // UI-driven overlays, call whenever
   showCombo: bool,                          // C key: lines from selected turret to comboPartners
   joinFromId: id | null,                    // Targeter join mode: line to cursor
   previewRange: { id, range } | null,       // optional: dashed lime ring, the selected turret's range after the hovered upgrade
+  colorSymbols: bool,                       // optional, default true: shape badge of each turret's comboColor (accessibility)
 });
 r.resetView();                              // fit field to screen
 r.setViewInsets({ top, right, bottom, left }) // optional: CSS px covered by HUD panels, the fitted field avoids them
@@ -199,7 +200,7 @@ pooled meshes for attackers/projectiles).
 - **Settings**: master volume / mute, wave interval override, snap-to-grid toggle (grid 22 units), unlock-all switch,
   show FPS, `autoPause` (pause while the tab is hidden), `autoSend` (send the next wave when the field is clear, see
   `game.waveActive()`), `panelPos` (moved turret panel), `keys` (rebound keys: `{ action: KeyboardEvent.code }`, only
-  the ones that differ from `src/ui/keymap.ts`), `undo` (Relaxed: undo, off by default). `getSettings()` drops stored values
+  the ones that differ from `src/ui/keymap.ts`), `undo` (Relaxed: undo, off by default), `colorSymbols` (shape badges on the map, default on). `getSettings()` drops stored values
   whose type does not match the default.
 - **Audio** (`src/ui/audio.ts`): Web Audio synthesized SFX driven by game events (cannon pop, laser zap, rocket whoosh,
   spark crackle, blasts by size, nuke boom, kill tick, leak alarm, wave horn, combo chord, UI clicks). Rate-limit
