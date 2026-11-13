@@ -225,6 +225,7 @@ arrows, Esc and Enter are fixed. Keys are physical positions (QWERTY names).
 | 1-8, Shift+1-8 | pick turret to build |
 | Q / W / E | upgrade damage / range / rate (Shift = as far as affordable) |
 | S | sell (70%) |
+| U | undo the last build or upgrade, only with the Relaxed: undo setting [NEW] |
 | M | move ($500) |
 | R | toggle range rings |
 | C | toggle combo-in-range display |
@@ -259,6 +260,12 @@ arrows, Esc and Enter are fixed. Keys are physical positions (QWERTY names).
 **Auto-send** [NEW, UI convenience, no rule change]: with the setting on (A key or the Auto button), the UI sends the next
 wave exactly like Space as soon as no wave is spawning and no attacker is alive, so the early-wave bonus is paid as usual.
 It never starts wave 1 (the player does) and waits while paused, while a dialog is open and after game over.
+
+**Relaxed: undo** [NEW, optional, off by default]: with the setting on, U (or the Undo button) takes back the last build
+or upgrade with a full refund; `spent` and the score go back too. Only the newest build or upgrade counts, and only until
+that turret fires (a normal shot, a laser-chain contribution, a holding-pattern rocket or a combo); a later build,
+upgrade, sell or move also ends the chance. A game that used undo is flagged (`undoUsed`) and its high score shows a U
+mark, so the original rules (70% back on a sell) stay the default and scores stay comparable.
 
 **Sandbox** (unlockable): $10,000,000 start cash, everything unlocked (the original's own debug mode does exactly this).
 

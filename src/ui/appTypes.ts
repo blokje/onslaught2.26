@@ -34,6 +34,8 @@ export interface AppGame {
   sendWave(): CommandResult;
   wavePreview(n?: number): WavePreview;
   waveActive(): boolean;
+  undo(): CommandResult;
+  undoInfo(): { label: string; refund: number } | null;
   setSpeed(speed: number): CommandResult | void;
   togglePause(): CommandResult | void;
   setPaused(paused: boolean): CommandResult | void;

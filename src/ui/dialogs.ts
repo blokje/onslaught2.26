@@ -27,7 +27,7 @@ export function buildSettings(app: App): HTMLElement {
     wave.value = String(v);
     app.updateSettings({ waveInterval: v });
   });
-  const check = (key: 'snap' | 'unlockAll' | 'showFps' | 'autoPause' | 'autoSend'): HTMLInputElement => {
+  const check = (key: 'snap' | 'unlockAll' | 'showFps' | 'autoPause' | 'autoSend' | 'undo'): HTMLInputElement => {
     const c = h('input', { type: 'checkbox' });
     c.checked = !!s[key];
     c.addEventListener('change', () => app.updateSettings({ [key]: c.checked } as Partial<storage.Settings>)); // key is one of the boolean settings above
@@ -61,6 +61,7 @@ export function buildSettings(app: App): HTMLElement {
     field('Show FPS counter', null, check('showFps')),
     field('Pause when tab is hidden', 'Resumes automatically when you come back.', check('autoPause')),
     field('Auto-send waves', 'Sends the next wave (with the early bonus) as soon as the field is clear, from wave 1 on.', check('autoSend')),
+    field('Relaxed: undo', 'U takes back your last build or upgrade with a full refund, until that turret fires. High scores of such games get a U mark.', check('undo')),
     field('Controls', 'See and change the keyboard keys (also the ? key).', keysBtn),
     field('Saved progress', 'Unlocks, high scores and the autosave.', resetBtn));
 }
@@ -167,7 +168,8 @@ export function buildScores(app: App, highlight?: ScoreHighlight): HTMLElement {
         const me = highlight && highlight.rank === i + 1 && highlight.mapId === sel.mapId && highlight.difficulty === sel.difficulty && highlight.mode === sel.mode;
         let date = '';
         try { date = new Date(e.date).toLocaleDateString(); } catch (err) { /* ignore */ }
-        return h('tr', { class: me ? 'me' : '' }, h('td', null, i + 1), h('td', null, formatNum(e.score)), h('td', null, formatNum(e.kills)), h('td', null, e.wave), h('td', null, date));
+        const score = h('td', null, formatNum(e.score), e.undo ? h('span', { class: 'os-undo-mark', title: 'This game used undo (relaxed rule)' }, ' U') : null);
+        return h('tr', { class: me ? 'me' : '' }, h('td', null, i + 1), score, h('td', null, formatNum(e.kills)), h('td', null, e.wave), h('td', null, date));
       }));
     body.replaceChildren(t);
   }

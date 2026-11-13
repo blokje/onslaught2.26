@@ -24,6 +24,10 @@ DOM overlay over the canvas, input, persistence and audio. Contract: `ARCHITECTU
 - Auto (key A, setting `autoSend`, default off, also in Settings): `App.autoSendCheck` runs every frame and calls
   `sendWave()` (same as Space, early bonus included) when `game.waveActive()` is false. Never before wave 1, and not while
   paused, over or with a modal open. The button shows `is-on` while the setting is on.
+- Undo (key U, setting `undo` "Relaxed: undo", default off): the Undo button sits left of Pause and is only shown with the
+  setting on; it is disabled while `game.undoInfo()` is null and its tooltip names what would be undone. `App.undo()`
+  with the setting off only shows a toast. A game with `state.undoUsed` stores its high score with `undo: true`
+  (`ScoreEntry`), shown as a dimmed U after the score in the high-score table.
 - Incoming preview: label "Wave N" (the next wave), value "1.2K HP $12" (HP and bounty of each attacker), from
   `game.wavePreview()`. Its tooltip lists the next 5 waves. Rebuilt only when the wave number or the game object
   changes (`Hud.updateIncoming`), not every tick.

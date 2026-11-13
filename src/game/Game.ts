@@ -83,6 +83,18 @@ export interface GameOpts {
   seed: number; waveInterval: number | null;
 }
 
+/** The last build or upgrade, as game.undo() needs it (in memory only). */
+interface UndoRecord {
+  kind: 'build' | 'upgrade';
+  id: number;
+  cost: number;            // full refund
+  fired: boolean;          // the turret fired since: too late
+  label: string;           // for the UI ("build Cannon", "damage upgrade x3 (Laser)")
+  stat?: Stat;
+  levels?: number;
+  before?: { levels: StatValues; cashValue: number; freak: TurretState['freak']; freakAt: number };
+}
+
 /** Serialised game (output of Game.serialize, plain JSON). */
 export interface SaveData {
   version: number;
@@ -94,7 +106,7 @@ export interface SaveData {
   focusId: number | null;
   spawners: Spawner[];
   waveInterval: number;
-  state: Pick<GameState, 'time' | 'speed' | 'paused' | 'over' | 'cash' | 'lives' | 'kills' | 'spent' | 'wave' | 'nextWaveIn' | 'score' | 'unlocked' | 'history' | 'damageTotal'>;
+  state: Pick<GameState, 'time' | 'speed' | 'paused' | 'over' | 'cash' | 'lives' | 'kills' | 'spent' | 'wave' | 'nextWaveIn' | 'score' | 'unlocked' | 'history' | 'damageTotal' | 'undoUsed'>;
   turrets: TurretState[];
   attackers: Attacker[];
   projectiles: Projectile[];
@@ -124,6 +136,8 @@ export class Game {
   state: GameState;
   _nextUnlock: number;
   combos: Combos;
+  /** Last build/upgrade that undo() can take back (not saved: a restored game starts without one). */
+  _undo: UndoRecord | null = null;
 
   constructor(options: GameOptions = {}) {
     const o = { mapId: 'map1', difficulty: 'medium', mode: 'normal', unlockAll: false, ...options };
@@ -174,10 +188,13 @@ export class Game {
       },
       attackers: [], turrets: [], projectiles: [], beams: [], effects: [],
       focusId: null,
-      history: [], damageTotal: 0,
+      history: [], damageTotal: 0, undoUsed: false,
     };
     this._nextUnlock = this._computeNextUnlock();
     this.combos = new Combos(this);
+    // undo ends once the turret fires (normal shots and combos; chain and holding call markFired directly)
+    this.on('shot', (p) => this.markFired(p.turretId));
+    this.on('combo', (p) => { this.markFired(p.turretId); for (const id of p.partnerIds) this.markFired(id); });
   }
 
   /** Focus-fire target; mirrored to state.focusId for the renderer. */
@@ -506,10 +523,53 @@ export class Game {
     s.spent += def.cost;
     s.turrets.push(t);
     this.turretMap.set(t.id, t);
+    this._undo = { kind: 'build', id: t.id, cost: def.cost, fired: false, label: 'build ' + def.name };
     this._recompute();
     this._refreshScore();
     this.emit('build', { id: t.id, kind });
     return { ok: true, id: t.id };
+  }
+
+  // ------------------------------------------------------------------ undo (optional relaxed rule, SPEC.md section 9)
+  /** A turret fired (shot, chain contribution, holding rocket, combo): it can no longer be undone. */
+  markFired(id: number): void { if (this._undo && this._undo.id === id) this._undo.fired = true; }
+
+  /** What `undo()` would take back, or null. Read-only. */
+  undoInfo(): { label: string; refund: number } | null {
+    const u = this._undo;
+    if (!u || u.fired || this.state.over || !this.turretMap.has(u.id)) return null;
+    return { label: u.label, refund: u.cost };
+  }
+
+  /**
+   * Take back the last build or upgrade with a full refund, while that turret has not fired since (any later build,
+   * upgrade, sell or move ends the chance). `spent` and the score go back too, and `state.undoUsed` is set for good.
+   */
+  undo(): Result<{ refund: number }> {
+    const u = this._undo;
+    const t = u ? this.turretMap.get(u.id) : undefined;
+    if (!u || !t || this.state.over) return this._fail('Nothing to undo');
+    if (u.fired) return this._fail('It has fired since, too late to undo');
+    const s = this.state;
+    this._undo = null;
+    s.cash += u.cost;
+    s.spent -= u.cost;
+    s.undoUsed = true;
+    if (u.kind === 'build') {
+      s.turrets.splice(s.turrets.indexOf(t), 1);
+      this.turretMap.delete(t.id);
+      for (const o of s.turrets) if (o.joinedTo === t.id) o.joinedTo = null;
+    } else {
+      const b = u.before!;
+      t.levels = { ...b.levels };
+      t.cashValue = b.cashValue;
+      t.freak = b.freak;
+      t.freakAt = b.freakAt;
+    }
+    this._recompute();
+    this._refreshScore();
+    this.emit('undo', { id: t.id, kind: u.kind, refund: u.cost });
+    return { ok: true, refund: u.cost };
   }
 
   turretAt(x: number, y: number): number | null {
@@ -552,6 +612,7 @@ export class Game {
     if (!t) return this._fail('No such turret');
     if (!STATS.includes(stat)) return this._fail('Unknown stat');
     const s = this.state;
+    const before = { levels: { ...t.levels }, cashValue: t.cashValue, freak: t.freak, freakAt: t.freakAt };
     let n = 0, reason = 'Fully upgraded';
     for (;;) {
       const cost = nextUpgradeCost(t.kind, stat, t.levels[stat]);
@@ -565,6 +626,10 @@ export class Game {
       if (!toMax) break;
     }
     if (n === 0) return this._fail(reason);
+    this._undo = {
+      kind: 'upgrade', id, cost: t.cashValue - before.cashValue, fired: false, stat, levels: n, before,
+      label: `${stat} upgrade${n > 1 ? ' x' + n : ''} (${TURRETS[t.kind].name})`,
+    };
     this._recompute();
     this._refreshScore();
     this.emit('upgrade', { id, stat, levels: n });
@@ -589,6 +654,7 @@ export class Game {
       }
     }
     const refund = Math.floor(t.cashValue * SELL_REFUND);
+    this._undo = null;
     s.cash += refund;
     s.turrets.splice(s.turrets.indexOf(t), 1);
     this.turretMap.delete(id);
@@ -608,6 +674,7 @@ export class Game {
     if (s.cash < MOVE_COST) return this._fail('Not enough cash');
     s.cash -= MOVE_COST;
     s.spent += MOVE_COST;
+    this._undo = null;
     t.x = x; t.y = y;
     t.targetId = null;
     this._recompute();
@@ -794,7 +861,7 @@ export class Game {
         time: s.time, speed: s.speed, paused: s.paused, over: s.over,
         cash: s.cash, lives: s.lives, kills: s.kills, spent: s.spent, wave: s.wave,
         nextWaveIn: s.nextWaveIn, score: s.score, unlocked: s.unlocked,
-        history: s.history, damageTotal: s.damageTotal,
+        history: s.history, damageTotal: s.damageTotal, undoUsed: s.undoUsed,
       },
       turrets: s.turrets, attackers: s.attackers, projectiles: s.projectiles,
       beams: s.beams, effects: s.effects,
@@ -845,6 +912,7 @@ export class Game {
       ? s.history.map((r) => ({ wave: r.wave, time: r.time, cash: r.cash, lives: r.lives, kills: r.kills, spent: r.spent, damage: r.damage }))
       : [];
     if (!Number.isFinite(s.damageTotal)) s.damageTotal = 0;
+    s.undoUsed = s.undoUsed === true;
     for (const o of d.turrets) { const t = Turret.fromJSON(o); s.turrets.push(t); g.turretMap.set(t.id, t); }
     for (const a of d.attackers) { s.attackers.push(a); g.attackerMap.set(a.id, a); }
     s.projectiles.push(...d.projectiles);

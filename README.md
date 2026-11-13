@@ -59,6 +59,7 @@ npm run build:single # writes dist-single/index.html
 | 1 to 8, Shift+1 to 8 | Pick a turret to build (click to place, Shift+click keeps building) |
 | Q / W / E | Upgrade damage / range / rate (Shift: as far as you can afford) |
 | S / M | Sell (70% back) / move ($500) |
+| U | Undo the last build or upgrade (optional, turn on Relaxed: undo in Settings) |
 | T | Cycle target: nearest, furthest, weakest, strongest, slowest, fastest, oldest, newest |
 | L / F / D | Lock target / focus fire on an attacker / directional cone (Shift+D aims at the cursor) |
 | J / X | Join a Targeter to a turret / pick a Combo-only colour |

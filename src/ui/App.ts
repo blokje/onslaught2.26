@@ -17,7 +17,7 @@ import type { GameEventName, GameEvents, GameOptions, GameState, Overlay, Stat, 
 const GRID = 22;
 const FOCUS_RADIUS = 16;
 const COMBO_COLORS: KeyColor[] = ['red', 'green', 'blue', 'yellow'];
-const GAME_EVENTS: GameEventName[] = ['shot', 'kill', 'leak', 'wave', 'blast', 'combo', 'build', 'sell', 'upgrade', 'unlock', 'error', 'message', 'gameover'];
+const GAME_EVENTS: GameEventName[] = ['shot', 'kill', 'leak', 'wave', 'blast', 'combo', 'build', 'sell', 'upgrade', 'unlock', 'error', 'message', 'gameover', 'undo'];
 const BLAST_SOUND: Record<string, string> = { small: 'small', medium: 'medium', large: 'large', huge: 'huge', bfg: 'large', poison: 'medium' };
 
 type Keys<T> = T extends unknown ? keyof T : never;
@@ -405,6 +405,7 @@ export class App {
       case 'build': a.play('build'); break;
       case 'sell': a.play('sell'); if (p.refund != null) this.hud.addLog('Sold for ' + formatCash(p.refund)); break;
       case 'upgrade': a.play('upgrade'); break;
+      case 'undo': a.play('sell'); if (p.refund != null) this.hud.addLog('Undone, refunded ' + formatCash(p.refund)); break;
       case 'unlock': {
         const def = p.kind != null ? TURRETS[p.kind] : undefined;
         this.hud.toast('Unlocked: ' + (def ? def.name : p.kind), 'unlock');
@@ -432,7 +433,7 @@ export class App {
     const s = g.state;
     const info: GameOverInfo = { rank: 0, score: p.score != null ? p.score : s.score, kills: p.kills != null ? p.kills : s.kills, wave: p.wave != null ? p.wave : s.wave, mapId: s.mapId, difficulty: s.difficulty, mode: s.mode };
     info.report = buildReportData(s);
-    info.rank = info.score > 0 ? storage.addScore(info.mapId, info.difficulty, info.mode, { score: info.score, kills: info.kills, wave: info.wave, date: new Date().toISOString() }) : 0;
+    info.rank = info.score > 0 ? storage.addScore(info.mapId, info.difficulty, info.mode, { score: info.score, kills: info.kills, wave: info.wave, date: new Date().toISOString(), undo: !!s.undoUsed }) : 0;
     storage.clearGame();
     this.checkUnlocks(info.wave);
     this.cancelMode();
@@ -840,6 +841,15 @@ export class App {
     this.run(() => this.game!.upgrade(t.id, stat, !!toMax));
   }
 
+  /** Undo the last build or upgrade (only with the Relaxed: undo setting on). */
+  undo(): void {
+    const g = this.game;
+    if (!g) return;
+    if (!this.settings.undo) { this.hud.toast('Undo is off. Turn on "Relaxed: undo" in Settings.'); return; }
+    const res = this.run(() => g.undo());
+    if (res && res.ok && this.selectedId != null && !g.state.turrets.some((t) => t.id === this.selectedId)) this.deselect();
+  }
+
   sell(): void {
     const t = this.needSelection();
     if (!t) return;
@@ -971,6 +981,7 @@ export class App {
       case 'upRange': this.upgrade('range', shift); break;
       case 'upRate': this.upgrade('rate', shift); break;
       case 'sell': this.sell(); break;
+      case 'undo': this.undo(); break;
       case 'move': this.startMove(); break;
       case 'ranges': this.toggleRanges(); break;
       case 'combo': this.toggleCombo(); break;

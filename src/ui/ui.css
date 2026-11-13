@@ -239,6 +239,7 @@
 .os-big-stats div { background: rgba(0, 0, 0, 0.3); border-radius: 0.6em; padding: 0.5em; }
 .os-big-stats b { display: block; font-size: 1.5em; color: var(--amber-hi); font-variant-numeric: tabular-nums; }
 .os-big-stats span { font-size: 0.75em; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.06em; }
+.os-undo-mark { color: var(--ink-dim); font-size: 0.8em; cursor: help; }
 /* controls dialog (? key) */
 .os-keys-dlg .os-keys { row-gap: 0.3em; }
 .os-keybtn { min-width: 5.5em; justify-content: center; font-family: ui-monospace, Menlo, Consolas, monospace; }

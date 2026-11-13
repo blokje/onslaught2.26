@@ -38,7 +38,13 @@ payloads are typed locally in `combos.ts` (`ComboProjData`).
 - Fire interval ms = 60000 / rate. Turrets rescale their remaining cooldown when the rate changes, except during a combo recharge (`time < comboNext`): that pause is a fixed time and is never rescaled.
 - Laser chain: contribution = (own effective damage + contributions) x 1.25, recursive with a visited set; contributors must be ready and reset their timer.
 - Piercing laser (`pierceLaser` in `weapons.ts`): the chain total is energy spent along a line from the Green through its target (half-width `LASER_WIDTH` 4, Railgun is 8), nearest first: each attacker with HP <= energy dies and costs its HP, the first stronger one takes the rest and stops the beam. Combos that use `chainLaserDamage` are not affected.
-- Score = kills x spent. `spent` only grows (sell refunds do not lower it; the $500 move cost is added).
+- Score = kills x spent. `spent` only grows (sell refunds do not lower it; the $500 move cost is added). The one exception
+  is the optional undo (below), which takes its cost back out of `spent`.
+- Undo (`game.undo()`, relaxed rule, SPEC.md 9): `build` and `upgrade` store `_undo` (in memory only, not saved: a restored
+  game has none). `sell`, `move` and the next build/upgrade replace or clear it. `markFired(id)` closes it when that turret
+  fires: the `shot` and `combo` events (subscribed in the constructor) plus direct calls in `weapons.ts` for a laser-chain
+  contribution (`chainBonus` with consume) and a holding-pattern rocket (`spawnOrbiter`). Undoing an upgrade restores
+  `levels`, `cashValue`, `freak` and `freakAt`, then `_recompute()`. Sets `state.undoUsed` (saved) and emits `undo`.
 - `turret.damageDealt` (UI stat, saved with the turret): `damageAttacker` adds `min(dmg, hp before the hit)` to the source
   turret, so overkill is not counted and the sum over all turrets equals the HP the attackers lost. Combo damage counts
   for the lead (the `src` combos pass). Black-hole kills (`killAttacker`) add nothing. Missing or non-finite in a save -> 0.

@@ -35,6 +35,13 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
   by physical position (`KeyboardEvent.code`), so on AZERTY and similar layouts the defaults sit on the QWERTY positions.
   New sim-test checks (q). Checked in Chromium (rebind, swap, reserved key, persistence, reset, no console errors).
   Docs: `SPEC.md` §8, `ARCHITECTURE.md`, `README.md`, `docs/claude/ui.md`, `docs/claude/gotchas.md`, `docs/claude/testing.md`.
+- Optional undo ([NEW] relaxed rule, setting "Relaxed: undo", off by default): U or the Undo button takes back the last
+  build or upgrade with a full refund until that turret fires. New `game.undo()`, `game.undoInfo()`, event `undo`,
+  `game.markFired(id)` and the saved flag `state.undoUsed`; high scores of such games carry a U mark (`ScoreEntry.undo`).
+  The original rules stay the default. New sim-test checks (u). Checked in Chromium (toast with the setting off, build
+  undone with full refund, refused after firing, U mark in the high scores, no console errors).
+  Docs: `SPEC.md` §8 and §9, `ARCHITECTURE.md`, `README.md`, `docs/claude/simulation.md`, `docs/claude/ui.md`,
+  `docs/claude/gotchas.md`, `docs/claude/testing.md`.
 
 ### Fixed
 - A rate change (rate upgrade, or a rate modifier built or sold nearby) during a combo recharge no longer shortens or

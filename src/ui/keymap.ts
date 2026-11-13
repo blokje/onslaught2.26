@@ -4,7 +4,7 @@
 
 export type KeyAction =
   | 'upDamage' | 'upRange' | 'upRate' | 'sell' | 'move' | 'target' | 'lock' | 'focus' | 'cone' | 'join' | 'color'
-  | 'ranges' | 'combo' | 'sendWave' | 'autoSend' | 'pause' | 'info' | 'settings' | 'build' | 'keys';
+  | 'undo' | 'ranges' | 'combo' | 'sendWave' | 'autoSend' | 'pause' | 'info' | 'settings' | 'build' | 'keys';
 
 export interface KeyActionDef { id: KeyAction; code: string; label: string; group: 'Turret' | 'View' | 'Game' }
 
@@ -21,6 +21,7 @@ export const KEY_ACTIONS: readonly KeyActionDef[] = [
   { id: 'cone', code: 'KeyD', label: 'Cycle the firing cone (Shift: aim it at the cursor)', group: 'Turret' },
   { id: 'join', code: 'KeyJ', label: 'Targeter: join to a turret', group: 'Turret' },
   { id: 'color', code: 'KeyX', label: 'Combo-only: cycle its colour', group: 'Turret' },
+  { id: 'undo', code: 'KeyU', label: 'Undo the last build or upgrade (Relaxed: undo setting)', group: 'Turret' },
   { id: 'build', code: 'KeyB', label: 'Build the armed turret at the cursor (Enter works too)', group: 'Turret' },
   { id: 'ranges', code: 'KeyR', label: 'Show all range rings', group: 'View' },
   { id: 'combo', code: 'KeyC', label: 'Show combo partners of the selected turret', group: 'View' },

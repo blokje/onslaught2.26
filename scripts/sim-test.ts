@@ -536,6 +536,72 @@ function makePlayer(game: Game, spots: Spot[]): () => void {
   check('(q) keymap: labels', keyLabel('KeyQ') === 'Q' && keyLabel('Space') === 'Space' && keyLabel('Slash') === '/' && keyLabel('Digit9') === '9');
 }
 
+// ------------------------------------------------------------------ (u) undo (optional relaxed rule, SPEC.md section 9)
+{
+  const g = new Game({ mapId: 'map1', mode: 'sandbox', seed: 10 });
+  const [sp1, sp2] = bestSpots('map1', 2);
+  const snap = () => ({ cash: g.state.cash, spent: g.state.spent, score: g.state.score, n: g.state.turrets.length });
+  const s0 = snap();
+  check('(u) nothing to undo in a fresh game', g.undoInfo() === null && !g.undo().ok);
+  let ev = null as GameEvents['undo'] | null;
+  g.on('undo', (e) => { ev = e; });
+  const id = must(g.build('green', sp1.x, sp1.y)).id;
+  const info = g.undoInfo();
+  const r = g.undo();
+  const s1 = snap();
+  check('(u) undo a build: full refund, spent and score back, turret gone, undo event',
+    info !== null && info.refund === 15 && r.ok && s1.cash === s0.cash && s1.spent === s0.spent && s1.score === s0.score && s1.n === 0
+    && !g.turretMap.has(id) && ev !== null && ev!.kind === 'build' && ev!.id === id, JSON.stringify({ s0, s1 }));
+  check('(u) the game is flagged undoUsed, and it survives save/restore', g.state.undoUsed === true && Game.deserialize(g.serialize()).state.undoUsed === true);
+  check('(u) a second undo has nothing left', !g.undo().ok);
+
+  // upgrade to max, then undo: levels, cashValue, stats and freak state come back exactly
+  const blue = must(g.build('blue', sp1.x, sp1.y)).id;
+  const t = tur(g, blue);
+  const look = () => JSON.stringify({ levels: t.levels, stats: t.stats, cashValue: t.cashValue, freak: t.freak, freakAt: t.freakAt, cc: t.comboCapable, cash: g.state.cash, spent: g.state.spent, score: g.state.score });
+  const fresh = look();
+  must(g.upgrade(blue, 'damage', true));
+  const afterDamage = look();
+  must(g.upgrade(blue, 'rate', true)); // the last action wins: only this one can be undone
+  check('(u) the blue is now freak-out capable and damage-maxed', t.freak !== 'off' && t.comboCapable);
+  must(g.undo());
+  check('(u) undo takes back only the last upgrade (rate): turret, freak state, cash, spent, score as after the damage upgrade',
+    look() === afterDamage, look());
+  const g5 = new Game({ mapId: 'map1', mode: 'sandbox', seed: 10 });
+  const b5 = must(g5.build('blue', sp1.x, sp1.y)).id;
+  const t5 = tur(g5, b5);
+  const look5 = () => JSON.stringify({ levels: t5.levels, stats: t5.stats, cashValue: t5.cashValue, freak: t5.freak, cc: t5.comboCapable, cash: g5.state.cash, spent: g5.state.spent });
+  const fresh5 = look5();
+  must(g5.upgrade(b5, 'damage', true));
+  must(g5.undo());
+  check('(u) undo of a damage-to-max upgrade restores the fresh turret (combo capability gone again)', look5() === fresh5 && !t5.comboCapable && fresh.length > 0);
+
+  // once the turret fires, it is too late
+  const g2 = new Game({ mapId: 'map1', mode: 'sandbox', seed: 11 });
+  const cid = must(g2.build('blue', sp2.x, sp2.y)).id;
+  const ct = tur(g2, cid);
+  g2.spawnAttacker(1, 1e9);
+  const a = g2.state.attackers[0];
+  freeze(a, ct.x + 40, ct.y);
+  let fired = false;
+  g2.on('shot', (e) => { if (e.turretId === cid) fired = true; });
+  for (let i = 0; i < 120 && !fired; i++) g2.advance(1);
+  check('(u) after the turret fires undo is refused', fired && g2.undoInfo() === null && !g2.undo().ok && g2.turretMap.has(cid));
+  // sell, move and a new build end the chance for the previous action
+  const g3 = new Game({ mapId: 'map1', mode: 'sandbox', seed: 12 });
+  const x1 = must(g3.build('blue', sp1.x, sp1.y)).id;
+  const x2 = must(g3.build('blue', sp2.x, sp2.y)).id;
+  must(g3.undo());
+  check('(u) only the newest build can be undone', g3.turretMap.has(x1) && !g3.turretMap.has(x2) && !g3.undo().ok);
+  must(g3.upgrade(x1, 'range'));
+  must(g3.sell(x1));
+  check('(u) a sell ends the chance to undo', !g3.undo().ok);
+  const keep = new Game({ mapId: 'map1', mode: 'sandbox', seed: 13 });
+  must(keep.build('blue', sp1.x, sp1.y));
+  const k2 = Game.deserialize(keep.serialize());
+  check('(u) a restored game starts without an undo (it is not saved)', k2.undoInfo() === null && keep.undoInfo() !== null);
+}
+
 // ------------------------------------------------------------------ (q) waveActive (auto-send)
 {
   const g = new Game({ mapId: 'map1', difficulty: 'medium', seed: 9 });

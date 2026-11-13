@@ -391,6 +391,8 @@ class MockGame implements AppGame {
     this.startWave(true);
     return { ok: true };
   }
+  undo(): CommandResult { return this.fail('Nothing to undo'); }
+  undoInfo(): null { return null; }
   waveActive(): boolean { return this.queue.length > 0 || this.state.attackers.some((a) => !a.dead); }
   wavePreview(n?: number): WavePreview {
     const w = Math.max(1, Math.floor(n ?? this.state.wave + 1));

@@ -82,6 +82,7 @@ export class Hud {
   livesEl!: HTMLElement;
   sendBtn!: HTMLButtonElement;
   autoBtn!: HTMLButtonElement;
+  undoBtn!: HTMLButtonElement;
   speedBtns!: HTMLButtonElement[];
   pauseBtn!: HTMLButtonElement;
   fps!: HTMLElement;
@@ -152,7 +153,8 @@ export class Hud {
     const speeds = h('div', { class: 'os-panel os-speeds' }, ...this.speedBtns);
     this.pauseBtn = this.btn('', ['Pause ', this.hk('pause')], () => app.togglePause());
     this.fps = h('span', { class: 'os-fps' }, '');
-    const ctrls = h('div', { class: 'os-panel os-ctrls' }, this.pauseBtn, this.btn('', 'Menu', () => app.openGameMenu(), 'Options (Esc)'), this.fps);
+    this.undoBtn = this.btn('', ['Undo ', this.hk('undo')], () => app.undo(), 'Undo the last build or upgrade');
+    const ctrls = h('div', { class: 'os-panel os-ctrls' }, this.undoBtn, this.pauseBtn, this.btn('', 'Menu', () => app.openGameMenu(), 'Options (Esc)'), this.fps);
     this.top = h('div', { class: 'os-top' }, stats, waveBox, speeds, ctrls);
 
     // ----- rack
@@ -265,6 +267,12 @@ export class Hud {
     show(this.focusBadge, app.focusId != null, 'block');
     setProp(this.sendBtn, 'disabled', !!s.over || !!s.paused);
     setClass(this.autoBtn, 'is-on', app.settings.autoSend);
+    show(this.undoBtn, app.settings.undo, 'inline-flex');
+    if (app.settings.undo) {
+      const u = game.undoInfo();
+      setProp(this.undoBtn, 'disabled', !u);
+      setProp(this.undoBtn, 'title', u ? 'Undo ' + u.label + ' (+' + formatCash(u.refund) + ')' : 'Nothing to undo (a turret that fired since cannot be undone)');
+    }
     for (const [el, action] of this.keyHints) setText(el, app.keyFor(action));
 
     // rack

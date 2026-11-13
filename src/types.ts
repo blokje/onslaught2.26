@@ -221,6 +221,8 @@ export interface GameState {
   history?: WaveRecord[];
   /** Optional: effective damage done by all turrets this game, sold ones included. */
   damageTotal?: number;
+  /** Optional: true once game.undo() was used (high scores mark such games). */
+  undoUsed?: boolean;
 }
 
 /** Snapshot taken when a wave starts (state.history). `damage` is state.damageTotal at that moment. */
@@ -270,6 +272,8 @@ export interface GameEvents {
   message: { text: string };
   gameover: { score: number; kills: number; wave: number };
   error: { reason: string };
+  /** A build or upgrade was taken back (game.undo); `id` is the turret (removed for a build). */
+  undo: { id: number; kind: 'build' | 'upgrade'; refund: number };
 }
 export type GameEventName = keyof GameEvents;
 

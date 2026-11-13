@@ -18,6 +18,8 @@ export interface Settings {
   autoPause: boolean;
   /** Send the next wave as soon as the field is clear (after wave 1). */
   autoSend: boolean;
+  /** Relaxed rule: allow undo of the last build or upgrade (SPEC.md section 9). */
+  undo: boolean;
   infoCollapsed: boolean;
   panelPos: PanelPos | null;
   /** Rebound keys (action -> KeyboardEvent.code); actions not listed use the default in keymap.ts. */
@@ -29,7 +31,7 @@ export interface Settings {
 
 export interface Unlocks { extreme: boolean; sandbox: boolean }
 
-export interface ScoreEntry { score: number; kills: number; wave: number; date: string }
+export interface ScoreEntry { score: number; kills: number; wave: number; date: string; /** game used undo */ undo?: boolean }
 
 /** Autosave wrapper written by App.autosave(). data is the opaque Game.serialize() result. */
 export interface SaveWrapper {
@@ -70,6 +72,7 @@ export const DEFAULT_SETTINGS: Settings = {
   showFps: false,
   autoPause: true,      // pause while the tab is hidden, resume on return
   autoSend: false,      // send the next wave as soon as the field is clear (A key, Auto button)
+  undo: false,          // relaxed rule: U takes back the last build or upgrade until that turret fires
   infoCollapsed: false,
   panelPos: null,       // turret panel { x, y } in px from the HUD's top-left, null = default dock
   keys: {},             // rebound keys: { action: KeyboardEvent.code }, only the ones that differ from src/ui/keymap.ts
@@ -123,11 +126,12 @@ export function getScores(mapId: string, difficulty: string, mode: string): Scor
 }
 
 // Returns the 1-based rank of the new entry, or 0 when it did not make the top 10.
-export function addScore(mapId: string, difficulty: string, mode: string, entry: { score: number; kills: number; wave: number; date?: string }): number {
+export function addScore(mapId: string, difficulty: string, mode: string, entry: { score: number; kills: number; wave: number; date?: string; undo?: boolean }): number {
   const all = getAllScores();
   const key = scoreKey(mapId, difficulty, mode);
   const list = Array.isArray(all[key]) ? all[key].slice() : [];
-  const e = { score: entry.score, kills: entry.kills, wave: entry.wave, date: entry.date || new Date().toISOString() };
+  const e: ScoreEntry = { score: entry.score, kills: entry.kills, wave: entry.wave, date: entry.date || new Date().toISOString() };
+  if (entry.undo) e.undo = true; // the game used undo (relaxed rule); shown with a mark
   let idx = list.findIndex((x) => x.score < e.score);
   if (idx < 0) idx = list.length;
   list.splice(idx, 0, e);
