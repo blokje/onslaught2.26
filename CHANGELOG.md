@@ -5,6 +5,12 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
 
 ## Unreleased
 
+### Added (2026 roadmap, phase 1: player information)
+- Incoming-wave preview in the top bar: "Wave N" with the HP and bounty of each attacker in the next wave, and a
+  tooltip for the next 5 waves. Backed by the new read-only command `game.wavePreview(n?)` (no rng, same formulas as
+  spawning; type `WavePreview`). No gameplay change. New sim-test checks (q).
+  Docs: `ARCHITECTURE.md`, `docs/claude/ui.md`, `docs/claude/testing.md`.
+
 ### Fixed
 - A rate change (rate upgrade, or a rate modifier built or sold nearby) during a combo recharge no longer shortens or
   lengthens it: the lead and partners now always stay quiet for exactly the recipe's recharge (Nuke 7.4 s). Normal shot

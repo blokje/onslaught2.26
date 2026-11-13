@@ -54,13 +54,13 @@ import { SpatialGrid } from './grid.ts';
 import { Turret, assignSafe } from './Turret.ts';
 import { emptyMods, addMod, computeStats, nextUpgradeCost, modRangeAt, STATS } from './modifiers.ts';
 import type { ModSum } from './modifiers.ts';
-import { createAttacker, moveAttackers, applyPoison } from './Attacker.ts';
+import { createAttacker, moveAttackers, applyPoison, waveHp, waveBounty } from './Attacker.ts';
 import { startWave, updateSpawners } from './Waves.ts';
 import { stepTurret, chainBonus, releaseOrbiter } from './weapons.ts';
 import { updateProjectiles } from './projectiles.ts';
 import type {
   Attacker, Beam, BeamKind, BlastSize, ComboPreview, DifficultyId, DirectionalMode, Effect, EffectKind, Fail, GameEventName, GameEvents,
-  GameOptions, GameState, KeyColor, ModeId, Projectile, ProjectileKind, Result, Stat, TargetMode, TurretState,
+  GameOptions, GameState, KeyColor, ModeId, Projectile, ProjectileKind, Result, Stat, TargetMode, TurretState, WavePreview,
 } from '../types.ts';
 import type { Spawner } from './Waves.ts';
 import { Combos } from './combos.ts';
@@ -295,6 +295,12 @@ export class Game {
     s.nextWaveIn = this.waveInterval;
     if (bonus > 0) this.emit('message', { text: `Early wave bonus: $${bonus}` });
     return { ok: true, bonus };
+  }
+
+  /** Read-only outlook for wave n (default: the next wave). Same formulas as createAttacker, no rng. */
+  wavePreview(n?: number): WavePreview {
+    const w = Math.max(1, Math.floor(n ?? this.state.wave + 1));
+    return { wave: w, type: (w - 1) % WAVES.types, hp: waveHp(w, this.hpGrowth), bounty: waveBounty(w), count: WAVES.size };
   }
 
   /** Add an attacker to the field (used by waves; also handy for tests). */

@@ -436,6 +436,30 @@ function makePlayer(game: Game, spots: Spot[]): () => void {
   if (a) { const c = gm.state.cash; gm.damageAttacker(a, a.hp + 1, null); check('(late) kill pays the late bounty', gm.state.cash - c === waveBounty(130) && paid === waveBounty(130)); }
 }
 
+// ------------------------------------------------------------------ (q) player information (read-only previews)
+{
+  for (const d of ['medium', 'hard'] as const) {
+    const g = new Game({ mapId: 'map1', difficulty: d, seed: 5 });
+    const growth = DIFFICULTIES[d].hpGrowth;
+    const first = g.wavePreview();
+    check(`(q) ${d}: wavePreview() before wave 1 is wave 1`, first.wave === 1 && first.count === WAVES.size && first.type === 0);
+    let same = true;
+    for (const n of [1, 50, 100, 150]) {
+      const p = g.wavePreview(n);
+      same &&= p.wave === n && p.hp === waveHp(n, growth) && p.bounty === waveBounty(n) && p.type === (n - 1) % WAVES.types;
+    }
+    check(`(q) ${d}: wavePreview(n) matches the wave formulas (1, 50, 100, 150)`, same);
+    const rng0 = g.rng.s;
+    g.wavePreview(77);
+    check(`(q) ${d}: wavePreview draws no random numbers`, g.rng.s === rng0);
+    g.sendWave();
+    g.advance(2);
+    const a = g.state.attackers[0];
+    check(`(q) ${d}: preview of wave 1 equals the spawned attacker`, a && a.maxHp === first.hp && a.bounty === first.bounty && a.type === first.type);
+    check(`(q) ${d}: after wave 1 starts the preview moves to wave 2`, g.wavePreview().wave === 2);
+  }
+}
+
 // ------------------------------------------------------------------ (m) extra maps (SPEC.md section 7a)
 {
   const extras = MAPS.filter((m) => m.extra);

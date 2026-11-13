@@ -4,7 +4,7 @@
 // argument types (for example a TurretKind union) still fits.
 import type {
   GameState, GameOptions, GameEvents, GameEventName, Result, ComboPreview, Overlay,
-  Stat, TargetMode, DirectionalMode, KeyColor,
+  Stat, TargetMode, DirectionalMode, KeyColor, WavePreview,
 } from '../types.ts';
 
 export type CommandResult = Result<{ id?: number; refund?: number; levels?: number }>;
@@ -31,6 +31,7 @@ export interface AppGame {
   setComboColor(id: number, color: KeyColor): CommandResult;
   comboPreview(id: number): ComboPreview | null;
   sendWave(): CommandResult;
+  wavePreview(n?: number): WavePreview;
   setSpeed(speed: number): CommandResult | void;
   togglePause(): CommandResult | void;
   setPaused(paused: boolean): CommandResult | void;

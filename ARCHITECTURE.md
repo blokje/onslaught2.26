@@ -112,6 +112,7 @@ game.comboPreview(id)                // read-only, no rng: { leads, partners: [{
                                      //   recipes: [{ id, name, isNew, needs, missing, exactBlocked, wait }], next: { id, name, wait } | null }
                                      //   wait = earliest ms until it could fire (Infinity = not possible), for the panel's Combos tab
 game.sendWave()                      // early wave, adds early bonus; refused while paused ('Game is paused')
+game.wavePreview(n?)                 // read-only, no rng: { wave, type, hp, bounty, count } of wave n (default: the next wave, state.wave + 1)
 game.setSpeed(s); game.togglePause(); game.setPaused(bool)
 game.setWaveInterval(ms)             // fails unless ms is a finite number >= 1000; clamps nextWaveIn
 game.advance(steps)                  // exactly `steps` 1/60 s steps, ignores speed and pause (tests and tools)

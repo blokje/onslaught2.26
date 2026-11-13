@@ -237,6 +237,9 @@ export interface ComboPreview {
   next: { id: string; name: string; wait: number } | null;
 }
 
+/** Outlook for one wave (game.wavePreview). */
+export interface WavePreview { wave: number; type: number; hp: number; bounty: number; count: number }
+
 // ------------------------------------------------------------------ events (ARCHITECTURE.md 1.3)
 export interface GameEvents {
   shot: { kind: string; turretId: number };

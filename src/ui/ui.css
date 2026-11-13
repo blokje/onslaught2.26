@@ -70,6 +70,8 @@
 .os-stat.cash .os-stat-v { color: #ffe08a; }
 .os-stat.lives .os-stat-v { color: #ff9d8f; }
 .os-stat.wave .os-stat-v { color: var(--amber-hi); }
+.os-stat.incoming { cursor: help; pointer-events: auto; }
+.os-stat.incoming .os-stat-v { font-size: 0.9em; }
 .os-stat.low .os-stat-v { color: var(--bad); animation: os-pulse 0.8s infinite; }
 .os-wave-box { gap: 0.4em !important; align-items: center !important; }
 .os-speeds { gap: 0.2em !important; align-items: center !important; }

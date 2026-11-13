@@ -8,6 +8,7 @@ import { iconSvg, LOCK_SVG } from './icons.ts';
 import { formatNum, formatCash, formatTime } from './format.ts';
 import { COMBOS } from '../data/combos.ts';
 import type { App } from './App.ts';
+import type { AppGame } from './appTypes.ts';
 import type { TurretState, GameState, KeyColor, Stat, TargetMode, DirectionalMode, TurretDef, Category } from '../types.ts';
 
 const TARGET_NAMES: Record<TargetMode, string> = { near: 'Nearest', far: 'Furthest', weak: 'Weakest', strong: 'Strongest', slow: 'Slowest', fast: 'Fastest', oldest: 'Oldest', newest: 'Newest' };
@@ -93,6 +94,9 @@ export class Hud {
   modeHint!: HTMLElement;
   paused!: HTMLElement;
   collapseBtn: HTMLButtonElement | null = null;
+  incomingEl: HTMLElement | null = null;
+  incomingWave = -1;
+  incomingGame: AppGame | null = null;
 
   constructor(app: App) {
     this.app = app;
@@ -125,7 +129,8 @@ export class Hud {
       this.stat('kills', 'Kills'), this.stat('score', 'Score'));
     this.livesEl = stats.querySelector<HTMLElement>('.lives')!;
     this.sendBtn = this.btn('primary', ['Send wave ', h('span', { class: 'os-kbd' }, 'Space')], () => app.sendWave(), 'Start the next wave now (Space)');
-    const waveBox = h('div', { class: 'os-panel os-wave-box' }, this.stat('next', 'Next wave'), this.sendBtn);
+    this.incomingEl = this.stat('incoming', 'Wave 1', 'incoming');
+    const waveBox = h('div', { class: 'os-panel os-wave-box' }, this.stat('next', 'Next wave'), this.incomingEl, this.sendBtn);
     this.speedBtns = SPEEDS.map((s) => this.btn('', s + 'x', () => app.setSpeed(s), 'Game speed ' + s + 'x'));
     const speeds = h('div', { class: 'os-panel os-speeds' }, ...this.speedBtns);
     this.pauseBtn = this.btn('', ['Pause ', h('span', { class: 'os-kbd' }, 'P')], () => app.togglePause());
@@ -205,6 +210,22 @@ export class Hud {
 
   setVisible(on: boolean): void { this.el.classList.toggle('on', on); }
 
+  /** Next-wave outlook in the top bar ("1.2K HP $12"), rebuilt only when the wave number changes. */
+  updateIncoming(game: AppGame, wave: number): void {
+    if (this.incomingWave === wave && this.incomingGame === game) return;
+    this.incomingWave = wave;
+    this.incomingGame = game;
+    const p = game.wavePreview();
+    setText(this.incomingEl!.firstChild!, 'Wave ' + p.wave);
+    setText(this.v.incoming, `${formatNum(p.hp)} HP $${formatNum(p.bounty)}`);
+    const lines = [`Coming up (${p.count} attackers per wave, HP and bounty each):`];
+    for (let n = p.wave; n < p.wave + 5; n++) {
+      const q = game.wavePreview(n);
+      lines.push(`Wave ${q.wave}: ${formatNum(q.hp)} HP, $${formatNum(q.bounty)}`);
+    }
+    this.incomingEl!.title = lines.join('\n');
+  }
+
   // ------------------------------------------------------------ per tick update (about 10 Hz)
   update(): void {
     const app = this.app;
@@ -218,6 +239,7 @@ export class Hud {
     setText(this.v.kills, formatNum(s.kills));
     setText(this.v.score, formatNum(s.score));
     setText(this.v.next, s.over ? '-' : formatTime(s.nextWaveIn));
+    this.updateIncoming(game, s.wave);
     this.speedBtns.forEach((b, i) => setClass(b, 'is-on', s.speed === SPEEDS[i]));
     setText(this.pauseBtn.firstChild!, s.paused ? 'Resume ' : 'Pause ');
     setClass(this.pauseBtn, 'is-on', s.paused);

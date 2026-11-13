@@ -17,6 +17,13 @@ DOM overlay over the canvas, input, persistence and audio. Contract: `ARCHITECTU
 | `mock.ts` | Fake Game and 2D MockRenderer for `/ui-demo.html` (via `ui-demo.ts`); its objects satisfy the real state types. |
 | `appTypes.ts` | Types only: `AppGame`, `AppRenderer`, `AppOptions`, `CommandResult`. `App` depends on these, not on `Game` or `Renderer`, so the real objects and the mocks must both satisfy them; a new command that `App` calls goes here too. |
 
+## Top bar
+
+- Stats: Cash, Lives, Wave, Kills, Score. Wave box: Next wave countdown, the **Incoming** preview and Send wave.
+- Incoming preview: label "Wave N" (the next wave), value "1.2K HP $12" (HP and bounty of each attacker), from
+  `game.wavePreview()`. Its tooltip lists the next 5 waves. Rebuilt only when the wave number or the game object
+  changes (`Hud.updateIncoming`), not every tick.
+
 ## Selected-turret panel tabs
 
 A horizontal tab strip under the header; only the active pane is shown, so the panel stays short. Tabs a kind does not need are left out.
