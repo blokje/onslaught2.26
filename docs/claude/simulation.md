@@ -39,6 +39,10 @@ payloads are typed locally in `combos.ts` (`ComboProjData`).
 - Laser chain: contribution = (own effective damage + contributions) x 1.25, recursive with a visited set; contributors must be ready and reset their timer.
 - Piercing laser (`pierceLaser` in `weapons.ts`): the chain total is energy spent along a line from the Green through its target (half-width `LASER_WIDTH` 4, Railgun is 8), nearest first: each attacker with HP <= energy dies and costs its HP, the first stronger one takes the rest and stops the beam. Combos that use `chainLaserDamage` are not affected.
 - Score = kills x spent. `spent` only grows (sell refunds do not lower it; the $500 move cost is added).
+- `turret.damageDealt` (UI stat, saved with the turret): `damageAttacker` adds `min(dmg, hp before the hit)` to the source
+  turret, so overkill is not counted and the sum over all turrets equals the HP the attackers lost. Combo damage counts
+  for the lead (the `src` combos pass). Black-hole kills (`killAttacker`) add nothing. Missing or non-finite in a save -> 0.
+  The UI derives DPS from it (`src/ui/dps.ts`); the simulation keeps no DPS state.
 
 ## Combos
 

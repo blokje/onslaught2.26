@@ -138,6 +138,8 @@ export interface TurretState {
   comboLog: ComboLogEntry[];
   // optional additions (src/game/Turret.ts)
   kills: number;
+  /** Effective damage this turret has done (overkill not counted; combo damage counts for the lead). */
+  damageDealt?: number;
   category: Category;
   color: KeyColor | null;
   cd: number;

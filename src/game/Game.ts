@@ -332,6 +332,8 @@ export class Game {
   /** Returns true if the attacker died from this hit. */
   damageAttacker(a: Attacker, dmg: number, sourceTurret: TurretState | null | undefined, poison = 0): boolean {
     if (a.dead) return false;
+    // effective damage for the turret's stats: overkill is not counted
+    if (sourceTurret && dmg > 0) sourceTurret.damageDealt = (sourceTurret.damageDealt || 0) + Math.min(dmg, Math.max(0, a.hp));
     a.hp -= dmg;
     if (poison > 1) applyPoison(a, poison);
     this.emit('hit', { attackerId: a.id });

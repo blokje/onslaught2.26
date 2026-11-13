@@ -147,6 +147,7 @@ class MockGame implements AppGame {
       t.targetId = target.id;
       this.emit('shot', { kind: t.kind, turretId: t.id });
       s.beams.push({ kind: def.weapon === 'laser' ? 'laser' : 'spark', x1: t.x, y1: t.y, x2: target.x, y2: target.y, age: 0, ttl: 120 });
+      t.damageDealt = (t.damageDealt || 0) + Math.min(t.stats.damage, Math.max(0, target.hp));
       target.hp -= t.stats.damage;
       this.emit('hit', { attackerId: target.id });
       if (target.hp <= 0) this.kill(target);

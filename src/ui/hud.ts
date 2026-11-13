@@ -9,6 +9,7 @@ import { formatNum, formatCash, formatTime } from './format.ts';
 import { COMBOS } from '../data/combos.ts';
 import type { App } from './App.ts';
 import type { AppGame } from './appTypes.ts';
+import { DpsTracker } from './dps.ts';
 import type { TurretState, GameState, KeyColor, Stat, TargetMode, DirectionalMode, TurretDef, Category } from '../types.ts';
 
 const TARGET_NAMES: Record<TargetMode, string> = { near: 'Nearest', far: 'Furthest', weak: 'Weakest', strong: 'Strongest', slow: 'Slowest', fast: 'Fastest', oldest: 'Oldest', newest: 'Newest' };
@@ -55,7 +56,7 @@ interface TurretRefs {
   cat: Category;
   panes: Partial<Record<TabId, HTMLElement>>;
   vals: Record<string, HTMLElement>;
-  chips: Record<'holding' | 'combo' | 'links' | 'joined' | 'kills' | 'lock', HTMLElement>;
+  chips: Record<'holding' | 'combo' | 'links' | 'joined' | 'kills' | 'damage' | 'lock', HTMLElement>;
   sell: HTMLButtonElement;
   move: HTMLButtonElement;
   target?: ActionBtn; lock?: ActionBtn; dir?: ActionBtn; join?: ActionBtn; color?: ActionBtn;
@@ -98,6 +99,8 @@ export class Hud {
   incomingWave = -1;
   /** Stat whose "+ cost" button is hovered (Upgrades tab preview), or null. */
   previewStat: Stat | null = null;
+  /** Per-turret DPS from damageDealt samples (game time). */
+  dps = new DpsTracker();
   incomingGame: AppGame | null = null;
 
   constructor(app: App) {
@@ -242,6 +245,7 @@ export class Hud {
     setText(this.v.score, formatNum(s.score));
     setText(this.v.next, s.over ? '-' : formatTime(s.nextWaveIn));
     this.updateIncoming(game, s.wave);
+    this.dps.sample(game, s.time, s.turrets);
     this.speedBtns.forEach((b, i) => setClass(b, 'is-on', s.speed === SPEEDS[i]));
     setText(this.pauseBtn.firstChild!, s.paused ? 'Resume ' : 'Pause ');
     setClass(this.pauseBtn, 'is-on', s.paused);
@@ -423,6 +427,7 @@ export class Hud {
       holding: h('span', { class: 'os-chip good hidden' }, 'Holding pattern'),
       combo: h('span', { class: 'os-chip amber hidden' }), links: h('span', { class: 'os-chip hidden' }),
       joined: h('span', { class: 'os-chip hidden' }), kills: h('span', { class: 'os-chip hidden' }),
+      damage: h('span', { class: 'os-chip hidden', title: 'Damage this turret has done (overkill not counted, its combos included) and its damage per second over the last 10 s of game time' }),
       lock: h('span', { class: 'os-chip hidden' }, 'Target locked'),
     };
     general.append(h('div', { class: 'os-chips' }, ...Object.values(refs.chips)));
@@ -589,6 +594,12 @@ export class Hud {
     const hasKills = typeof t.kills === 'number';
     setClass(c.kills, 'hidden', !hasKills);
     if (hasKills) setText(c.kills, 'Kills: ' + formatNum(t.kills));
+    const isWeapon = r.cat === 'weapon';
+    setClass(c.damage, 'hidden', !isWeapon);
+    if (isWeapon) {
+      const dps = this.dps.dps(t, s.time);
+      setText(c.damage, 'Damage: ' + formatNum(t.damageDealt || 0) + ', DPS: ' + (dps == null ? '...' : formatNum(dps)));
+    }
     setClass(c.lock, 'hidden', !t.locked);
     setClass(c.joined, 'hidden', true);
     setText(r.rangeHint, r.cat === 'modifier' ? 'Boosts every turret whose centre is inside the circle.' : (t.kind === 'targeter' ? 'Join it to a turret to lend it this range.' : ''));

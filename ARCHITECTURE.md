@@ -69,6 +69,7 @@ The constructor's default `seed` is a fixed constant, so callers that want a dif
                joinedTo /*Targeter: turret id or null*/, comboColor /*'red'|'green'|'blue'|'yellow' or null: weapons have their own colour, Combo-only the chosen one, else null*/,
                modRange /*modifiers: current influence radius*/,
                combosFired, combosAssisted,           // combos led / joined as partner (weapons and Combo-only)
+               damageDealt /*optional: effective damage done, overkill not counted, combo damage counts for the lead*/,
                comboLog: [ { id /*recipe id*/, time /*game ms*/, role: 'lead'|'partner' } ] /*newest first, max COMBO_LOG_MAX*/ } ],
 
   focusId,              // optional: attacker id under focus fire, or null (renderer draws a reticle on it)

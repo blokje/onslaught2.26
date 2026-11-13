@@ -15,6 +15,10 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
   (type `UpgradePreview`) and optional overlay field `previewRange`; the modifier sum moved into `Game._modSumFor`, shared
   with `_recompute`. No gameplay change. New sim-test checks (q).
   Docs: `ARCHITECTURE.md`, `docs/claude/ui.md`, `docs/claude/rendering.md`, `docs/claude/testing.md`.
+- Damage and DPS per turret: the General tab shows "Damage: 4.5M, DPS: 120K" for weapons. New optional turret field
+  `damageDealt` (effective damage, overkill not counted, combo damage for the lead; saved, old saves load 0) and the UI
+  helper `DpsTracker` (`src/ui/dps.ts`, last 10 s of game time). No gameplay change. New checks in combo-test (damage,
+  save) and sim-test (q). Docs: `ARCHITECTURE.md`, `docs/claude/simulation.md`, `docs/claude/ui.md`, `docs/claude/testing.md`.
 
 ### Fixed
 - A rate change (rate upgrade, or a rate modifier built or sold nearby) during a combo recharge no longer shortens or

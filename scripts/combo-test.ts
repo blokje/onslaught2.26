@@ -635,7 +635,7 @@ for (const id of ['rocketBfg', 'bfg', 'tazerBfg']) {
   g.comboPreview(lead.id); g.comboPreview(partners[0].id);
   check('(preview) is read-only and draws no rng', JSON.stringify(g.serialize()) === before);
 
-  addAttackers(g, SPOT, 4);
+  const victims = addAttackers(g, SPOT, 4);
   const o = observe(g);
   run(g, o, 30, () => (o.combos.length ? 'stop' : undefined));
   const ev = o.combos[0];
@@ -654,6 +654,20 @@ for (const id of ['rocketBfg', 'bfg', 'tazerBfg']) {
   const g2 = Game.deserialize(save);
   const l2 = tur(g2, lead.id);
   check('(save) counters and comboLog survive save/restore', l2.combosFired === 1 && l2.comboLog.length === 1 && l2.comboLog[0].id === 'nuke');
+  // damage stats: the nuke's damage counts for the lead, and every turret's damageDealt adds up to the HP the attackers lost
+  const leadBefore = lead.damageDealt;
+  run(g, o, 240);
+  const lost = victims.reduce((n, a) => n + a.maxHp - Math.max(0, a.hp), 0);
+  const dealt = g.state.turrets.reduce((n, t) => n + (t.damageDealt || 0), 0);
+  check('(damage) the Nuke counts for its lead (damageDealt grows)', lead.damageDealt > leadBefore, `${leadBefore} -> ${lead.damageDealt}`);
+  check('(damage) sum of damageDealt equals the HP the attackers lost (overkill not counted)', lost > 0 && Math.abs(dealt - lost) <= 1e-9 * lost,
+    `dealt ${dealt.toExponential(3)}, lost ${lost.toExponential(3)}`);
+  const l3 = tur(Game.deserialize(JSON.parse(JSON.stringify(g.serialize()))), lead.id);
+  check('(save) damageDealt survives save/restore', l3.damageDealt === lead.damageDealt && l3.damageDealt > 0);
+  const old = JSON.parse(JSON.stringify(save));
+  for (const t of old.turrets) delete t.damageDealt;
+  old.turrets[0].damageDealt = 'x';
+  check('(save) a save without (or with a broken) damageDealt loads it as 0', Game.deserialize(old).state.turrets.every((t) => t.damageDealt === 0));
 
   // the log is capped
   for (let i = 0; i < COMBO_LOG_MAX + 3; i++) g.combos._log(lead, 'nuke', 'lead');

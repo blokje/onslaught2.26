@@ -12,6 +12,7 @@ DOM overlay over the canvas, input, persistence and audio. Contract: `ARCHITECTU
 | `dialogs.ts` | Settings, how to play, high scores, game over, in-game menu. |
 | `storage.ts` | All persistence, prefix `os226.`, try/catch with an in-memory fallback. `getSettings()` sanitises: stored values whose type does not match `DEFAULT_SETTINGS` are dropped. Autosave format `{ v, at, meta, data: game.serialize() }` under `os226.save`. Exports the types `Settings`, `Unlocks`, `ScoreEntry`, `SaveWrapper`: a new setting goes into both `Settings` and `DEFAULT_SETTINGS`. |
 | `audio.ts` | Web Audio synthesized SFX, created on the first user gesture, rate limited, master gain plus compressor. |
+| `dps.ts` | `DpsTracker`: per-turret DPS from `damageDealt` samples in game time (no DOM, tested in `sim-test`). Resets when the game object changes or time goes back. |
 | `format.ts` | Big numbers: 1,234 then 12.3K, 4.56M, 7.89B, 1.23T, then 1.23e15. |
 | `icons.ts`, `dom.ts`, `ui.css` | SVG icons, tiny DOM helpers, styles. `h(tag, attrs, ...kids)` returns the matching element type; the `setText`/`setClass`/`setProp`/`show` caches live in a `WeakMap`. |
 | `mock.ts` | Fake Game and 2D MockRenderer for `/ui-demo.html` (via `ui-demo.ts`); its objects satisfy the real state types. |
@@ -30,7 +31,7 @@ A horizontal tab strip under the header; only the active pane is shown, so the p
 
 | Tab | Shown for | Contents |
 |---|---|---|
-| General | all | Blurb, Damage/Range/Rate values, status chips (holding, combo, links, kills, lock), Sell, Move, targeting, lock, cone, join, colour, range hint |
+| General | all | Blurb, Damage/Range/Rate values, status chips (holding, combo, links, kills, damage, lock), Sell, Move, targeting, lock, cone, join, colour, range hint. The damage chip (weapons only) reads "Damage: 4.5M, DPS: 120K": `turret.damageDealt` and the DPS over the last 10 s of game time from `DpsTracker` (`src/ui/dps.ts`, one sample per turret per game second, `...` until one second is measured) |
 | Upgrades | kinds with stat rows | Stat rows with pips, `+ cost` and Max buttons (modifiers: Influence). Hovering a row shows "now → after one more level" in lime (`game.upgradePreview`) and, for range, a dashed ring on the map (`App.setPreviewRange` -> `overlay.previewRange`). The hover sits on the row because a disabled button gets no pointer events |
 | Combos | weapons and Combo-only | Fired / Assisted counts; partners in range ("Combo with", dimmed while recharging); "Next combo" with `in 2.4s`, `ready` or `n/a` plus the recipe name; the recipes of its colour with colour dots for the partners they need and `needs 1 blue` / a countdown (next one highlighted; a Combo-only lists the recipes of leads in range that need its colour); the last 5 combos (fired/assisted, time ago) |
 | Freakout | kinds with `freakout` in their data | Status chip: upgrade progress toward the requirement ("Freak-out at 4 dmg + 4 rate (2/4, 1/4)") until eligible, then ready, incoming and active, plus a one-line explanation |

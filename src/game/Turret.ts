@@ -19,6 +19,7 @@ export class Turret implements TurretState {
   id: number;
   kind: string;
   kills: number;
+  damageDealt: number;
   x: number;
   y: number;
   angle: number;
@@ -56,6 +57,7 @@ export class Turret implements TurretState {
     this.id = id;
     this.kind = kind;
     this.kills = 0;               // attackers this turret finished off (UI stat)
+    this.damageDealt = 0;         // effective damage done, overkill excluded (UI stat; combos count for the lead)
     this.x = x;
     this.y = y;
     this.angle = 0;
@@ -93,6 +95,7 @@ export class Turret implements TurretState {
   static fromJSON(o: Record<string, any>): Turret {
     const t = new Turret(o.id, o.kind, o.x, o.y);
     assignSafe(t, o);
+    if (!Number.isFinite(t.damageDealt)) t.damageDealt = 0; // older saves, or a damaged value
     return t;
   }
 }

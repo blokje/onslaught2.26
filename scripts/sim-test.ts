@@ -4,6 +4,7 @@ import { MAPS } from '../src/data/maps.ts';
 import { DIFFICULTIES, WAVES, WEAVE } from '../src/data/rules.ts';
 import { waveHp, waveBounty, laneOffset } from '../src/game/Attacker.ts';
 import { ladderValue } from '../src/game/modifiers.ts';
+import { DpsTracker } from '../src/ui/dps.ts';
 import type { Turret } from '../src/game/Turret.ts';
 import type { Attacker, GameEvents, KeyColor, Projectile, Result, Stat, TargetMode } from '../src/types.ts';
 
@@ -497,6 +498,19 @@ function makePlayer(game: Game, spots: Spot[]): () => void {
     near(tr.stats.damage, ladderValue('red', 'damage', tr.levels.damage) * 1.4) && g.upgradePreview(red, 'damage')!.from.damage === tr.stats.damage);
   g.upgrade(red, 'damage', true);
   check('(q) upgradePreview is null for a maxed stat and a missing turret', g.upgradePreview(red, 'damage') === null && g.upgradePreview(99999, 'range') === null);
+  // DPS tracker (src/ui/dps.ts, pure): 100 damage per game second -> 100 DPS; null before one second is measured
+  const dt = new DpsTracker(), fake = { ...tur(g, red), damageDealt: 0 };
+  let dpsEarly: number | null = 0;
+  for (let ms = 0; ms <= 15000; ms += 100) {
+    fake.damageDealt = ms / 10;
+    dt.sample(g, ms, [fake]);
+    if (ms === 500) dpsEarly = dt.dps(fake, ms);
+  }
+  const dps = dt.dps(fake, 15000);
+  check('(q) DPS tracker: 100 damage/s reads 100 DPS, null in the first second', dpsEarly === null && dps != null && near(dps, 100), String(dps));
+  dt.sample(g, 16000, []);
+  check('(q) DPS tracker forgets sold turrets at its next sample', dt.dps(fake, 16000) === null);
+
   const mp = g.upgradePreview(boom, 'range');
   check('(q) modifier preview: influence 80 -> 130', !!mp && mp.from.range === 80 && mp.to.range === 130, JSON.stringify(mp));
 }
