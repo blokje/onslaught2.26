@@ -1,6 +1,9 @@
 // Persistence. localStorage keys use the prefix "os226.". Every access is wrapped in try/catch and
 // an in-memory fallback keeps the game working when storage is disabled or full.
 
+import { cleanKeyOverrides } from './keymap.ts';
+import type { KeyAction } from './keymap.ts';
+
 const PREFIX = 'os226.';
 
 export interface PanelPos { x: number; y: number }
@@ -17,6 +20,8 @@ export interface Settings {
   autoSend: boolean;
   infoCollapsed: boolean;
   panelPos: PanelPos | null;
+  /** Rebound keys (action -> KeyboardEvent.code); actions not listed use the default in keymap.ts. */
+  keys: Partial<Record<KeyAction, string>>;
   lastMap: string;
   lastDifficulty: string;
   lastMode: string;
@@ -67,6 +72,7 @@ export const DEFAULT_SETTINGS: Settings = {
   autoSend: false,      // send the next wave as soon as the field is clear (A key, Auto button)
   infoCollapsed: false,
   panelPos: null,       // turret panel { x, y } in px from the HUD's top-left, null = default dock
+  keys: {},             // rebound keys: { action: KeyboardEvent.code }, only the ones that differ from src/ui/keymap.ts
   lastMap: 'map1',
   lastDifficulty: 'medium',
   lastMode: 'normal',
@@ -81,6 +87,7 @@ export function getSettings(): Settings {
   const defaults: Record<string, unknown> = { ...DEFAULT_SETTINGS };
   for (const k of Object.keys(DEFAULT_SETTINGS)) {
     const d = defaults[k], v = src[k];
+    if (k === 'keys') { out[k] = cleanKeyOverrides(v); continue; } // known actions, string codes, nothing reserved
     if (d === null) { // panelPos: null or a { x, y } pair of finite numbers
       if (v && typeof v === 'object' && Number.isFinite(v.x) && Number.isFinite(v.y)) out[k] = v;
     } else if (typeof v === typeof d && (typeof d !== 'number' || Number.isFinite(v))) out[k] = v;

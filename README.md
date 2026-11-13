@@ -66,6 +66,7 @@ npm run build:single # writes dist-single/index.html
 | Space | Send the next wave now (bonus cash) |
 | A | Auto-send: the next wave starts as soon as the field is clear |
 | P, G, I, Esc | Pause, settings, info panel, cancel |
+| ? | All controls; click a key there to change it |
 | Mouse wheel, right-drag | Zoom, pan (two fingers on touch) |
 
 ## Project docs

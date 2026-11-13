@@ -7,6 +7,8 @@ import { TURRETS, FREAKOUT } from '../data/turrets.ts';
 import * as storage from './storage.ts';
 import type { App, GameOverInfo, RunReport, ScoreHighlight } from './App.ts';
 import { iconSvg } from './icons.ts';
+import { KEY_ACTIONS, FIXED_KEYS, RESERVED_CODES, keyLabel, rebind, resolveBindings } from './keymap.ts';
+import type { KeyAction } from './keymap.ts';
 
 const kbd = (t: string): HTMLElement => h('span', { class: 'os-kbd' }, t);
 
@@ -33,6 +35,9 @@ export function buildSettings(app: App): HTMLElement {
   };
   const field = (label: string, sub: string | null, control: HTMLElement): HTMLElement => h(control && control.tagName === 'INPUT' && (control as HTMLInputElement).type === 'checkbox' ? 'label' : 'div', { class: 'os-field' }, h('div', { class: 'os-lab' }, label, sub ? h('small', null, sub) : null), control);
 
+  const keysBtn = h('button', { class: 'os-btn small', type: 'button' }, 'Keys...');
+  keysBtn.addEventListener('click', () => app.openKeys());
+
   let resetStep = 0;
   const resetBtn = h('button', { class: 'os-btn danger small', type: 'button' }, 'Reset progress');
   resetBtn.addEventListener('click', () => {
@@ -55,33 +60,63 @@ export function buildSettings(app: App): HTMLElement {
     field('Unlock all', 'All turrets, difficulties and modes. Applies to new games.', check('unlockAll')),
     field('Show FPS counter', null, check('showFps')),
     field('Pause when tab is hidden', 'Resumes automatically when you come back.', check('autoPause')),
-    field('Auto-send waves', 'Sends the next wave (with the early bonus) as soon as the field is clear, from wave 1 on. Key A.', check('autoSend')),
+    field('Auto-send waves', 'Sends the next wave (with the early bonus) as soon as the field is clear, from wave 1 on.', check('autoSend')),
+    field('Controls', 'See and change the keyboard keys (also the ? key).', keysBtn),
     field('Saved progress', 'Unlocks, high scores and the autosave.', resetBtn));
 }
 
+// ---------------- Controls (? key): overview and rebinding ----------------
+export function buildKeys(app: App): HTMLElement {
+  const root = h('div', { class: 'os-help os-keys-dlg' });
+  let waiting: KeyAction | null = null;
+  let note = '';
+  const render = (): void => {
+    const bind = resolveBindings(app.settings.keys);
+    const groups = new Map<string, HTMLElement>();
+    for (const a of KEY_ACTIONS) {
+      let g = groups.get(a.group);
+      if (!g) { g = h('div', { class: 'os-keys' }); groups.set(a.group, g); }
+      const isWaiting = waiting === a.id;
+      const btn = h('button', { class: 'os-btn small os-keybtn' + (isWaiting ? ' is-on' : ''), type: 'button', title: 'Click, then press the new key' },
+        isWaiting ? 'Press a key...' : keyLabel(bind[a.id]));
+      btn.addEventListener('click', () => { waiting = isWaiting ? null : a.id; note = ''; capture(); render(); });
+      g.append(btn, h('span', null, a.label + (a.code !== bind[a.id] ? ' (default ' + keyLabel(a.code) + ')' : '')));
+    }
+    const fixed = h('div', { class: 'os-keys' }, ...FIXED_KEYS.flatMap(([k, t]) => [kbd(k), h('span', null, t)]));
+    const reset = h('button', { class: 'os-btn small', type: 'button' }, 'Reset all keys');
+    reset.disabled = Object.keys(app.settings.keys).length === 0;
+    reset.addEventListener('click', () => { waiting = null; note = 'Keys reset to the defaults.'; capture(); app.updateSettings({ keys: {} }); render(); });
+    const kids: HTMLElement[] = [h('p', { class: 'os-hint' }, 'Click a key to change it, then press the new key (Esc cancels). Taking a key that is already used swaps the two.')];
+    for (const [name, g] of groups) kids.push(h('h3', null, name), g);
+    kids.push(h('h3', null, 'Fixed'), fixed, h('div', { class: 'os-keys-foot' }, reset, h('span', { class: 'os-hint' }, note)));
+    root.replaceChildren(...kids);
+  };
+  /** Route the next keydown here while a row waits for its new key. */
+  const capture = (): void => {
+    app.keyCapture = waiting == null ? null : (e: KeyboardEvent) => {
+      const action = waiting!;
+      waiting = null;
+      app.keyCapture = null;
+      if (e.code === 'Escape') note = '';
+      else if (!e.code || RESERVED_CODES.has(e.code)) note = keyLabel(e.code || e.key) + ' is reserved, pick another key.';
+      else {
+        app.updateSettings({ keys: rebind(app.settings.keys, action, e.code) });
+        note = KEY_ACTIONS.find((a) => a.id === action)!.label.split(' (')[0] + ': ' + keyLabel(e.code) + '.';
+      }
+      render();
+    };
+  };
+  render();
+  return root;
+}
+
 // ---------------- How to play ----------------
-export function buildHelp(): HTMLElement {
-  const row = (k: string, text: string): HTMLElement[] => [kbd(k), h('span', null, text)];
+export function buildHelp(app: App): HTMLElement {
+  // generated from the keymap, so it always shows the player's current keys
+  const bind = resolveBindings(app.settings.keys);
   const keys = h('div', { class: 'os-keys' },
-    row('1-8', 'Pick a turret (hold Shift for the second row of eight)'),
-    row('Click', 'Build, select a turret, or pick a target'),
-    row('Shift+Click', 'Build and stay in build mode'),
-    row('Esc / Right', 'Cancel the current action'),
-    row('Q W E', 'Upgrade damage, range, rate (Shift = as far as you can afford)'),
-    row('S', 'Sell the selected turret for 70%'),
-    row('M', 'Move it ($500), then click the new spot'),
-    row('T', 'Cycle targeting mode'),
-    row('L', 'Lock onto the current target'),
-    row('F', 'Focus fire: press, then click an attacker'),
-    row('D / Shift+D', 'Cycle the firing cone / aim the cone at the cursor'),
-    row('J', 'Targeter: join to a turret'),
-    row('X', 'Combo-only: cycle its colour'),
-    row('R / C', 'Range rings / combo partners display'),
-    row('Space', 'Send the next wave early (earns a bonus)'),
-    row('P / I / G', 'Pause / info panel / settings'),
-    row('Drag panel header', 'Move the turret panel, double-click or double-tap to put it back'),
-    row('Left, Right', 'Walk along the build rack, B or Enter builds at the cursor'),
-    row('Wheel, drag', 'Zoom, and pan with the right or middle button'));
+    ...KEY_ACTIONS.flatMap((a) => [kbd(keyLabel(bind[a.id])), h('span', null, a.label)]),
+    ...FIXED_KEYS.flatMap(([k, t]) => [kbd(k), h('span', null, t)]));
   return h('div', { class: 'os-help' },
     h('h3', null, 'Goal'),
     h('p', null, 'Waves of vehicles drive along the road toward your base. Every one that gets through costs a life. Spend cash on turrets, upgrade them, and stop the waves for as long as you can. Your score is total kills multiplied by total cash spent.'),
@@ -99,7 +134,7 @@ export function buildHelp(): HTMLElement {
     h('h3', null, 'Unlocks'),
     h('p', null, 'The four basic turrets are ready from the start. Modifiers and the extra weapons (Targeter, Sniper, Fusion, Railgun, Combo-only) unlock as your kill count grows during a game. Extreme difficulty unlocks after wave 100 on Medium, and Sandbox after wave 50 on any difficulty.'),
     h('h3', null, 'Combos'),
-    h('p', null, 'When turrets with fully upgraded damage stand close together (within 70 units), the one that fires first leads and the others join in. The mix of colours decides the result: nukes, cluster bombs, landmines, plasma balls, a black hole and more. Partners go on cooldown, so combos trade steady fire for one big hit. Press C to see who is in range of the selected turret.'),
+    h('p', null, 'When turrets with fully upgraded damage stand close together (within 70 units), the one that fires first leads and the others join in. The mix of colours decides the result: nukes, cluster bombs, landmines, plasma balls, a black hole and more. Partners go on cooldown, so combos trade steady fire for one big hit. Press ' + keyLabel(bind.combo) + ' to see who is in range of the selected turret.'),
     h('h3', null, 'Targeting'),
     h('p', null, 'Turrets pick the nearest attacker by default. Change that per turret (nearest, furthest along the road, weakest, strongest, slowest, fastest), lock onto a target, restrict the firing cone, or order every turret in reach to focus on one attacker. A Targeter lends its position and range to the turret you join to it.'),
     h('h3', null, 'Controls'),

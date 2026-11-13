@@ -239,6 +239,11 @@
 .os-big-stats div { background: rgba(0, 0, 0, 0.3); border-radius: 0.6em; padding: 0.5em; }
 .os-big-stats b { display: block; font-size: 1.5em; color: var(--amber-hi); font-variant-numeric: tabular-nums; }
 .os-big-stats span { font-size: 0.75em; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.06em; }
+/* controls dialog (? key) */
+.os-keys-dlg .os-keys { row-gap: 0.3em; }
+.os-keybtn { min-width: 5.5em; justify-content: center; font-family: ui-monospace, Menlo, Consolas, monospace; }
+.os-keybtn.is-on { animation: os-pulse 0.8s infinite; }
+.os-keys-foot { display: flex; align-items: center; gap: 0.8em; margin-top: 0.8em; }
 /* end-of-run report in the game-over dialog */
 .os-report { display: flex; flex-direction: column; gap: 0.7em; margin-top: 0.8em; }
 .os-report-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(11em, 1fr)); gap: 0.5em; }

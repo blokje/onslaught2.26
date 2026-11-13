@@ -66,7 +66,18 @@ The panel is docked top right by CSS, which can cover the road on some maps, so 
 ## Input
 
 - Left button and single touch: handled by `App` on the canvas (build, select, move, join, focus fire). Right/middle/two-finger: renderer (pan, zoom). Right click also cancels the current mode.
-- Keyboard shortcuts: `SPEC.md` section 8. Use `event.code` (`Digit1`) so Shift+digit works. Ignore keys while an input has focus.
+- Keyboard shortcuts: `SPEC.md` section 8. Ignore keys while an input has focus.
+- **Keymap** (`keymap.ts`): `KEY_ACTIONS` is the one table of rebindable actions (id, default `KeyboardEvent.code`, label,
+  group). `App.onKey` looks the code up in `App.keyMap` (built by `applyKeys()` from `settings.keys` over the defaults) and
+  calls `runAction`. Fixed keys stay in the handler: digits (Shift+digit), Left/Right, Escape, Enter (alias of build) and
+  `?` (alias of the controls overlay, whatever the layout). `RESERVED_CODES` cannot be bound. A new action: add it to
+  `KeyAction` and `KEY_ACTIONS`, and a case in `runAction`.
+- **Controls overlay** (`?` or `/`, Settings > Keys...; `buildKeys` in `dialogs.ts`): lists every action with its key and the
+  fixed keys. Clicking a key sets `App.keyCapture`, which takes the next keydown before the game: Escape cancels, a reserved
+  key is refused, anything else is stored with `rebind()` (a key already in use swaps the two). Only overrides that differ
+  from the default are saved (`settings.keys`, cleaned by `cleanKeyOverrides` in `getSettings`). "Reset all keys" clears them.
+- Key hints follow the bindings: top-bar buttons, pause overlay and focus badge use `Hud.hk(action)` (refreshed every
+  tick), the turret panel and How to play read `app.keyFor(action)` when they are built.
 - `#ui` has `pointer-events: none`; interactive panels opt back in.
 
 ## Unlocks and saves

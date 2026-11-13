@@ -216,8 +216,12 @@ Every extra map keeps a legal 5-turret combo cluster within reach of the road (c
 
 ## 8. Controls [ORIG + SITE]
 
+Default keys. [NEW] Every letter and Space below can be rebound in the Controls overlay (`?` key, or Settings); digits,
+arrows, Esc and Enter are fixed. Keys are physical positions (QWERTY names).
+
 | Key | Action |
 |---|---|
+| ? or / | controls overview and key rebinding [NEW] |
 | 1-8, Shift+1-8 | pick turret to build |
 | Q / W / E | upgrade damage / range / rate (Shift = as far as affordable) |
 | S | sell (70%) |

@@ -7,7 +7,9 @@ import * as storage from './storage.ts';
 import { AudioEngine } from './audio.ts';
 import { Menu } from './menu.ts';
 import { Hud } from './hud.ts';
-import { buildSettings, buildHelp, buildScores, buildGameOver } from './dialogs.ts';
+import { buildSettings, buildHelp, buildScores, buildGameOver, buildKeys } from './dialogs.ts';
+import { codeLookup, keyLabel, resolveBindings } from './keymap.ts';
+import type { KeyAction } from './keymap.ts';
 import { formatCash, formatNum } from './format.ts';
 import type { AppGame, AppRenderer, AppOptions, CommandResult } from './appTypes.ts';
 import type { GameEventName, GameEvents, GameOptions, GameState, Overlay, Stat, TurretState, Attacker, KeyColor, DirectionalMode, WaveRecord } from '../types.ts';
@@ -90,6 +92,10 @@ export class App {
   hoverId: number | null;
   /** Range ring of the hovered range upgrade (set by the Hud's Upgrades tab). */
   previewRange: Overlay['previewRange'] = null;
+  /** KeyboardEvent.code -> action, from settings.keys over the defaults in keymap.ts. */
+  keyMap: Map<string, KeyAction> = new Map();
+  /** Set while the controls overlay waits for a new key; gets the next keydown instead of the game. */
+  keyCapture: ((e: KeyboardEvent) => void) | null = null;
   rackIndex: number;
   cursor: CursorState;
   ghost: GhostState;
@@ -123,6 +129,7 @@ export class App {
     this.game = null;
 
     this.settings = storage.getSettings();
+    this.applyKeys();
     this.unlocks = storage.getUnlocks();
     this.audio = new AudioEngine();
     this.audio.setVolume(this.settings.volume);
@@ -221,7 +228,7 @@ export class App {
     const open = this.modals.find((m) => m.kind === 'settings');
     if (open) open.close(); else this.openSettings();
   }
-  openHelp(): void { this.openModal('How to play', buildHelp(), { cls: 'wide', buttons: [{ label: 'Close', cls: 'primary', onClick: (hd) => hd.close() }] }); }
+  openHelp(): void { this.openModal('How to play', buildHelp(this), { cls: 'wide', buttons: [{ label: 'Close', cls: 'primary', onClick: (hd) => hd.close() }] }); }
   openScores(highlight?: ScoreHighlight): void { this.openModal('High scores', buildScores(this, highlight), { cls: 'narrow wide', buttons: [{ label: 'Close', cls: 'primary', onClick: (hd) => hd.close() }] }); }
 
   openGameMenu(): void {
@@ -255,6 +262,7 @@ export class App {
     if ('volume' in patch) this.audio.setVolume(this.settings.volume);
     if ('muted' in patch) this.audio.setMuted(this.settings.muted);
     if ('showFps' in patch) this.applyFps();
+    if ('keys' in patch) this.applyKeys();
     if ('unlockAll' in patch || 'waveInterval' in patch) this.menu.refresh();
   }
 
@@ -926,12 +934,20 @@ export class App {
     const typing = tag === 'TEXTAREA' || tag === 'SELECT' || (tag === 'INPUT' && (tg as HTMLInputElement).type !== 'range' && (tg as HTMLInputElement).type !== 'checkbox') || (tg && tg.isContentEditable);
     if (typing) { if (e.key === 'Escape' && tg && tg.blur) tg.blur(); return; }
 
+    // the controls overlay is waiting for a new key: it gets this one (Escape cancels there)
+    if (this.keyCapture) { e.preventDefault(); if (!e.repeat) this.keyCapture(e); return; }
     if (e.key === 'Escape') { e.preventDefault(); if (!e.repeat) this.escapeAction(); return; }
-    const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-    if (k === 'g' && !e.repeat) { e.preventDefault(); this.toggleSettings(); return; }
-    if (!this.game || this.modalOpen()) return;
 
     const code = e.code || '';
+    // rebindable actions (src/ui/keymap.ts); Enter is a fixed alias of build, '?' of the controls overlay
+    const action: KeyAction | undefined = code === 'Enter' || code === 'NumpadEnter' ? 'build' : (e.key === '?' ? 'keys' : this.keyMap.get(code));
+    if ((action === 'settings' || action === 'keys') && !e.repeat) {
+      e.preventDefault();
+      if (action === 'settings') this.toggleSettings(); else this.toggleKeys();
+      return;
+    }
+    if (!this.game || this.modalOpen()) return;
+
     const dm = /^Digit([1-8])$/.exec(code);
     if (dm) {
       e.preventDefault();
@@ -940,30 +956,56 @@ export class App {
       this.armKind(BUILD_ORDER[idx]);
       return;
     }
-    if (k === 'ArrowLeft' || k === 'ArrowRight') { e.preventDefault(); this.rackStep(k === 'ArrowLeft' ? -1 : 1); return; }
-    if (e.repeat) { if (k === ' ' || k === 'Enter') e.preventDefault(); return; }
-    switch (k) {
-      case 'q': this.upgrade('damage', e.shiftKey); break;
-      case 'w': this.upgrade('range', e.shiftKey); break;
-      case 'e': this.upgrade('rate', e.shiftKey); break;
-      case 's': this.sell(); break;
-      case 'm': this.startMove(); break;
-      case 'r': this.toggleRanges(); break;
-      case 'c': this.toggleCombo(); break;
-      case 't': this.cycleTarget(); break;
-      case 'l': this.toggleLock(); break;
-      case 'f': this.toggleFocusMode(); break;
-      case 'd': if (e.shiftKey) this.aimDirectional(); else this.cycleDirectional(); break;
-      case 'j': this.toggleJoin(); break;
-      case 'x': this.cycleColor(); break;
-      case ' ': this.sendWave(); break;
-      case 'a': this.toggleAutoSend(); break;
-      case 'p': this.togglePause(); break;
-      case 'i': this.toggleInfo(); break;
-      case 'b': case 'Enter': this.buildAtCursor(); break;
-      default: return;
-    }
+    if (code === 'ArrowLeft' || code === 'ArrowRight') { e.preventDefault(); this.rackStep(code === 'ArrowLeft' ? -1 : 1); return; }
+    if (!action) return;
     e.preventDefault();
+    if (e.repeat) return;
+    this.runAction(action, e.shiftKey);
     this.hudDirty = true;
+  }
+
+  /** Perform a keyboard action (the handler for KEY_ACTIONS). */
+  runAction(action: KeyAction, shift: boolean): void {
+    switch (action) {
+      case 'upDamage': this.upgrade('damage', shift); break;
+      case 'upRange': this.upgrade('range', shift); break;
+      case 'upRate': this.upgrade('rate', shift); break;
+      case 'sell': this.sell(); break;
+      case 'move': this.startMove(); break;
+      case 'ranges': this.toggleRanges(); break;
+      case 'combo': this.toggleCombo(); break;
+      case 'target': this.cycleTarget(); break;
+      case 'lock': this.toggleLock(); break;
+      case 'focus': this.toggleFocusMode(); break;
+      case 'cone': if (shift) this.aimDirectional(); else this.cycleDirectional(); break;
+      case 'join': this.toggleJoin(); break;
+      case 'color': this.cycleColor(); break;
+      case 'sendWave': this.sendWave(); break;
+      case 'autoSend': this.toggleAutoSend(); break;
+      case 'pause': this.togglePause(); break;
+      case 'info': this.toggleInfo(); break;
+      case 'build': this.buildAtCursor(); break;
+      case 'settings': this.toggleSettings(); break;
+      case 'keys': this.toggleKeys(); break;
+    }
+  }
+
+  /** Rebuild the code -> action lookup from the settings (after a rebind or reset). */
+  applyKeys(): void { this.keyMap = codeLookup(resolveBindings(this.settings.keys)); }
+
+  /** Label of the key currently bound to an action ('Q', 'Space', ...), for buttons and hints. */
+  keyFor(action: KeyAction): string { return keyLabel(resolveBindings(this.settings.keys)[action]); }
+
+  openKeys(): void {
+    if (this.modals.some((m) => m.kind === 'keys')) return;
+    const m = this.openModal('Controls', buildKeys(this), {
+      cls: 'wide', onClose: () => { this.keyCapture = null; },
+      buttons: [{ label: 'Close', cls: 'primary', onClick: (hd) => hd.close() }],
+    });
+    m.kind = 'keys';
+  }
+  toggleKeys(): void {
+    const open = this.modals.find((m) => m.kind === 'keys');
+    if (open) open.close(); else this.openKeys();
   }
 }

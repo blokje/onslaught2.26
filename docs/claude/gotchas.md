@@ -2,6 +2,9 @@
 
 - **`blackholed` vs `swallowed`:** `blackholed` means the engine stops moving the attacker along the road and it pays $0. `swallowed` (set by the black hole combo) also makes it untargetable. Tests pin attackers with `blackholed`, so targeting checks `swallowed`, not `blackholed`. Only targeting and the piercing laser skip swallowed attackers; line and area hits (the Railgun beam, `blast()`) still hit them on purpose.
 - **`comboReady` can be stale within a step.** `combos.ts` recomputes readiness (`comboCapable && cd <= 0 && time >= comboNext`) to avoid one partner serving two leads in the same step.
+- **Keys are physical (`KeyboardEvent.code`), not letters.** Since the keymap (phase 1) the defaults sit on the QWERTY
+  positions, so on AZERTY "Q" is the key labelled A. Players rebind in the Controls overlay; labels show the QWERTY name.
+  Do not add `e.key` checks for actions, put them in `KEY_ACTIONS` (`src/ui/keymap.ts`).
 - **Holding Esc does not toggle the menu repeatedly:** `App.onKey` ignores auto-repeat for Esc (and for most other keys).
 - **The frame loop in `main.ts` survives an exception:** it logs the first occurrence of each message and pauses the game instead of dying, so a broken frame does not freeze the page silently.
 - **Combo-only** never leads and never fires; it counts as its `comboColor` and is always combo-capable. Default colour is red.

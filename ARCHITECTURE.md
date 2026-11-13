@@ -195,7 +195,8 @@ pooled meshes for attackers/projectiles).
   high scores per map+difficulty (top 10), autosave of the running game every 10 s and on page hide.
 - **Settings**: master volume / mute, wave interval override, snap-to-grid toggle (grid 22 units), unlock-all switch,
   show FPS, `autoPause` (pause while the tab is hidden), `autoSend` (send the next wave when the field is clear, see
-  `game.waveActive()`), `panelPos` (moved turret panel). `getSettings()` drops stored values
+  `game.waveActive()`), `panelPos` (moved turret panel), `keys` (rebound keys: `{ action: KeyboardEvent.code }`, only
+  the ones that differ from `src/ui/keymap.ts`). `getSettings()` drops stored values
   whose type does not match the default.
 - **Audio** (`src/ui/audio.ts`): Web Audio synthesized SFX driven by game events (cannon pop, laser zap, rocket whoosh,
   spark crackle, blasts by size, nuke boom, kill tick, leak alarm, wave horn, combo chord, UI clicks). Rate-limit

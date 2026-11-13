@@ -5,6 +5,7 @@ import { DIFFICULTIES, WAVES, WEAVE } from '../src/data/rules.ts';
 import { waveHp, waveBounty, laneOffset } from '../src/game/Attacker.ts';
 import { ladderValue } from '../src/game/modifiers.ts';
 import { DpsTracker } from '../src/ui/dps.ts';
+import { KEY_ACTIONS, RESERVED_CODES, cleanKeyOverrides, codeLookup, keyLabel, rebind, resolveBindings } from '../src/ui/keymap.ts';
 import type { Turret } from '../src/game/Turret.ts';
 import type { Attacker, GameEvents, KeyColor, Projectile, Result, Stat, TargetMode } from '../src/types.ts';
 
@@ -513,6 +514,26 @@ function makePlayer(game: Game, spots: Spot[]): () => void {
 
   const mp = g.upgradePreview(boom, 'range');
   check('(q) modifier preview: influence 80 -> 130', !!mp && mp.from.range === 80 && mp.to.range === 130, JSON.stringify(mp));
+}
+
+// ------------------------------------------------------------------ (q) keymap (src/ui/keymap.ts, pure)
+{
+  const codes = KEY_ACTIONS.map((a) => a.code);
+  check('(q) keymap: defaults are unique and none is reserved', new Set(codes).size === codes.length && codes.every((c) => !RESERVED_CODES.has(c)));
+  const def = codeLookup(resolveBindings({}));
+  check('(q) keymap: default keys match SPEC.md section 8', def.get('KeyQ') === 'upDamage' && def.get('KeyW') === 'upRange' && def.get('KeyE') === 'upRate'
+    && def.get('Space') === 'sendWave' && def.get('KeyA') === 'autoSend' && def.get('KeyP') === 'pause' && def.get('KeyG') === 'settings' && def.get('KeyD') === 'cone');
+  const o1 = rebind({}, 'sell', 'KeyZ');
+  check('(q) keymap: rebind to a free key stores only that override', JSON.stringify(o1) === '{"sell":"KeyZ"}' && codeLookup(resolveBindings(o1)).get('KeyZ') === 'sell'
+    && !codeLookup(resolveBindings(o1)).has('KeyS'));
+  const o2 = rebind(o1, 'pause', 'KeyZ');
+  const b2 = resolveBindings(o2);
+  check('(q) keymap: taking a used key swaps the two actions', b2.pause === 'KeyZ' && b2.sell === 'KeyP');
+  check('(q) keymap: binding back to the default drops the override', JSON.stringify(rebind(o1, 'sell', 'KeyS')) === '{}');
+  const clean = cleanKeyOverrides({ sell: 'KeyZ', pause: 'Escape', bogus: 'KeyK', move: 42, __proto__: { x: 1 } });
+  check('(q) keymap: stored overrides are cleaned (unknown actions, reserved keys, non-strings dropped)', JSON.stringify(clean) === '{"sell":"KeyZ"}'
+    && JSON.stringify(cleanKeyOverrides('junk')) === '{}' && JSON.stringify(cleanKeyOverrides(['KeyQ'])) === '{}');
+  check('(q) keymap: labels', keyLabel('KeyQ') === 'Q' && keyLabel('Space') === 'Space' && keyLabel('Slash') === '/' && keyLabel('Digit9') === '9');
 }
 
 // ------------------------------------------------------------------ (q) waveActive (auto-send)

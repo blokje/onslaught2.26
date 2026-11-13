@@ -10,12 +10,13 @@ import { COMBOS } from '../data/combos.ts';
 import type { App } from './App.ts';
 import type { AppGame } from './appTypes.ts';
 import { DpsTracker } from './dps.ts';
+import type { KeyAction } from './keymap.ts';
 import type { TurretState, GameState, KeyColor, Stat, TargetMode, DirectionalMode, TurretDef, Category } from '../types.ts';
 
 const TARGET_NAMES: Record<TargetMode, string> = { near: 'Nearest', far: 'Furthest', weak: 'Weakest', strong: 'Strongest', slow: 'Slowest', fast: 'Fastest', oldest: 'Oldest', newest: 'Newest' };
 const DIR_NAMES: Record<DirectionalMode, string> = { normal: 'All around', wide: 'Wide 180', medium: 'Medium 90', tight: 'Tight 60', small: 'Narrow 45', pinpoint: 'Pinpoint 30' };
 const STAT_NAMES: Record<Stat, string> = { damage: 'Damage', range: 'Range', rate: 'Rate' };
-const STAT_KEYS: Record<Stat, string> = { damage: 'Q', range: 'W', rate: 'E' };
+const STAT_ACTION: Record<Stat, KeyAction> = { damage: 'upDamage', range: 'upRange', rate: 'upRate' };
 const COMBO_HEX: Record<string, string> = { red: '#ff6a4d', green: '#52d17a', blue: '#4da3ff', yellow: '#ffd54a' };
 
 const COLORS: KeyColor[] = ['red', 'green', 'blue', 'yellow'];
@@ -100,6 +101,8 @@ export class Hud {
   incomingWave = -1;
   /** Stat whose "+ cost" button is hovered (Upgrades tab preview), or null. */
   previewStat: Stat | null = null;
+  /** Top-bar key hints and the action whose key they show. */
+  keyHints: [HTMLElement, KeyAction][] = [];
   /** Per-turret DPS from damageDealt samples (game time). */
   dps = new DpsTracker();
   incomingGame: AppGame | null = null;
@@ -120,6 +123,13 @@ export class Hud {
     return b;
   }
 
+  /** Key hint for a top-bar button; its text follows the player's binding (refreshed in update). */
+  hk(action: KeyAction): HTMLElement {
+    const el = h('span', { class: 'os-kbd' }, this.app.keyFor(action));
+    this.keyHints.push([el, action]);
+    return el;
+  }
+
   stat(key: string, label: string, cls?: string): HTMLElement {
     const v = h('span', { class: 'os-stat-v' }, '0');
     this.v[key] = v;
@@ -134,13 +144,13 @@ export class Hud {
       this.stat('cash', 'Cash', 'cash'), this.stat('lives', 'Lives', 'lives'), this.stat('wave', 'Wave', 'wave'),
       this.stat('kills', 'Kills'), this.stat('score', 'Score'));
     this.livesEl = stats.querySelector<HTMLElement>('.lives')!;
-    this.sendBtn = this.btn('primary', ['Send wave ', h('span', { class: 'os-kbd' }, 'Space')], () => app.sendWave(), 'Start the next wave now (Space)');
+    this.sendBtn = this.btn('primary', ['Send wave ', this.hk('sendWave')], () => app.sendWave(), 'Start the next wave now');
     this.incomingEl = this.stat('incoming', 'Wave 1', 'incoming');
-    this.autoBtn = this.btn('', ['Auto ', h('span', { class: 'os-kbd' }, 'A')], () => app.toggleAutoSend(), 'Auto-send: start the next wave as soon as the field is clear (A)');
+    this.autoBtn = this.btn('', ['Auto ', this.hk('autoSend')], () => app.toggleAutoSend(), 'Auto-send: start the next wave as soon as the field is clear');
     const waveBox = h('div', { class: 'os-panel os-wave-box' }, this.stat('next', 'Next wave'), this.incomingEl, this.sendBtn, this.autoBtn);
     this.speedBtns = SPEEDS.map((s) => this.btn('', s + 'x', () => app.setSpeed(s), 'Game speed ' + s + 'x'));
     const speeds = h('div', { class: 'os-panel os-speeds' }, ...this.speedBtns);
-    this.pauseBtn = this.btn('', ['Pause ', h('span', { class: 'os-kbd' }, 'P')], () => app.togglePause());
+    this.pauseBtn = this.btn('', ['Pause ', this.hk('pause')], () => app.togglePause());
     this.fps = h('span', { class: 'os-fps' }, '');
     const ctrls = h('div', { class: 'os-panel os-ctrls' }, this.pauseBtn, this.btn('', 'Menu', () => app.openGameMenu(), 'Options (Esc)'), this.fps);
     this.top = h('div', { class: 'os-top' }, stats, waveBox, speeds, ctrls);
@@ -170,11 +180,11 @@ export class Hud {
     this.toasts = h('div', { class: 'os-toasts' });
     this.err = h('div', { class: 'os-err' });
     this.leak = h('div', { class: 'os-leak' });
-    this.focusBadge = h('div', { class: 'os-focus-badge' }, 'Focus fire on (F or Esc to clear)');
+    this.focusBadge = h('div', { class: 'os-focus-badge' }, 'Focus fire on (', this.hk('focus'), ' or Esc to clear)');
     this.modeHint = h('div', { class: 'os-modehint' });
     this.paused = h('div', { class: 'os-paused' },
       h('div', { class: 'os-paused-title' }, 'PAUSED'),
-      h('div', { class: 'os-paused-hint' }, 'Press P or click Resume. No waves are sent while paused.'));
+      h('div', { class: 'os-paused-hint' }, 'Press ', this.hk('pause'), ' or click Resume. No waves are sent while paused.'));
     // the pause tint goes first so the top bar, side panel and rack stay above it and clickable
     this.el.append(this.paused, this.leak, this.top, this.log, this.toasts, this.focusBadge, this.modeHint, this.side, this.rack);
     // the error bubble sits outside of the clipped root so it can sit anywhere
@@ -255,6 +265,7 @@ export class Hud {
     show(this.focusBadge, app.focusId != null, 'block');
     setProp(this.sendBtn, 'disabled', !!s.over || !!s.paused);
     setClass(this.autoBtn, 'is-on', app.settings.autoSend);
+    for (const [el, action] of this.keyHints) setText(el, app.keyFor(action));
 
     // rack
     for (let i = 0; i < this.slots.length; i++) {
@@ -437,18 +448,18 @@ export class Hud {
     const actions = h('div', { class: 'os-actions' });
     const act = (key: 'sell' | 'move' | 'target' | 'lock' | 'dir' | 'join' | 'color', cls: string, content: Kid, fn: () => void, title: string): HTMLButtonElement => { const b = this.btn(cls, content, fn, title); refs[key] = b; actions.append(b); return b; };
     const k = (x: string): HTMLElement => h('span', { class: 'os-kbd' }, x);
-    act('sell', '', [h('span', null, 'Sell'), k('S')], () => app.sell(), 'Sell for 70% of everything spent on it');
-    act('move', '', [h('span', null, 'Move ' + formatCash(MOVE_COST)), k('M')], () => app.startMove(), 'Move this turret');
+    act('sell', '', [h('span', null, 'Sell'), k(app.keyFor('sell'))], () => app.sell(), 'Sell for 70% of everything spent on it');
+    act('move', '', [h('span', null, 'Move ' + formatCash(MOVE_COST)), k(app.keyFor('move'))], () => app.startMove(), 'Move this turret');
     if (cat === 'weapon') {
-      act('target', '', [h('span', null, ''), k('T')], () => app.cycleTarget(), 'Cycle targeting mode');
-      act('lock', '', [h('span', null, 'Lock'), k('L')], () => app.toggleLock(), 'Keep the current target while it is in range');
-      act('dir', 'wide', [h('span', null, ''), k('D')], () => app.cycleDirectional(), 'Firing cone (Shift+D aims it at the cursor)');
+      act('target', '', [h('span', null, ''), k(app.keyFor('target'))], () => app.cycleTarget(), 'Cycle targeting mode');
+      act('lock', '', [h('span', null, 'Lock'), k(app.keyFor('lock'))], () => app.toggleLock(), 'Keep the current target while it is in range');
+      act('dir', 'wide', [h('span', null, ''), k(app.keyFor('cone'))], () => app.cycleDirectional(), 'Firing cone (Shift+' + app.keyFor('cone') + ' aims it at the cursor)');
     }
     if (t.kind === 'targeter') {
-      act('join', 'wide', [h('span', null, ''), k('J')], () => app.toggleJoin(), 'Join this Targeter to a turret');
+      act('join', 'wide', [h('span', null, ''), k(app.keyFor('join'))], () => app.toggleJoin(), 'Join this Targeter to a turret');
     }
     if (t.kind === 'comboOnly') {
-      act('color', 'wide', [h('span', null, ''), k('X')], () => app.cycleColor(), 'Cycle the combo colour');
+      act('color', 'wide', [h('span', null, ''), k(app.keyFor('color'))], () => app.cycleColor(), 'Cycle the combo colour');
     }
     general.append(actions);
     refs.rangeHint = h('div', { class: 'os-hint' }, '');
@@ -465,8 +476,9 @@ export class Hud {
       if (!n) continue;
       const val = h('b', null, '');
       const pips = h('div', { class: 'os-pips' }, ...Array.from({ length: n }, () => h('span', { class: 'os-pip' })));
-      const upBtn = this.btn('', [h('span', null, ''), h('span', { class: 'os-kbd' }, STAT_KEYS[stat])], (e: MouseEvent) => app.upgrade(stat, e.shiftKey), 'Upgrade ' + STAT_NAMES[stat].toLowerCase() + ' (' + STAT_KEYS[stat] + ')');
-      const maxBtn = this.btn('', 'Max', () => app.upgrade(stat, true), 'Upgrade as far as you can afford (Shift+' + STAT_KEYS[stat] + ')');
+      const key = app.keyFor(STAT_ACTION[stat]);
+      const upBtn = this.btn('', [h('span', null, ''), h('span', { class: 'os-kbd' }, key)], (e: MouseEvent) => app.upgrade(stat, e.shiftKey), 'Upgrade ' + STAT_NAMES[stat].toLowerCase() + ' (' + key + ')');
+      const maxBtn = this.btn('', 'Max', () => app.upgrade(stat, true), 'Upgrade as far as you can afford (Shift+' + key + ')');
       const label = cat === 'modifier' ? 'Influence' : STAT_NAMES[stat];
       const row = h('div', { class: 'os-srow' },
         h('div', { class: 'os-srow-top' }, h('span', null, label), val), pips,

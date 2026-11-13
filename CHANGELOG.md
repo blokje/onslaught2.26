@@ -28,6 +28,13 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
   sent like Space (early bonus included) as soon as the field is clear. New read-only `game.waveActive()`. No rule change.
   New sim-test check (q). Checked in Chromium (waves keep coming at 8x, A toggles, no console errors).
   Docs: `SPEC.md` §8 and §9, `ARCHITECTURE.md`, `README.md`, `docs/claude/ui.md`, `docs/claude/testing.md`.
+- Controls overlay and rebindable keys: `?` (or `/`, or Settings > Keys...) lists every control; click a key and press the
+  new one (Esc cancels, reserved keys are refused, a used key swaps). Saved in the new setting `keys` (overrides only).
+  All key handling now comes from one table, `src/ui/keymap.ts`, which also generates the How to play key list, so help
+  and handler can no longer drift apart. Key hints in the HUD follow the bindings. Behaviour change: keys are now matched
+  by physical position (`KeyboardEvent.code`), so on AZERTY and similar layouts the defaults sit on the QWERTY positions.
+  New sim-test checks (q). Checked in Chromium (rebind, swap, reserved key, persistence, reset, no console errors).
+  Docs: `SPEC.md` §8, `ARCHITECTURE.md`, `README.md`, `docs/claude/ui.md`, `docs/claude/gotchas.md`, `docs/claude/testing.md`.
 
 ### Fixed
 - A rate change (rate upgrade, or a rate modifier built or sold nearby) during a combo recharge no longer shortens or
