@@ -184,6 +184,7 @@ class MockGame implements AppGame {
     const s = this.state;
     const diff = DIFFICULTIES[s.difficulty] || DIFFICULTIES.medium;
     s.wave++;
+    (s.history ||= []).push({ wave: s.wave, time: s.time, cash: s.cash, lives: s.lives, kills: s.kills, spent: s.spent, damage: s.turrets.reduce((n, t) => n + (t.damageDealt || 0), 0) });
     const hp = waveHp(s.wave, diff.hpGrowth);
     for (let i = 0; i < WAVES.size; i++) this.queue.push({ type: (s.wave - 1) % 9, hp, bounty: waveBounty(s.wave) });
     this.spawnClock = 0;

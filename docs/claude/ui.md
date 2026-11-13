@@ -25,6 +25,16 @@ DOM overlay over the canvas, input, persistence and audio. Contract: `ARCHITECTU
   `game.wavePreview()`. Its tooltip lists the next 5 waves. Rebuilt only when the wave number or the game object
   changes (`Hud.updateIncoming`), not every tick.
 
+## Game-over report
+
+`App.onGameOver` builds a `RunReport` with `buildReportData(state)` and passes it to `buildGameOver` (`dialogs.ts`),
+shown in a normal-width modal:
+
+- Chips: damage dealt (`state.damageTotal`), combos fired (sum of `combosFired` of the turrets still standing), game time.
+- Three sparklines from `state.history` (only with 2+ waves): cash at wave start, lives, damage per wave (difference of
+  `damage` between records; the last wave runs to `damageTotal`). Inline SVG built from numbers only, no library.
+- Top 5 standing turrets by `damageDealt` with icon, share of the total and kills; the first is marked MVP.
+
 ## Selected-turret panel tabs
 
 A horizontal tab strip under the header; only the active pane is shown, so the panel stays short. Tabs a kind does not need are left out.

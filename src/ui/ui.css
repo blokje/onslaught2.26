@@ -239,6 +239,19 @@
 .os-big-stats div { background: rgba(0, 0, 0, 0.3); border-radius: 0.6em; padding: 0.5em; }
 .os-big-stats b { display: block; font-size: 1.5em; color: var(--amber-hi); font-variant-numeric: tabular-nums; }
 .os-big-stats span { font-size: 0.75em; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.06em; }
+/* end-of-run report in the game-over dialog */
+.os-report { display: flex; flex-direction: column; gap: 0.7em; margin-top: 0.8em; }
+.os-report-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(11em, 1fr)); gap: 0.5em; }
+.os-report-chart { background: rgba(0, 0, 0, 0.3); border-radius: 0.6em; padding: 0.4em 0.5em; }
+.os-report-l { display: flex; justify-content: space-between; gap: 0.5em; font-size: 0.72em; }
+.os-report-l span { color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.06em; }
+.os-report-l b { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.os-spark svg { display: block; width: 100%; height: 3em; margin-top: 0.2em; }
+.os-report-top td { vertical-align: middle; }
+.os-report-top th:nth-child(2), .os-report-top td:nth-child(2) { text-align: left; }
+.os-report-top th:first-child, .os-report-top td:first-child { width: 2em; padding-right: 0; }
+.os-report-top .os-ico { display: inline-block; width: 1.7em; height: 1.7em; vertical-align: middle; }
+.os-report-top tr.mvp td { color: var(--amber-hi); font-weight: 700; }
 .os-help h3 { margin: 0.6em 0 0.2em; color: var(--amber-hi); font-size: 1.05em; }
 .os-help h3:first-child { margin-top: 0; }
 .os-help p, .os-help li { margin: 0.2em 0; font-size: 0.92em; line-height: 1.4; color: #e7dcc4; }

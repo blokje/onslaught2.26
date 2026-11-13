@@ -5,7 +5,8 @@ import { DIFFICULTIES, MODES } from '../data/rules.ts';
 import { formatNum } from './format.ts';
 import { TURRETS, FREAKOUT } from '../data/turrets.ts';
 import * as storage from './storage.ts';
-import type { App, GameOverInfo, ScoreHighlight } from './App.ts';
+import type { App, GameOverInfo, RunReport, ScoreHighlight } from './App.ts';
+import { iconSvg } from './icons.ts';
 
 const kbd = (t: string): HTMLElement => h('span', { class: 'os-kbd' }, t);
 
@@ -150,5 +151,57 @@ export function buildGameOver(info: GameOverInfo): HTMLElement {
       h('div', null, h('b', null, formatNum(info.score)), h('span', null, 'Score')),
       h('div', null, h('b', null, formatNum(info.kills)), h('span', null, 'Kills')),
       h('div', null, h('b', null, info.wave), h('span', null, 'Wave'))),
-    h('p', { class: 'os-hint', style: 'text-align:center;font-size:.95em;margin:.7em 0 0' }, rankText));
+    h('p', { class: 'os-hint', style: 'text-align:center;font-size:.95em;margin:.7em 0 0' }, rankText),
+    info.report ? buildRunReport(info.report) : null);
+}
+
+/** Inline SVG sparkline of `values` (numbers only, so the markup is safe), scaled to its own maximum. */
+function sparkline(values: number[], color: string): string {
+  const W = 240, H = 44, pad = 3;
+  const max = Math.max(1e-9, ...values);
+  const n = values.length;
+  const pts = values.map((v, i) => {
+    const x = n > 1 ? pad + (i / (n - 1)) * (W - 2 * pad) : W / 2;
+    const y = H - pad - (Math.max(0, v) / max) * (H - 2 * pad);
+    return x.toFixed(1) + ',' + y.toFixed(1);
+  });
+  const area = `${pad},${H - pad} ${pts.join(' ')} ${n > 1 ? W - pad : W / 2},${H - pad}`;
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">`
+    + `<polygon points="${area}" fill="${color}" fill-opacity="0.18"/>`
+    + `<polyline points="${pts.join(' ')}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>`;
+}
+
+/** End-of-run report: per-wave charts, damage totals and the turrets that did the most damage. */
+function buildRunReport(r: RunReport): HTMLElement {
+  const hist = r.history;
+  const charts = h('div', { class: 'os-report-charts' });
+  if (hist.length >= 2) {
+    const dmgPerWave = hist.map((x, i) => (i + 1 < hist.length ? hist[i + 1].damage : r.damageTotal) - x.damage);
+    const rows: [string, number[], string, string][] = [
+      ['Cash at wave start', hist.map((x) => x.cash), '#ffe08a', '$' + formatNum(Math.max(...hist.map((x) => x.cash))) + ' max'],
+      ['Lives', hist.map((x) => x.lives), '#ff9d8f', hist[hist.length - 1].lives + ' at the last wave'],
+      ['Damage per wave', dmgPerWave, '#b6e35a', formatNum(Math.max(...dmgPerWave)) + ' max'],
+    ];
+    for (const [label, values, color, note] of rows) {
+      charts.append(h('div', { class: 'os-report-chart' },
+        h('div', { class: 'os-report-l' }, h('span', null, label), h('b', null, note)),
+        h('div', { class: 'os-spark', html: sparkline(values, color) })));
+    }
+  }
+  const mins = Math.floor(r.time / 60000), secs = Math.floor((r.time % 60000) / 1000);
+  const totals = h('div', { class: 'os-chips', style: 'justify-content:center' },
+    h('span', { class: 'os-chip' }, 'Damage dealt: ' + formatNum(r.damageTotal)),
+    h('span', { class: 'os-chip' }, 'Combos fired: ' + formatNum(r.combos)),
+    h('span', { class: 'os-chip' }, `Game time: ${mins}:${String(secs).padStart(2, '0')}`));
+  const top = r.top.length
+    ? h('table', { class: 'os-table os-report-top' },
+      h('thead', null, h('tr', null, h('th', null, ''), h('th', null, 'Top turrets'), h('th', null, 'Damage'), h('th', null, 'Share'), h('th', null, 'Kills'))),
+      h('tbody', null, ...r.top.map((t, i) => h('tr', i === 0 ? { class: 'mvp' } : null,
+        h('td', null, h('span', { class: 'os-ico', html: iconSvg(t.kind) })),
+        h('td', null, (TURRETS[t.kind] ? TURRETS[t.kind].name : t.kind) + (i === 0 ? ' (MVP)' : '')),
+        h('td', null, formatNum(t.damage)),
+        h('td', null, r.damageTotal > 0 ? Math.round((t.damage / r.damageTotal) * 100) + '%' : '-'),
+        h('td', null, formatNum(t.kills))))))
+    : null;
+  return h('div', { class: 'os-report' }, totals, charts, top);
 }

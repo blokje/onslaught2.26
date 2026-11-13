@@ -10,7 +10,7 @@ import { Hud } from './hud.ts';
 import { buildSettings, buildHelp, buildScores, buildGameOver } from './dialogs.ts';
 import { formatCash, formatNum } from './format.ts';
 import type { AppGame, AppRenderer, AppOptions, CommandResult } from './appTypes.ts';
-import type { GameEventName, GameEvents, GameOptions, Overlay, Stat, TurretState, Attacker, KeyColor, DirectionalMode } from '../types.ts';
+import type { GameEventName, GameEvents, GameOptions, GameState, Overlay, Stat, TurretState, Attacker, KeyColor, DirectionalMode, WaveRecord } from '../types.ts';
 
 const GRID = 22;
 const FOCUS_RADIUS = 16;
@@ -42,9 +42,34 @@ export interface ModalHandle {
 
 interface CursorState { cx: number; cy: number; over: boolean; known: boolean; wx?: number; wy?: number }
 interface PointerDown { id: number; x: number; y: number; button: number; moved: boolean; touch: boolean }
-export interface GameOverInfo { score: number; kills: number; wave: number; mapId: string; difficulty: string; mode: string; rank: number }
+export interface GameOverInfo { score: number; kills: number; wave: number; mapId: string; difficulty: string; mode: string; rank: number; report?: RunReport }
+/** End-of-run report data for the game-over dialog (built from game.state in App.onGameOver). */
+export interface RunReport {
+  history: WaveRecord[];
+  damageTotal: number;
+  combos: number;
+  time: number;
+  /** Turrets standing at the end with the most damageDealt, best first (max 5). */
+  top: { kind: string; damage: number; kills: number }[];
+}
 export interface ScoreHighlight { mapId: string; difficulty: string; mode: string; rank: number }
 type GhostState = Overlay['ghost'];
+
+/** Report data from the final game state (history, totals, top 5 turrets by damage). */
+export function buildReportData(s: GameState): RunReport {
+  const top = s.turrets
+    .filter((t) => (t.damageDealt || 0) > 0)
+    .sort((a, b) => (b.damageDealt || 0) - (a.damageDealt || 0))
+    .slice(0, 5)
+    .map((t) => ({ kind: t.kind, damage: t.damageDealt || 0, kills: t.kills || 0 }));
+  return {
+    history: s.history || [],
+    damageTotal: s.damageTotal ?? s.turrets.reduce((n, t) => n + (t.damageDealt || 0), 0),
+    combos: s.turrets.reduce((n, t) => n + (t.combosFired || 0), 0),
+    time: s.time,
+    top,
+  };
+}
 
 export class App {
   rootEl: HTMLElement;
@@ -398,6 +423,7 @@ export class App {
     this._overShown = true;
     const s = g.state;
     const info: GameOverInfo = { rank: 0, score: p.score != null ? p.score : s.score, kills: p.kills != null ? p.kills : s.kills, wave: p.wave != null ? p.wave : s.wave, mapId: s.mapId, difficulty: s.difficulty, mode: s.mode };
+    info.report = buildReportData(s);
     info.rank = info.score > 0 ? storage.addScore(info.mapId, info.difficulty, info.mode, { score: info.score, kills: info.kills, wave: info.wave, date: new Date().toISOString() }) : 0;
     storage.clearGame();
     this.checkUnlocks(info.wave);
@@ -405,7 +431,7 @@ export class App {
     this.closeAllModals();
     this.audio.play('alarm');
     const m = this.openModal('Game over', buildGameOver(info), {
-      cls: 'narrow', dismissable: false,
+      cls: '', dismissable: false,
       buttons: [
         { label: 'High scores', onClick: () => this.openScores({ mapId: info.mapId, difficulty: info.difficulty, mode: info.mode, rank: info.rank }) },
         { label: 'Menu', onClick: (hd) => { hd.close(); this.toMenu(); } },

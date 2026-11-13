@@ -217,7 +217,14 @@ export interface GameState {
   projectiles: Projectile[];
   beams: Beam[];
   effects: Effect[];
+  /** Optional: one entry per started wave, taken just before it starts (for the end-of-run report). */
+  history?: WaveRecord[];
+  /** Optional: effective damage done by all turrets this game, sold ones included. */
+  damageTotal?: number;
 }
+
+/** Snapshot taken when a wave starts (state.history). `damage` is state.damageTotal at that moment. */
+export interface WaveRecord { wave: number; time: number; cash: number; lives: number; kills: number; spent: number; damage: number }
 
 export interface GameOptions {
   mapId?: string;

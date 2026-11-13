@@ -43,6 +43,10 @@ payloads are typed locally in `combos.ts` (`ComboProjData`).
   turret, so overkill is not counted and the sum over all turrets equals the HP the attackers lost. Combo damage counts
   for the lead (the `src` combos pass). Black-hole kills (`killAttacker`) add nothing. Missing or non-finite in a save -> 0.
   The UI derives DPS from it (`src/ui/dps.ts`); the simulation keeps no DPS state.
+- `state.damageTotal` adds the same effective damage for the whole game (sold turrets keep counting).
+  `state.history` gets one `WaveRecord` per started wave in `startWave` (`Waves.ts`), after `wave` is raised and before
+  the spawner exists: the economy as the wave starts. Capped at `HISTORY_MAX` (5000). Both are saved inside `state`;
+  `deserialize` drops a malformed history to `[]` and a non-finite total to 0 instead of rejecting the save.
 
 ## Combos
 

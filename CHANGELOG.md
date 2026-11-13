@@ -19,6 +19,11 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
   `damageDealt` (effective damage, overkill not counted, combo damage for the lead; saved, old saves load 0) and the UI
   helper `DpsTracker` (`src/ui/dps.ts`, last 10 s of game time). No gameplay change. New checks in combo-test (damage,
   save) and sim-test (q). Docs: `ARCHITECTURE.md`, `docs/claude/simulation.md`, `docs/claude/ui.md`, `docs/claude/testing.md`.
+- End-of-run report in the game-over dialog: damage dealt, combos fired, game time, sparklines for cash, lives and damage
+  per wave, and the top 5 turrets by damage (MVP first). New optional state fields `history` (one record per started
+  wave) and `damageTotal`, both saved; old or broken saves load `[]` and 0. The dialog is now normal width.
+  No gameplay change. New sim-test checks (q). Checked in Chromium: report, upgrade preview, damage chip, no console errors.
+  Docs: `ARCHITECTURE.md`, `docs/claude/simulation.md`, `docs/claude/ui.md`, `docs/claude/testing.md`.
 
 ### Fixed
 - A rate change (rate upgrade, or a rate modifier built or sold nearby) during a combo recharge no longer shortens or

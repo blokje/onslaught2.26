@@ -73,6 +73,9 @@ The constructor's default `seed` is a fixed constant, so callers that want a dif
                comboLog: [ { id /*recipe id*/, time /*game ms*/, role: 'lead'|'partner' } ] /*newest first, max COMBO_LOG_MAX*/ } ],
 
   focusId,              // optional: attacker id under focus fire, or null (renderer draws a reticle on it)
+  history,              // optional: [ { wave, time, cash, lives, kills, spent, damage } ], one per started wave, taken as it starts
+                        //   (damage = damageTotal at that moment; max HISTORY_MAX 5000, oldest dropped; saved, missing/broken -> [])
+  damageTotal,          // optional: effective damage of all turrets this game, sold ones included (saved, missing -> 0)
   projectiles: [ { id, kind, x, y, angle, armed? } ],   // armed (mines only): false while travelling, true once placed
     // kind: 'shell' | 'rocket' | 'nuke' | 'poisonRocket' | 'laserRocket' | 'napalmRocket' | 'tazerRocket'
     //       | 'bfg' | 'clusterBomb' | 'cluster' | 'mine'

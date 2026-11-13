@@ -55,12 +55,12 @@ import { Turret, assignSafe } from './Turret.ts';
 import { emptyMods, addMod, computeStats, nextUpgradeCost, modRangeAt, STATS } from './modifiers.ts';
 import type { ModSum } from './modifiers.ts';
 import { createAttacker, moveAttackers, applyPoison, waveHp, waveBounty } from './Attacker.ts';
-import { startWave, updateSpawners } from './Waves.ts';
+import { startWave, updateSpawners, HISTORY_MAX } from './Waves.ts';
 import { stepTurret, chainBonus, releaseOrbiter } from './weapons.ts';
 import { updateProjectiles } from './projectiles.ts';
 import type {
   Attacker, Beam, BeamKind, BlastSize, ComboPreview, DifficultyId, DirectionalMode, Effect, EffectKind, Fail, GameEventName, GameEvents,
-  GameOptions, GameState, KeyColor, ModeId, Projectile, ProjectileKind, Result, Stat, StatValues, TargetMode, TurretState, UpgradePreview, WavePreview,
+  GameOptions, GameState, KeyColor, ModeId, Projectile, ProjectileKind, Result, Stat, StatValues, TargetMode, TurretState, UpgradePreview, WavePreview, WaveRecord,
 } from '../types.ts';
 import type { Spawner } from './Waves.ts';
 import { Combos } from './combos.ts';
@@ -94,7 +94,7 @@ export interface SaveData {
   focusId: number | null;
   spawners: Spawner[];
   waveInterval: number;
-  state: Pick<GameState, 'time' | 'speed' | 'paused' | 'over' | 'cash' | 'lives' | 'kills' | 'spent' | 'wave' | 'nextWaveIn' | 'score' | 'unlocked'>;
+  state: Pick<GameState, 'time' | 'speed' | 'paused' | 'over' | 'cash' | 'lives' | 'kills' | 'spent' | 'wave' | 'nextWaveIn' | 'score' | 'unlocked' | 'history' | 'damageTotal'>;
   turrets: TurretState[];
   attackers: Attacker[];
   projectiles: Projectile[];
@@ -174,6 +174,7 @@ export class Game {
       },
       attackers: [], turrets: [], projectiles: [], beams: [], effects: [],
       focusId: null,
+      history: [], damageTotal: 0,
     };
     this._nextUnlock = this._computeNextUnlock();
     this.combos = new Combos(this);
@@ -333,7 +334,11 @@ export class Game {
   damageAttacker(a: Attacker, dmg: number, sourceTurret: TurretState | null | undefined, poison = 0): boolean {
     if (a.dead) return false;
     // effective damage for the turret's stats: overkill is not counted
-    if (sourceTurret && dmg > 0) sourceTurret.damageDealt = (sourceTurret.damageDealt || 0) + Math.min(dmg, Math.max(0, a.hp));
+    if (sourceTurret && dmg > 0) {
+      const eff = Math.min(dmg, Math.max(0, a.hp));
+      sourceTurret.damageDealt = (sourceTurret.damageDealt || 0) + eff;
+      this.state.damageTotal = (this.state.damageTotal || 0) + eff;
+    }
     a.hp -= dmg;
     if (poison > 1) applyPoison(a, poison);
     this.emit('hit', { attackerId: a.id });
@@ -782,6 +787,7 @@ export class Game {
         time: s.time, speed: s.speed, paused: s.paused, over: s.over,
         cash: s.cash, lives: s.lives, kills: s.kills, spent: s.spent, wave: s.wave,
         nextWaveIn: s.nextWaveIn, score: s.score, unlocked: s.unlocked,
+        history: s.history, damageTotal: s.damageTotal,
       },
       turrets: s.turrets, attackers: s.attackers, projectiles: s.projectiles,
       beams: s.beams, effects: s.effects,
@@ -825,6 +831,13 @@ export class Game {
     g.waveInterval = d.waveInterval;
     const s = g.state;
     assignSafe(s, d.state);
+    // optional fields added after save version 1: dropped (not rejected) when missing or malformed
+    const keys: (keyof WaveRecord)[] = ['wave', 'time', 'cash', 'lives', 'kills', 'spent', 'damage'];
+    s.history = Array.isArray(s.history) && s.history.length <= HISTORY_MAX
+      && s.history.every((r) => isObj(r) && keys.every((k) => Number.isFinite(r[k])))
+      ? s.history.map((r) => ({ wave: r.wave, time: r.time, cash: r.cash, lives: r.lives, kills: r.kills, spent: r.spent, damage: r.damage }))
+      : [];
+    if (!Number.isFinite(s.damageTotal)) s.damageTotal = 0;
     for (const o of d.turrets) { const t = Turret.fromJSON(o); s.turrets.push(t); g.turretMap.set(t.id, t); }
     for (const a of d.attackers) { s.attackers.push(a); g.attackerMap.set(a.id, a); }
     s.projectiles.push(...d.projectiles);

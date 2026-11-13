@@ -515,6 +515,39 @@ function makePlayer(game: Game, spots: Spot[]): () => void {
   check('(q) modifier preview: influence 80 -> 130', !!mp && mp.from.range === 80 && mp.to.range === 130, JSON.stringify(mp));
 }
 
+// ------------------------------------------------------------------ (q) run history (end-of-run report)
+{
+  const g = new Game({ mapId: 'map1', difficulty: 'medium', seed: 8 });
+  for (const sp of bestSpots('map1', 3)) must(g.build('blue', sp.x, sp.y));
+  const atStart: { cash: number; kills: number }[] = [];
+  g.on('wave', () => atStart.push({ cash: g.state.cash, kills: g.state.kills }));
+  for (let w = 0; w < 6; w++) { g.sendWave(); g.advance(60 * 8); }
+  const h = g.state.history!;
+  check('(q) history: one record per started wave, in order', h.length === g.state.wave && h.every((r, i) => r.wave === i + 1), `${h.length} records, wave ${g.state.wave}`);
+  check('(q) history: records hold the economy at the wave start', h.every((r, i) => r.cash === atStart[i].cash && r.kills === atStart[i].kills));
+  check('(q) history: damage only grows and damageTotal equals the turrets\' damageDealt (nothing sold)',
+    h.every((r, i) => i === 0 || r.damage >= h[i - 1].damage) && g.state.damageTotal! > 0
+    && near(g.state.damageTotal!, g.state.turrets.reduce((n, t) => n + (t.damageDealt || 0), 0)));
+  const total = g.state.damageTotal!;
+  must(g.sell(g.state.turrets[0].id));
+  check('(q) damageTotal keeps the damage of sold turrets', g.state.damageTotal === total);
+
+  const save = JSON.parse(JSON.stringify(g.serialize()));
+  const g2 = Game.deserialize(save);
+  check('(q) history and damageTotal survive save/restore', JSON.stringify(g2.state.history) === JSON.stringify(h) && g2.state.damageTotal === total);
+  g.sendWave(); g2.sendWave(); g.advance(300); g2.advance(300);
+  check('(q) restored game keeps recording identically', JSON.stringify(g.serialize()) === JSON.stringify(g2.serialize()));
+  const old = JSON.parse(JSON.stringify(save));
+  delete old.state.history; delete old.state.damageTotal;
+  const g3 = Game.deserialize(old);
+  const bad = JSON.parse(JSON.stringify(save));
+  bad.state.history[2].cash = 'lots'; bad.state.damageTotal = null;
+  const g4 = Game.deserialize(bad);
+  check('(q) a save without (or with a broken) history loads [] and damageTotal 0',
+    Array.isArray(g3.state.history) && g3.state.history.length === 0 && g3.state.damageTotal === 0
+    && g4.state.history!.length === 0 && g4.state.damageTotal === 0);
+}
+
 // ------------------------------------------------------------------ (m) extra maps (SPEC.md section 7a)
 {
   const extras = MAPS.filter((m) => m.extra);
