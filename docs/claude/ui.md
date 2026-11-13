@@ -20,7 +20,10 @@ DOM overlay over the canvas, input, persistence and audio. Contract: `ARCHITECTU
 
 ## Top bar
 
-- Stats: Cash, Lives, Wave, Kills, Score. Wave box: Next wave countdown, the **Incoming** preview and Send wave.
+- Stats: Cash, Lives, Wave, Kills, Score. Wave box: Next wave countdown, the **Incoming** preview, Send wave and **Auto**.
+- Auto (key A, setting `autoSend`, default off, also in Settings): `App.autoSendCheck` runs every frame and calls
+  `sendWave()` (same as Space, early bonus included) when `game.waveActive()` is false. Never before wave 1, and not while
+  paused, over or with a modal open. The button shows `is-on` while the setting is on.
 - Incoming preview: label "Wave N" (the next wave), value "1.2K HP $12" (HP and bounty of each attacker), from
   `game.wavePreview()`. Its tooltip lists the next 5 waves. Rebuilt only when the wave number or the game object
   changes (`Hud.updateIncoming`), not every tick.

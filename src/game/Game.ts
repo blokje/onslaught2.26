@@ -298,6 +298,13 @@ export class Game {
     return { ok: true, bonus };
   }
 
+  /** Read-only: true while a wave is still spawning or any attacker is alive (auto-send waits for false). */
+  waveActive(): boolean {
+    if (this.spawners.length > 0) return true;
+    for (const a of this.state.attackers) if (!a.dead) return true;
+    return false;
+  }
+
   /** Read-only outlook for wave n (default: the next wave). Same formulas as createAttacker, no rng. */
   wavePreview(n?: number): WavePreview {
     const w = Math.max(1, Math.floor(n ?? this.state.wave + 1));

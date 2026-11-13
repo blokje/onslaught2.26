@@ -80,6 +80,7 @@ export class Hud {
   v!: Record<string, HTMLElement>;
   livesEl!: HTMLElement;
   sendBtn!: HTMLButtonElement;
+  autoBtn!: HTMLButtonElement;
   speedBtns!: HTMLButtonElement[];
   pauseBtn!: HTMLButtonElement;
   fps!: HTMLElement;
@@ -135,7 +136,8 @@ export class Hud {
     this.livesEl = stats.querySelector<HTMLElement>('.lives')!;
     this.sendBtn = this.btn('primary', ['Send wave ', h('span', { class: 'os-kbd' }, 'Space')], () => app.sendWave(), 'Start the next wave now (Space)');
     this.incomingEl = this.stat('incoming', 'Wave 1', 'incoming');
-    const waveBox = h('div', { class: 'os-panel os-wave-box' }, this.stat('next', 'Next wave'), this.incomingEl, this.sendBtn);
+    this.autoBtn = this.btn('', ['Auto ', h('span', { class: 'os-kbd' }, 'A')], () => app.toggleAutoSend(), 'Auto-send: start the next wave as soon as the field is clear (A)');
+    const waveBox = h('div', { class: 'os-panel os-wave-box' }, this.stat('next', 'Next wave'), this.incomingEl, this.sendBtn, this.autoBtn);
     this.speedBtns = SPEEDS.map((s) => this.btn('', s + 'x', () => app.setSpeed(s), 'Game speed ' + s + 'x'));
     const speeds = h('div', { class: 'os-panel os-speeds' }, ...this.speedBtns);
     this.pauseBtn = this.btn('', ['Pause ', h('span', { class: 'os-kbd' }, 'P')], () => app.togglePause());
@@ -252,6 +254,7 @@ export class Hud {
     show(this.paused, s.paused && !app.modalOpen(), 'flex');
     show(this.focusBadge, app.focusId != null, 'block');
     setProp(this.sendBtn, 'disabled', !!s.over || !!s.paused);
+    setClass(this.autoBtn, 'is-on', app.settings.autoSend);
 
     // rack
     for (let i = 0; i < this.slots.length; i++) {

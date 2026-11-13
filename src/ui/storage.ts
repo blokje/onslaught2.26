@@ -13,6 +13,8 @@ export interface Settings {
   unlockAll: boolean;
   showFps: boolean;
   autoPause: boolean;
+  /** Send the next wave as soon as the field is clear (after wave 1). */
+  autoSend: boolean;
   infoCollapsed: boolean;
   panelPos: PanelPos | null;
   lastMap: string;
@@ -62,6 +64,7 @@ export const DEFAULT_SETTINGS: Settings = {
   unlockAll: false,
   showFps: false,
   autoPause: true,      // pause while the tab is hidden, resume on return
+  autoSend: false,      // send the next wave as soon as the field is clear (A key, Auto button)
   infoCollapsed: false,
   panelPos: null,       // turret panel { x, y } in px from the HUD's top-left, null = default dock
   lastMap: 'map1',

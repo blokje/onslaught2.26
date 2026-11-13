@@ -118,6 +118,7 @@ game.comboPreview(id)                // read-only, no rng: { leads, partners: [{
                                      //   recipes: [{ id, name, isNew, needs, missing, exactBlocked, wait }], next: { id, name, wait } | null }
                                      //   wait = earliest ms until it could fire (Infinity = not possible), for the panel's Combos tab
 game.sendWave()                      // early wave, adds early bonus; refused while paused ('Game is paused')
+game.waveActive()                    // read-only: true while a wave is still spawning or any attacker is alive (auto-send)
 game.wavePreview(n?)                 // read-only, no rng: { wave, type, hp, bounty, count } of wave n (default: the next wave, state.wave + 1)
 game.setSpeed(s); game.togglePause(); game.setPaused(bool)
 game.setWaveInterval(ms)             // fails unless ms is a finite number >= 1000; clamps nextWaveIn
@@ -193,7 +194,8 @@ pooled meshes for attackers/projectiles).
   settings, unlocks (Extreme after reaching wave 100 on Medium, Sandbox after wave 50 on anything),
   high scores per map+difficulty (top 10), autosave of the running game every 10 s and on page hide.
 - **Settings**: master volume / mute, wave interval override, snap-to-grid toggle (grid 22 units), unlock-all switch,
-  show FPS, `autoPause` (pause while the tab is hidden), `panelPos` (moved turret panel). `getSettings()` drops stored values
+  show FPS, `autoPause` (pause while the tab is hidden), `autoSend` (send the next wave when the field is clear, see
+  `game.waveActive()`), `panelPos` (moved turret panel). `getSettings()` drops stored values
   whose type does not match the default.
 - **Audio** (`src/ui/audio.ts`): Web Audio synthesized SFX driven by game events (cannon pop, laser zap, rocket whoosh,
   spark crackle, blasts by size, nuke boom, kill tick, leak alarm, wave horn, combo chord, UI clicks). Rate-limit

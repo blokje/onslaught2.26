@@ -24,6 +24,10 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
   wave) and `damageTotal`, both saved; old or broken saves load `[]` and 0. The dialog is now normal width.
   No gameplay change. New sim-test checks (q). Checked in Chromium: report, upgrade preview, damage chip, no console errors.
   Docs: `ARCHITECTURE.md`, `docs/claude/simulation.md`, `docs/claude/ui.md`, `docs/claude/testing.md`.
+- Auto-send waves (key A, Auto button, setting `autoSend`, default off): after the player starts wave 1, the next wave is
+  sent like Space (early bonus included) as soon as the field is clear. New read-only `game.waveActive()`. No rule change.
+  New sim-test check (q). Checked in Chromium (waves keep coming at 8x, A toggles, no console errors).
+  Docs: `SPEC.md` §8 and §9, `ARCHITECTURE.md`, `README.md`, `docs/claude/ui.md`, `docs/claude/testing.md`.
 
 ### Fixed
 - A rate change (rate upgrade, or a rate modifier built or sold nearby) during a combo recharge no longer shortens or

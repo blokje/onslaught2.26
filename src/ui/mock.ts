@@ -391,6 +391,7 @@ class MockGame implements AppGame {
     this.startWave(true);
     return { ok: true };
   }
+  waveActive(): boolean { return this.queue.length > 0 || this.state.attackers.some((a) => !a.dead); }
   wavePreview(n?: number): WavePreview {
     const w = Math.max(1, Math.floor(n ?? this.state.wave + 1));
     const diff = DIFFICULTIES[this.state.difficulty] || DIFFICULTIES.medium;

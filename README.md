@@ -64,6 +64,7 @@ npm run build:single # writes dist-single/index.html
 | J / X | Join a Targeter to a turret / pick a Combo-only colour |
 | R / C | Show all ranges / show combo partners |
 | Space | Send the next wave now (bonus cash) |
+| A | Auto-send: the next wave starts as soon as the field is clear |
 | P, G, I, Esc | Pause, settings, info panel, cancel |
 | Mouse wheel, right-drag | Zoom, pan (two fingers on touch) |
 

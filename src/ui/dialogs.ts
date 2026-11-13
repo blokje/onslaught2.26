@@ -25,10 +25,10 @@ export function buildSettings(app: App): HTMLElement {
     wave.value = String(v);
     app.updateSettings({ waveInterval: v });
   });
-  const check = (key: 'snap' | 'unlockAll' | 'showFps' | 'autoPause'): HTMLInputElement => {
+  const check = (key: 'snap' | 'unlockAll' | 'showFps' | 'autoPause' | 'autoSend'): HTMLInputElement => {
     const c = h('input', { type: 'checkbox' });
     c.checked = !!s[key];
-    c.addEventListener('change', () => app.updateSettings({ [key]: c.checked } as Partial<storage.Settings>)); // key is one of the four boolean settings
+    c.addEventListener('change', () => app.updateSettings({ [key]: c.checked } as Partial<storage.Settings>)); // key is one of the boolean settings above
     return c;
   };
   const field = (label: string, sub: string | null, control: HTMLElement): HTMLElement => h(control && control.tagName === 'INPUT' && (control as HTMLInputElement).type === 'checkbox' ? 'label' : 'div', { class: 'os-field' }, h('div', { class: 'os-lab' }, label, sub ? h('small', null, sub) : null), control);
@@ -55,6 +55,7 @@ export function buildSettings(app: App): HTMLElement {
     field('Unlock all', 'All turrets, difficulties and modes. Applies to new games.', check('unlockAll')),
     field('Show FPS counter', null, check('showFps')),
     field('Pause when tab is hidden', 'Resumes automatically when you come back.', check('autoPause')),
+    field('Auto-send waves', 'Sends the next wave (with the early bonus) as soon as the field is clear, from wave 1 on. Key A.', check('autoSend')),
     field('Saved progress', 'Unlocks, high scores and the autosave.', resetBtn));
 }
 

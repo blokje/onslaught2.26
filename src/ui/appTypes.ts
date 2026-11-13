@@ -33,6 +33,7 @@ export interface AppGame {
   comboPreview(id: number): ComboPreview | null;
   sendWave(): CommandResult;
   wavePreview(n?: number): WavePreview;
+  waveActive(): boolean;
   setSpeed(speed: number): CommandResult | void;
   togglePause(): CommandResult | void;
   setPaused(paused: boolean): CommandResult | void;

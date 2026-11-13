@@ -459,7 +459,22 @@ export class App {
     this.hudAcc += dtMs;
     if (this.hudAcc >= 100 || this.hudDirty) { this.hudAcc = 0; this.hudDirty = false; this.tick(); }
     if (this.overlayDirty) this.pushOverlay();
+    this.autoSendCheck(game);
     if (game.state.over && !this._overShown) this.onGameOver({});
+  }
+
+  /** Auto-send (setting autoSend): once the player has started wave 1, send the next wave when the field is clear. */
+  autoSendCheck(game: AppGame): void {
+    const s = game.state;
+    if (!this.settings.autoSend || s.wave < 1 || s.over || s.paused || this.modalOpen()) return;
+    if (game.waveActive()) return;
+    this.sendWave();
+  }
+
+  toggleAutoSend(): void {
+    this.updateSettings({ autoSend: !this.settings.autoSend });
+    this.hud.toast(this.settings.autoSend ? 'Auto-send on: the next wave starts when the field is clear' : 'Auto-send off');
+    this.hudDirty = true;
   }
 
   tick(): void {
@@ -942,6 +957,7 @@ export class App {
       case 'j': this.toggleJoin(); break;
       case 'x': this.cycleColor(); break;
       case ' ': this.sendWave(); break;
+      case 'a': this.toggleAutoSend(); break;
       case 'p': this.togglePause(); break;
       case 'i': this.toggleInfo(); break;
       case 'b': case 'Enter': this.buildAtCursor(); break;

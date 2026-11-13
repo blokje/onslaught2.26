@@ -230,6 +230,7 @@ Every extra map keeps a legal 5-turret combo cluster within reach of the road (c
 | B / Enter | build the armed (or rack-highlighted) turret at the cursor, stays armed [CHOICE] |
 | Left / Right arrows | step the build rack to the previous / next unlocked turret [CHOICE] |
 | Space | send the next wave now |
+| A | auto-send on/off: send the next wave as soon as the field is clear [NEW] |
 | P | pause |
 | I | info panel |
 | Drag panel header | move the info panel, double-click to dock it again [CHOICE] |
@@ -250,6 +251,10 @@ Every extra map keeps a legal 5-turret combo cluster within reach of the road (c
 | Wave interval | 25 s | 20 s | 17 s | 15 s |
 
 **Early-wave bonus** [NEW]: sending the next wave early with Space pays $1 (`WAVES.earlyBonusPerSec`) per whole second left on the countdown. Refused while paused.
+
+**Auto-send** [NEW, UI convenience, no rule change]: with the setting on (A key or the Auto button), the UI sends the next
+wave exactly like Space as soon as no wave is spawning and no attacker is alive, so the early-wave bonus is paid as usual.
+It never starts wave 1 (the player does) and waits while paused, while a dialog is open and after game over.
 
 **Sandbox** (unlockable): $10,000,000 start cash, everything unlocked (the original's own debug mode does exactly this).
 

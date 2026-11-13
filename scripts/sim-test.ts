@@ -515,6 +515,23 @@ function makePlayer(game: Game, spots: Spot[]): () => void {
   check('(q) modifier preview: influence 80 -> 130', !!mp && mp.from.range === 80 && mp.to.range === 130, JSON.stringify(mp));
 }
 
+// ------------------------------------------------------------------ (q) waveActive (auto-send)
+{
+  const g = new Game({ mapId: 'map1', difficulty: 'medium', seed: 9 });
+  const idle = !g.waveActive();
+  g.sendWave();
+  const queued = g.waveActive();          // spawner queued, nothing spawned yet
+  g.advance(60);                          // some attackers out, more to come
+  const spawning = g.waveActive() && g.spawners.length > 0;
+  g.advance(60 * 8);                      // all 10 spawned
+  for (const a of [...g.state.attackers]) g.damageAttacker(a, a.hp + 1, null);
+  const cleared = !g.waveActive() && g.spawners.length === 0;
+  const rng0 = g.rng.s;
+  g.waveActive();
+  check('(q) waveActive: false before wave 1, true while spawning or attackers live, false once cleared, no rng',
+    idle && queued && spawning && cleared && g.rng.s === rng0, `${idle} ${queued} ${spawning} ${cleared}`);
+}
+
 // ------------------------------------------------------------------ (q) run history (end-of-run report)
 {
   const g = new Game({ mapId: 'map1', difficulty: 'medium', seed: 8 });
