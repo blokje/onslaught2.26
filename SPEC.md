@@ -223,6 +223,7 @@ arrows, Esc and Enter are fixed. Keys are physical positions (QWERTY names).
 | Key | Action |
 |---|---|
 | ? or / | controls overview and key rebinding [NEW] |
+| K | Combo Codex: all combos with partners, recharge and effect [NEW] |
 | 1-8, Shift+1-8 | pick turret to build |
 | Q / W / E | upgrade damage / range / rate (Shift = as far as affordable) |
 | S | sell (70%) |

@@ -6,7 +6,10 @@ import { waveHp, waveBounty, laneOffset } from '../src/game/Attacker.ts';
 import { ladderValue } from '../src/game/modifiers.ts';
 import { DpsTracker } from '../src/ui/dps.ts';
 import { COLOR_SYMBOL } from '../src/ui/colors.ts';
-import { clampScale, getSettings } from '../src/ui/storage.ts';
+import { clampScale, getSettings, getCodex, recordCombo } from '../src/ui/storage.ts';
+import { describeCombo, partnerList, COMBO_COUNT } from '../src/ui/codex.ts';
+import { COMBOS } from '../src/data/combos.ts';
+import { formatNum } from '../src/ui/format.ts';
 import { AudioEngine, UI_SOUNDS, busOf } from '../src/ui/audio.ts';
 import { COLOR_SHAPES } from '../src/render/atlas.ts';
 import { KEY_ACTIONS, RESERVED_CODES, cleanKeyOverrides, codeLookup, keyLabel, rebind, resolveBindings } from '../src/ui/keymap.ts';
@@ -625,6 +628,26 @@ function makePlayer(game: Game, spots: Spot[]): () => void {
   const st = getSettings(); // Node: no localStorage, no matchMedia
   check('(acc) accessibility defaults: shapes on, size 1, contrast and reduce motion off', st.colorSymbols === true && st.uiScale === 1
     && st.highContrast === false && st.reduceMotion === false && st.sfxVolume === 1 && st.uiVolume === 1);
+}
+
+// ------------------------------------------------------------------ (onb) onboarding: Combo Codex (src/ui/codex.ts, pure)
+{
+  const all = Object.values(COMBOS).flat();
+  check('(onb) codex: 20 recipes', COMBO_COUNT === 20 && all.length === 20);
+  let ok = true, bad = '';
+  for (const r of all) {
+    const d = describeCombo(r);
+    const num = r.fx.hit != null ? formatNum(r.fx.hit) : r.fx.shockwave ? formatNum(r.fx.shockwave.damage) : r.fx.blackHole ? String(r.fx.blackHole.radius) : formatNum(r.fx.laser!.damage);
+    const good = d.length > 20 && d.endsWith('.') && d.includes(num) && !d.includes('undefined') && !d.includes('NaN');
+    if (!good) { ok = false; bad = r.id + ': ' + d; }
+  }
+  check('(onb) codex: every recipe gets a description with its main number', ok, bad);
+  check('(onb) codex: partner list follows the recipe', partnerList(all.find((r) => r.id === 'nuke')!).join() === 'blue,blue'
+    && partnerList(all.find((r) => r.id === 'bigLaserClusterMine')!).join() === 'red,red,green,blue');
+  const c0 = getCodex();
+  recordCombo('nuke'); recordCombo('nuke'); recordCombo('notACombo');
+  const c1 = getCodex();
+  check('(onb) codex storage counts known recipes only (in-memory fallback in Node)', c1.nuke === (c0.nuke || 0) + 2 && !('notACombo' in c1));
 }
 
 // ------------------------------------------------------------------ (q) waveActive (auto-send)

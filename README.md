@@ -45,7 +45,7 @@ npm run build:single # writes dist-single/index.html
   - 7 modifiers that boost nearby turrets: Ranger, Boom, SpeedEx, RangerEx, Speed, BigBang, BigBangEx.
   - 5 extra weapons: Targeter, Sniper, Fusion, Railgun, Combo-only.
   - Modifiers and extra weapons unlock as your kill count grows.
-- **20 combos:** fully upgraded turrets standing close together fire a combined special attack. Which one depends on the colour of the turret that fires first.
+- **20 combos:** fully upgraded turrets standing close together fire a combined special attack. Which one depends on the colour of the turret that fires first. The **Combo Codex** (K, or from the menu) lists every recipe and marks the ones you have fired.
 - **Turret panel tabs** (General, Upgrades, Combos, Freakout). The Combos tab shows combos fired and assisted, partners in range, the time until the next combo, every recipe with the partners it still needs, and the last 5 combos.
 - **Specials:** laser chains with piercing beams, a rocket holding pattern, cannon and tazer freak-outs, poison slow.
 - **4 difficulties** (Easy, Medium, Hard, Extreme), plus a **Sandbox** mode with unlimited cash.

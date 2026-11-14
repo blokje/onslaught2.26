@@ -5,6 +5,14 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
 
 ## Unreleased
 
+### Added (2026 roadmap, phase 2: onboarding)
+- Combo Codex (K, the main menu, the in-game menu, or "All combos" in the Combos tab): all 20 recipes per lead colour
+  with partners as shape dots, recharge, a "new" badge for [NEW] recipes and the effect, generated from the recipe data
+  by `describeCombo` so text and numbers cannot drift apart. Combos you fire are counted over all games (`os226.codex`,
+  cleared by Reset progress) and marked as discovered. The shaped colour dot moved to `src/ui/colors.ts` (`colorDot`).
+  New sim-test checks (onb). Checked in Chromium (dialog from the menu, 20 recipes, no console errors).
+  Docs: `SPEC.md` §8, `ARCHITECTURE.md`, `README.md`, `docs/claude/ui.md`, `docs/claude/testing.md`.
+
 ### Added (2026 roadmap, phase 3: accessibility)
 - Colour shapes, so combos never depend on colour vision alone: red triangle, green circle, blue square, yellow diamond.
   Every weapon and Combo-only shows its shape as a small badge on the map (setting "Colour shapes on the map", default

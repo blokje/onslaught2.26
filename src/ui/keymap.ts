@@ -4,7 +4,7 @@
 
 export type KeyAction =
   | 'upDamage' | 'upRange' | 'upRate' | 'sell' | 'move' | 'target' | 'lock' | 'focus' | 'cone' | 'join' | 'color'
-  | 'undo' | 'ranges' | 'combo' | 'sendWave' | 'autoSend' | 'pause' | 'info' | 'settings' | 'build' | 'keys';
+  | 'undo' | 'codex' | 'ranges' | 'combo' | 'sendWave' | 'autoSend' | 'pause' | 'info' | 'settings' | 'build' | 'keys';
 
 export interface KeyActionDef { id: KeyAction; code: string; label: string; group: 'Turret' | 'View' | 'Game' }
 
@@ -25,6 +25,7 @@ export const KEY_ACTIONS: readonly KeyActionDef[] = [
   { id: 'build', code: 'KeyB', label: 'Build the armed turret at the cursor (Enter works too)', group: 'Turret' },
   { id: 'ranges', code: 'KeyR', label: 'Show all range rings', group: 'View' },
   { id: 'combo', code: 'KeyC', label: 'Show combo partners of the selected turret', group: 'View' },
+  { id: 'codex', code: 'KeyK', label: 'Combo Codex: every combo and what it does', group: 'View' },
   { id: 'info', code: 'KeyI', label: 'Collapse or expand the turret panel', group: 'View' },
   { id: 'sendWave', code: 'Space', label: 'Send the next wave now (bonus cash)', group: 'Game' },
   { id: 'autoSend', code: 'KeyA', label: 'Auto-send waves on/off', group: 'Game' },

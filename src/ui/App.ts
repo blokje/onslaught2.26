@@ -8,6 +8,7 @@ import { AudioEngine } from './audio.ts';
 import { Menu } from './menu.ts';
 import { Hud } from './hud.ts';
 import { buildSettings, buildHelp, buildScores, buildGameOver, buildKeys } from './dialogs.ts';
+import { buildCodex } from './codex.ts';
 import { codeLookup, keyLabel, resolveBindings } from './keymap.ts';
 import { clampScale } from './storage.ts';
 import type { KeyAction } from './keymap.ts';
@@ -273,6 +274,7 @@ export class App {
           this.restart();
         } },
         { label: 'Settings', cls: '', onClick: () => this.openSettings() },
+        { label: 'Combo Codex', cls: '', onClick: () => this.openCodex() },
         { label: 'Quit to menu', cls: 'danger', onClick: (hd) => { hd.close(); this.toMenu(); } }, // close() resumes a menu pause, so the autosave is not paused
       ],
     });
@@ -437,7 +439,7 @@ export class App {
       }
       case 'kill': a.play('kill'); break;
       case 'blast': a.play('blast_' + (BLAST_SOUND[p.size as string | number] || 'small')); break;
-      case 'combo': a.play('combo'); this.hud.toast('Combo: ' + (p.name || 'Combo') + '!', 'combo'); break;
+      case 'combo': a.play('combo'); if (typeof p.id === 'string') storage.recordCombo(p.id); this.hud.toast('Combo: ' + (p.name || 'Combo') + '!', 'combo'); break;
       case 'wave': a.play('horn'); this.hud.announce('Wave ' + (p.wave ?? '') + ' started'); this.checkUnlocks(p.wave != null ? p.wave : this.game!.state.wave); break;
       case 'leak': a.play('alarm'); this.hud.flashLeak(); this.hud.announce('Leak! ' + (p.lives ?? '') + ' lives left'); break;
       case 'build': a.play('build'); break;
@@ -990,9 +992,9 @@ export class App {
     const code = e.code || '';
     // rebindable actions (src/ui/keymap.ts); Enter is a fixed alias of build, '?' of the controls overlay
     const action: KeyAction | undefined = code === 'Enter' || code === 'NumpadEnter' ? 'build' : (e.key === '?' ? 'keys' : this.keyMap.get(code));
-    if ((action === 'settings' || action === 'keys') && !e.repeat) {
+    if ((action === 'settings' || action === 'keys' || action === 'codex') && !e.repeat) {
       e.preventDefault();
-      if (action === 'settings') this.toggleSettings(); else this.toggleKeys();
+      if (action === 'settings') this.toggleSettings(); else if (action === 'codex') this.toggleCodex(); else this.toggleKeys();
       return;
     }
     if (!this.game || this.modalOpen()) return;
@@ -1037,6 +1039,7 @@ export class App {
       case 'build': this.buildAtCursor(); break;
       case 'settings': this.toggleSettings(); break;
       case 'keys': this.toggleKeys(); break;
+      case 'codex': this.toggleCodex(); break;
     }
   }
 
@@ -1054,6 +1057,16 @@ export class App {
     });
     m.kind = 'keys';
   }
+  openCodex(): void {
+    if (this.modals.some((m) => m.kind === 'codex')) return;
+    const m = this.openModal('Combo Codex', buildCodex(storage.getCodex()), { cls: 'wide', buttons: [{ label: 'Close', cls: 'primary', onClick: (hd) => hd.close() }] });
+    m.kind = 'codex';
+  }
+  toggleCodex(): void {
+    const open = this.modals.find((m) => m.kind === 'codex');
+    if (open) open.close(); else this.openCodex();
+  }
+
   toggleKeys(): void {
     const open = this.modals.find((m) => m.kind === 'keys');
     if (open) open.close(); else this.openKeys();

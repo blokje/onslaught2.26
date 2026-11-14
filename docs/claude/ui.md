@@ -13,6 +13,8 @@ DOM overlay over the canvas, input, persistence and audio. Contract: `ARCHITECTU
 | `storage.ts` | All persistence, prefix `os226.`, try/catch with an in-memory fallback. `getSettings()` sanitises: stored values whose type does not match `DEFAULT_SETTINGS` are dropped. Autosave format `{ v, at, meta, data: game.serialize() }` under `os226.save`. Exports the types `Settings`, `Unlocks`, `ScoreEntry`, `SaveWrapper`: a new setting goes into both `Settings` and `DEFAULT_SETTINGS`. |
 | `audio.ts` | Web Audio synthesized SFX, created on the first user gesture, rate limited, master gain plus compressor. Two buses feed the compressor: `sfx` (game effects) and `ui` (`UI_SOUNDS`: click, hover, error, build, sell, upgrade, unlock); `busOf(name)` routes, `setBusVolume(bus, v)` sets each. A new interface sound goes into `UI_SOUNDS`. |
 | `dps.ts` | `DpsTracker`: per-turret DPS from `damageDealt` samples in game time (no DOM, tested in `sim-test`). Resets when the game object changes or time goes back. |
+| `codex.ts` | Combo Codex: `describeCombo(recipe)` builds the effect line from the recipe's `fx` data (pure, tested in sim-test), `partnerList`, `buildCodex(fired)` the dialog body. |
+| `colors.ts` | Combo colours with shapes: `COMBO_HEX`, `COLOR_SYMBOL`, `colorName`, `colorDot` (shared by the HUD and the Codex). |
 | `format.ts` | Big numbers: 1,234 then 12.3K, 4.56M, 7.89B, 1.23T, then 1.23e15. |
 | `icons.ts`, `dom.ts`, `ui.css` | SVG icons, tiny DOM helpers, styles. `h(tag, attrs, ...kids)` returns the matching element type; the `setText`/`setClass`/`setProp`/`show` caches live in a `WeakMap`. |
 | `mock.ts` | Fake Game and 2D MockRenderer for `/ui-demo.html` (via `ui-demo.ts`); its objects satisfy the real state types. |
@@ -60,6 +62,15 @@ DOM overlay over the canvas, input, persistence and audio. Contract: `ARCHITECTU
   at most once per second (the newest message wins). `addLog` and `toast` announce, and so do wave starts and leaks.
 - The docked turret panel starts below the top bar's measured height (`--top-h` on the HUD, kept current by a
   ResizeObserver), because the top bar wraps to two or three rows at a large scale or in a narrow window.
+
+## Combo Codex
+
+All 20 recipes per lead colour (in the order they are tried), the lead plus partners as shape dots, recharge, the effect
+from `describeCombo` (damage before modifiers, so numbers always match `src/data/combos.ts`), a "new" badge for [NEW]
+recipes, and "not yet" or a tick with the number of times fired. Nothing is hidden: players need the recipes to plan.
+Counts come from `storage.getCodex()` (`os226.codex`, `{ id: count }`, unknown ids and bad counts dropped), raised by
+`storage.recordCombo(id)` on every `combo` event in `App.onGameEvent`; "Reset progress" clears it. Opened from the main
+menu, the in-game menu, the "All combos" link in the Combos tab and the K key (`codex` in `keymap.ts`).
 
 ## Game-over report
 

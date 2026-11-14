@@ -221,6 +221,20 @@
 .os-crow.next em { color: var(--amber-hi); font-weight: 700; }
 .os-cdots { display: inline-flex; gap: 0.15em; }
 .os-cname { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.os-ctitle .os-linkbtn { float: right; text-transform: none; letter-spacing: 0; }
+.os-linkbtn { background: none; border: 0; padding: 0; color: var(--amber-hi); text-decoration: underline; cursor: pointer; pointer-events: auto; font: inherit; }
+/* Combo Codex */
+.os-codex-list { display: flex; flex-direction: column; gap: 0.35em; }
+.os-codex-row { background: rgba(0, 0, 0, 0.25); border-left: 3px solid var(--edge); border-radius: 0.4em; padding: 0.35em 0.6em; }
+.os-codex-row.found { background: rgba(111, 220, 140, 0.07); }
+.os-codex-top { display: flex; align-items: center; gap: 0.5em; flex-wrap: wrap; }
+.os-codex-top b { color: var(--ink); }
+.os-codex-plus { color: var(--ink-dim); font-size: 0.8em; margin: 0 0.1em; }
+.os-codex-meta { margin-left: auto; font-size: 0.8em; color: var(--ink-dim); }
+.os-codex-found { font-size: 0.8em; color: var(--ink-dim); min-width: 4em; text-align: right; }
+.os-codex-row.found .os-codex-found { color: var(--good); font-weight: 700; }
+.os-codex-desc { font-size: 0.86em; color: #e7dcc4; margin-top: 0.15em; line-height: 1.35; }
+.os-codex h3 .os-cdot { vertical-align: middle; }
 .os-cnew { font-style: normal; font-size: 0.75em; margin-left: 0.35em; padding: 0 0.35em; border-radius: 0.6em; background: rgba(111, 220, 140, 0.2); color: var(--good); }
 .os-crole { font-size: 0.85em; color: var(--ink-dim); }
 

@@ -10,7 +10,7 @@ import { COMBOS } from '../data/combos.ts';
 import type { App } from './App.ts';
 import type { AppGame } from './appTypes.ts';
 import { DpsTracker } from './dps.ts';
-import { COMBO_HEX, COLOR_SYMBOL, colorName } from './colors.ts';
+import { COMBO_HEX, colorDot, colorName } from './colors.ts';
 import type { KeyAction } from './keymap.ts';
 import type { TurretState, GameState, KeyColor, Stat, TargetMode, DirectionalMode, TurretDef, Category } from '../types.ts';
 
@@ -29,11 +29,7 @@ type TabId = 'general' | 'upgrades' | 'combos' | 'freak';
 const TAB_ORDER: TabId[] = ['general', 'upgrades', 'combos', 'freak'];
 const TAB_NAMES: Record<TabId, string> = { general: 'General', upgrades: 'Upgrades', combos: 'Combos', freak: 'Freakout' };
 
-/** Colour dot with its shape (triangle, circle, square, diamond), so it reads without colour vision too. */
-const dot = (color: string | null): HTMLElement => {
-  const c = color && Object.hasOwn(COMBO_HEX, color) ? color as KeyColor : null;
-  return h('i', { class: 'os-cdot' + (c ? ' sym-' + COLOR_SYMBOL[c] : ''), style: 'background:' + (c ? COMBO_HEX[c] : '#888'), title: c ? colorName(c) : null, role: c ? 'img' : null, 'aria-label': c ? colorName(c) : null });
-};
+const dot = colorDot;
 /** Combo wait in game ms -> "ready" or "2.4s". */
 const formatWait = (ms: number): string => (ms <= 0 ? 'ready' : (ms / 1000).toFixed(1) + 's');
 const formatAgo = (ms: number): string => { const sec = Math.max(0, Math.floor(ms / 1000)); return sec < 60 ? sec + 's ago' : Math.floor(sec / 60) + 'm ago'; };
@@ -544,7 +540,8 @@ export class Hud {
         h('div', { class: 'os-vals two' }, h('div', null, h('span', null, 'Fired'), cr.fired), h('div', null, h('span', null, 'Assisted'), cr.assisted)),
         h('div', { class: 'os-ctitle' }, 'Combo with'), cr.partners,
         h('div', { class: 'os-cnext' }, h('span', null, 'Next combo'), cr.next, cr.nextName),
-        h('div', { class: 'os-ctitle' }, t.kind === 'comboOnly' ? 'Can assist in' : 'Combos'), cr.recipes,
+        h('div', { class: 'os-ctitle' }, t.kind === 'comboOnly' ? 'Can assist in' : 'Combos',
+          h('button', { class: 'os-linkbtn', type: 'button', tabindex: -1, title: 'Combo Codex (' + app.keyFor('codex') + ')', onclick: () => app.openCodex() }, 'All combos')), cr.recipes,
         h('div', { class: 'os-ctitle' }, 'Recent'), cr.recent);
       refs.panes.combos = cp;
     }

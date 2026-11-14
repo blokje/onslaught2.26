@@ -2,6 +2,9 @@
 // an in-memory fallback keeps the game working when storage is disabled or full.
 
 import { cleanKeyOverrides } from './keymap.ts';
+import { COMBOS } from '../data/combos.ts';
+
+const COMBO_IDS: ReadonlySet<string> = new Set(Object.values(COMBOS).flat().map((r) => r.id));
 import type { KeyAction } from './keymap.ts';
 
 const PREFIX = 'os226.';
@@ -187,4 +190,24 @@ export function resetProgress(): void {
   remove('unlocks');
   remove('scores');
   remove('save');
+  remove('codex');
+}
+
+/** Combo Codex: times each recipe was fired, over all games. Unknown ids and bad counts are dropped. */
+export function getCodex(): Record<string, number> {
+  const raw = read<unknown>('codex', {});
+  const out: Record<string, number> = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  for (const [id, n] of Object.entries(raw as Record<string, unknown>)) {
+    if (COMBO_IDS.has(id) && typeof n === 'number' && Number.isFinite(n) && n > 0) out[id] = Math.floor(n);
+  }
+  return out;
+}
+
+/** Count one firing of a combo recipe in the Codex. */
+export function recordCombo(id: string): void {
+  if (!COMBO_IDS.has(id)) return;
+  const c = getCodex();
+  c[id] = (c[id] || 0) + 1;
+  write('codex', c);
 }
