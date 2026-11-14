@@ -13,6 +13,7 @@ DOM overlay over the canvas, input, persistence and audio. Contract: `ARCHITECTU
 | `storage.ts` | All persistence, prefix `os226.`, try/catch with an in-memory fallback. `getSettings()` sanitises: stored values whose type does not match `DEFAULT_SETTINGS` are dropped. Autosave format `{ v, at, meta, data: game.serialize() }` under `os226.save`. Exports the types `Settings`, `Unlocks`, `ScoreEntry`, `SaveWrapper`: a new setting goes into both `Settings` and `DEFAULT_SETTINGS`. |
 | `audio.ts` | Web Audio synthesized SFX, created on the first user gesture, rate limited, master gain plus compressor. Two buses feed the compressor: `sfx` (game effects) and `ui` (`UI_SOUNDS`: click, hover, error, build, sell, upgrade, unlock); `busOf(name)` routes, `setBusVolume(bus, v)` sets each. A new interface sound goes into `UI_SOUNDS`. |
 | `dps.ts` | `DpsTracker`: per-turret DPS from `damageDealt` samples in game time (no DOM, tested in `sim-test`). Resets when the game object changes or time goes back. |
+| `tutorial.ts` | Interactive tutorial: `TUTORIAL_STEPS` and the `Tutorial` step machine (pure, tested in sim-test). |
 | `codex.ts` | Combo Codex: `describeCombo(recipe)` builds the effect line from the recipe's `fx` data (pure, tested in sim-test), `partnerList`, `buildCodex(fired)` the dialog body. |
 | `colors.ts` | Combo colours with shapes: `COMBO_HEX`, `COLOR_SYMBOL`, `colorName`, `colorDot` (shared by the HUD and the Codex). |
 | `format.ts` | Big numbers: 1,234 then 12.3K, 4.56M, 7.89B, 1.23T, then 1.23e15. |
@@ -62,6 +63,23 @@ DOM overlay over the canvas, input, persistence and audio. Contract: `ARCHITECTU
   at most once per second (the newest message wins). `addLog` and `toast` announce, and so do wave starts and leaks.
 - The docked turret panel starts below the top bar's measured height (`--top-h` on the HUD, kept current by a
   ResizeObserver), because the top bar wraps to two or three rows at a large scale or in a narrow window.
+
+## Tutorial
+
+- Starts on the How to Play map (`startGame` with `mapId: 'tutorial'`, from the map grid, the menu button "Tutorial",
+  the first-start banner "New here? Play the tutorial" or Settings > Replay tutorial). The banner shows while
+  `settings.tutorialDone` is false and no high score exists.
+- `TUTORIAL_STEPS` (`tutorial.ts`): 8 steps (welcome, build a Cannon, send a wave, upgrade, targeting, a second turret,
+  combos, done). A step with `done(ctx)` finishes by itself; a step without it shows Next (Finish on the last). Every
+  step has Back, all but the last have Skip tutorial. Texts take keys from `app.keyFor`, so rebinding shows up.
+- `App` feeds game events to `tutorial.observe` and calls `coachTick()` from `tick()` (about 10 Hz): it advances the
+  step and keeps the highlight (`os-coach-target`, a pulsing outline, steady with reduce motion) on the step's `target`
+  selector, because panels rebuild. `Hud.showCoach(view)` draws the coach card (top centre below the top bar) and
+  announces it.
+- Waves: the game starts with a 600 s interval (`TUTORIAL_WAVE_MS`); the first Send calls `restoreWaveInterval()` before
+  `sendWave()` so the early bonus stays normal (it would otherwise pay about $590). Finish or Skip also restore it
+  (`AppGame.setWaveInterval` is optional; the mock has none). The top bar shows "you start" until wave 1.
+- To add a step: append to `TUTORIAL_STEPS` (id, title, text, optional target and done) and extend the sim-test (onb).
 
 ## Combo Codex
 

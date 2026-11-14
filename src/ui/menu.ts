@@ -58,6 +58,7 @@ export function drawMapPreview(canvas: HTMLCanvasElement, map: MapDef): void {
 export class Menu {
   app: App;
   el: HTMLElement;
+  tutBanner!: HTMLElement;
   mapBtns: Map<string, HTMLButtonElement>;
   diffBtns: Map<string, HTMLButtonElement>;
   modeBtns: Map<string, HTMLButtonElement>;
@@ -126,12 +127,15 @@ export class Menu {
       mode.append(b);
     }
     this.note = h('div', { class: 'os-menu-note' });
+    this.tutBanner = h('div', { class: 'os-tut-banner' }, h('span', null, 'New here?'),
+      h('button', { class: 'os-btn primary small', type: 'button', onclick: () => app.startTutorial() }, 'Play the tutorial'));
     this.startBtn = h('button', { class: 'os-btn primary big', type: 'button', onclick: () => this.start() }, 'Start');
     this.contBtn = h('button', { class: 'os-btn big', type: 'button', onclick: () => app.continueGame() }, 'Continue');
 
     const side = h('div', { class: 'os-menu-side' },
       h('div', null, h('h4', null, 'Difficulty'), diff),
       h('div', null, h('h4', null, 'Mode'), mode),
+      this.tutBanner,
       this.note,
       this.startBtn,
       this.contBtn,
@@ -139,7 +143,8 @@ export class Menu {
         h('button', { class: 'os-btn', type: 'button', onclick: () => app.openScores() }, 'High scores'),
         h('button', { class: 'os-btn', type: 'button', onclick: () => app.openSettings() }, 'Settings'),
         h('button', { class: 'os-btn', type: 'button', onclick: () => app.openHelp() }, 'How to play'),
-        h('button', { class: 'os-btn', type: 'button', onclick: () => app.openCodex() }, 'Combo Codex')));
+        h('button', { class: 'os-btn', type: 'button', onclick: () => app.openCodex() }, 'Combo Codex'),
+        h('button', { class: 'os-btn', type: 'button', onclick: () => app.startTutorial() }, 'Tutorial')));
 
     this.el.append(h('div', { class: 'os-panel os-menu-card' }, logo, h('div', { class: 'os-menu-main' }, maps, side)));
     this.refresh();
@@ -187,6 +192,8 @@ export class Menu {
     this.note.textContent = this.sel.mode === 'sandbox'
       ? 'Sandbox: huge starting cash, everything unlocked.'
       : `${d.name}: $${d.startCash} start, ${d.lives} ${d.lives === 1 ? 'life' : 'lives'}, new wave every ${secs}s.`;
+    // first-time players: offer the tutorial until it is done or skipped, and only before any high score exists
+    this.tutBanner.style.display = !app.settings.tutorialDone && !Object.keys(storage.getAllScores()).length ? '' : 'none';
     const save = storage.loadGame();
     this.contBtn.style.display = save ? '' : 'none';
     if (save) {

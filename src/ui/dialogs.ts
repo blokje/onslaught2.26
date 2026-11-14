@@ -44,6 +44,8 @@ export function buildSettings(app: App): HTMLElement {
   const scale = h('input', { type: 'range', min: storage.UI_SCALE.min, max: storage.UI_SCALE.max, step: storage.UI_SCALE.step, value: s.uiScale, 'aria-label': 'Interface size' });
   const scaleTxt = h('span', { class: 'os-hint' }, Math.round(s.uiScale * 100) + '%');
   scale.addEventListener('input', () => { const v = storage.clampScale(Number(scale.value)); scaleTxt.textContent = Math.round(v * 100) + '%'; app.updateSettings({ uiScale: v }); });
+  const tutBtn = h('button', { class: 'os-btn small', type: 'button' }, 'Replay tutorial');
+  tutBtn.addEventListener('click', () => app.startTutorial());
   const keysBtn = h('button', { class: 'os-btn small', type: 'button' }, 'Keys...');
   keysBtn.addEventListener('click', () => app.openKeys());
 
@@ -74,6 +76,7 @@ export function buildSettings(app: App): HTMLElement {
     field('Auto-send waves', 'Sends the next wave (with the early bonus) as soon as the field is clear, from wave 1 on.', check('autoSend')),
     field('Relaxed: undo', 'U takes back your last build or upgrade with a full refund, until that turret fires. High scores of such games get a U mark.', check('undo')),
     field('Controls', 'See and change the keyboard keys (also the ? key).', keysBtn),
+    field('Tutorial', 'Play the interactive tutorial again on the How to Play map.', tutBtn),
     h('h3', { class: 'os-set-h' }, 'Accessibility'),
     field('Interface size', 'Scales all text, panels and buttons.', h('div', { style: 'display:flex;align-items:center;gap:.6em' }, scale, scaleTxt)),
     field('High contrast', 'Solid panels, brighter text and stronger outlines.', check('highContrast')),

@@ -9,6 +9,10 @@ import { Menu } from './menu.ts';
 import { Hud } from './hud.ts';
 import { buildSettings, buildHelp, buildScores, buildGameOver, buildKeys } from './dialogs.ts';
 import { buildCodex } from './codex.ts';
+import { Tutorial } from './tutorial.ts';
+
+/** Wave interval on the tutorial map while the coach runs: long, so no wave comes before the player sends one. */
+const TUTORIAL_WAVE_MS = 600000;
 import { codeLookup, keyLabel, resolveBindings } from './keymap.ts';
 import { clampScale } from './storage.ts';
 import type { KeyAction } from './keymap.ts';
@@ -107,6 +111,10 @@ export class App {
   hoverId: number | null;
   /** Range ring of the hovered range upgrade (set by the Hud's Upgrades tab). */
   previewRange: Overlay['previewRange'] = null;
+  /** Running tutorial (How to Play map), or null. */
+  tutorial: Tutorial | null = null;
+  /** Element currently highlighted by the coach. */
+  coachTargetEl: Element | null = null;
   /** KeyboardEvent.code -> action, from settings.keys over the defaults in keymap.ts. */
   keyMap: Map<string, KeyAction> = new Map();
   /** Set while the controls overlay waits for a new key; gets the next keydown instead of the game. */
@@ -338,9 +346,47 @@ export class App {
     this.closeAllModals();
     const opts: GameOptions = { mapId: sel.mapId, difficulty: sel.difficulty, mode: sel.mode, unlockAll: !!this.settings.unlockAll };
     if (this.settings.waveInterval > 0) opts.waveInterval = this.settings.waveInterval * 1000;
+    const tut = sel.mapId === 'tutorial'; // the How to Play map always runs the coach
+    if (tut) opts.waveInterval = TUTORIAL_WAVE_MS;
     let game: AppGame;
     try { game = this.createGame(opts); } catch (e) { console.error(e); this.menu.show(); this.menu.flash('Could not start the game.'); return; }
     this.attachGame(game);
+    if (tut) { this.tutorial = new Tutorial(); this.renderCoach(); }
+  }
+
+  /** Start the interactive tutorial on the How to Play map (Easy, Normal mode). */
+  startTutorial(): void { this.startGame({ mapId: 'tutorial', difficulty: 'easy', mode: 'normal' }); }
+
+  /** Show the current tutorial step in the coach card (or hide it). */
+  renderCoach(): void {
+    const t = this.tutorial;
+    if (!t || t.over) { this.hud.showCoach(null); this.setCoachTarget(null); return; }
+    const st = t.step, last = t.index === t.count - 1;
+    const buttons: { label: string; primary?: boolean; onClick: () => void }[] = [];
+    if (t.index > 0) buttons.push({ label: 'Back', onClick: () => { t.back(); this.renderCoach(); } });
+    if (!last) buttons.push({ label: 'Skip tutorial', onClick: () => this.endTutorial(true) });
+    if (!st.done) buttons.push({ label: last ? 'Finish' : 'Next', primary: true, onClick: () => { t.next(); if (t.over) this.endTutorial(false); else this.renderCoach(); } });
+    this.hud.showCoach({ key: 'tut:' + st.id + ':' + JSON.stringify(this.settings.keys), title: st.title, text: st.text((a) => this.keyFor(a)), progress: `${t.index + 1} / ${t.count}`, buttons });
+    this.setCoachTarget(st.target || null);
+  }
+
+  /** Tutorial finished or skipped: remember it, give the map its normal wave interval back. */
+  endTutorial(skipped: boolean): void {
+    if (!this.tutorial) return;
+    this.tutorial = null;
+    this.updateSettings({ tutorialDone: true });
+    this.restoreWaveInterval();
+    this.renderCoach();
+    this.hud.toast(skipped ? 'Tutorial skipped. Replay it from the menu.' : 'Tutorial done. Waves now come by themselves.');
+  }
+
+  /** Highlight one element for the coach (class os-coach-target), or none. Re-applied each tick: panels rebuild. */
+  setCoachTarget(selector: string | null): void {
+    const el = selector ? this.root.querySelector(selector) : null;
+    if (el === this.coachTargetEl) return;
+    if (this.coachTargetEl) this.coachTargetEl.classList.remove('os-coach-target');
+    this.coachTargetEl = el;
+    if (el) el.classList.add('os-coach-target');
   }
 
   continueGame(): void {
@@ -393,6 +439,8 @@ export class App {
     if (this.game) for (const [name, fn] of this.handlers) { try { this.game.off(name, fn); } catch (e) { /* ignore */ } }
     this.handlers = [];
     this.game = null;
+    this.tutorial = null;
+    this.renderCoach();
     this.resetInput();
     // the menu must not keep drawing the old game, selection rings or build ghost
     try { this.renderer.setGame(null); } catch (e) { console.error(e); }
@@ -430,6 +478,7 @@ export class App {
   // =================================================================== game events
   onGameEvent(name: GameEventName, p: LooseEvent): void {
     const a = this.audio;
+    if (this.tutorial) this.tutorial.observe(name, typeof p.kind === 'string' ? p.kind : undefined);
     switch (name) {
       case 'shot': {
         let kind: string | null | undefined = p.kind;
@@ -536,6 +585,15 @@ export class App {
     }
     if (this.mode === 'build' || this.mode === 'move') this.cursorDirty = true;   // validity depends on cash, camera may move
     this.hud.update();
+    this.coachTick();
+  }
+
+  /** Advance the tutorial when its goal is met, keep the highlight on the (rebuilt) target. */
+  coachTick(): void {
+    const t = this.tutorial;
+    if (!t || !this.game) return;
+    if (t.check({ state: this.game.state, tab: this.hud.refs?.active ?? null })) this.renderCoach();
+    else if (!t.over) this.setCoachTarget(t.step.target || null);
   }
 
   // =================================================================== overlay and cursor
@@ -957,7 +1015,22 @@ export class App {
     this.setMode('focus');
   }
 
-  sendWave(): void { const g = this.game; if (g) this.run(() => g.sendWave()); }
+  sendWave(): void {
+    const g = this.game;
+    if (!g) return;
+    // tutorial: the long hold before wave 1 must not turn into a huge early bonus, so the normal interval comes back
+    // first (the bonus is then the usual one) and later waves come by themselves
+    if (this.tutorial && g.state.wave === 0) this.restoreWaveInterval();
+    this.run(() => g.sendWave());
+  }
+
+  /** Give the running game its normal wave interval (setting or difficulty default). */
+  restoreWaveInterval(): void {
+    const g = this.game;
+    if (!g || !g.setWaveInterval) return;
+    const ms = this.settings.waveInterval > 0 ? this.settings.waveInterval * 1000 : (DIFFICULTIES[g.state.difficulty]?.waveInterval || 20000);
+    try { g.setWaveInterval(ms); } catch (e) { console.error(e); }
+  }
   setSpeed(s: number): void { const g = this.game; if (g) { this.run(() => g.setSpeed(s)); this.audio.setSpeed(s); } }
   togglePause(): void { this._autoPaused = false; const g = this.game; if (g) this.run(() => g.togglePause()); }
 
@@ -1059,6 +1132,7 @@ export class App {
   }
   openCodex(): void {
     if (this.modals.some((m) => m.kind === 'codex')) return;
+    if (this.tutorial) this.tutorial.codexOpened = true;
     const m = this.openModal('Combo Codex', buildCodex(storage.getCodex()), { cls: 'wide', buttons: [{ label: 'Close', cls: 'primary', onClick: (hd) => hd.close() }] });
     m.kind = 'codex';
   }

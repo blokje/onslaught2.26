@@ -8,6 +8,7 @@ import { DpsTracker } from '../src/ui/dps.ts';
 import { COLOR_SYMBOL } from '../src/ui/colors.ts';
 import { clampScale, getSettings, getCodex, recordCombo } from '../src/ui/storage.ts';
 import { describeCombo, partnerList, COMBO_COUNT } from '../src/ui/codex.ts';
+import { Tutorial, TUTORIAL_STEPS } from '../src/ui/tutorial.ts';
 import { COMBOS } from '../src/data/combos.ts';
 import { formatNum } from '../src/ui/format.ts';
 import { AudioEngine, UI_SOUNDS, busOf } from '../src/ui/audio.ts';
@@ -648,6 +649,38 @@ function makePlayer(game: Game, spots: Spot[]): () => void {
   recordCombo('nuke'); recordCombo('nuke'); recordCombo('notACombo');
   const c1 = getCodex();
   check('(onb) codex storage counts known recipes only (in-memory fallback in Node)', c1.nuke === (c0.nuke || 0) + 2 && !('notACombo' in c1));
+}
+
+// ------------------------------------------------------------------ (onb) tutorial step machine on a real Game
+{
+  const g = new Game({ mapId: 'tutorial', difficulty: 'easy', seed: 21, waveInterval: 600000 });
+  const t = new Tutorial();
+  const names = ['shot', 'kill', 'leak', 'wave', 'build', 'sell', 'upgrade', 'combo'] as const;
+  for (const n of names) g.on(n, (p: object) => { const k = (p as { kind?: unknown }).kind; t.observe(n, typeof k === 'string' ? k : undefined); });
+  const ctx = () => ({ state: g.state, tab: null });
+  const seen: string[] = [t.step.id];
+  const step = () => { if (t.check(ctx())) seen.push(t.step.id); };
+  check('(onb) tutorial: starts at welcome, Next is needed there', t.step.id === 'welcome' && !t.check(ctx()));
+  t.next(); seen.push(t.step.id);
+  const [a, b] = bestSpots('tutorial', 2);
+  const blue = must(g.build('blue', a.x, a.y)).id; step();
+  check('(onb) tutorial: building a Cannon finishes the build step', t.step.id === 'wave');
+  g.advance(60 * 5); step();
+  check('(onb) tutorial: no wave comes by itself on the tutorial map', g.state.wave === 0 && t.step.id === 'wave');
+  must(g.sendWave()); step();
+  must(g.upgrade(blue, 'damage')); step();
+  must(g.cycleTargetMode(blue)); step();
+  check('(onb) tutorial: wave, upgrade and target steps follow the game', t.step.id === 'second', seen.join(' > '));
+  must(g.build('green', b.x, b.y)); step();
+  check('(onb) tutorial: a second turret leads to the manual combos step', t.step.id === 'combos');
+  t.back();
+  check('(onb) tutorial: Back returns to the previous step', t.step.id === 'second');
+  t.go(t.count - 2); t.next(); t.next();
+  check('(onb) tutorial: Next on the last step ends it', t.over && !t.check(ctx()));
+  const t2 = new Tutorial(); t2.skip();
+  check('(onb) tutorial: Skip ends it', t2.over);
+  check('(onb) tutorial: every step text is non-empty and names the bound keys', TUTORIAL_STEPS.every((s) => s.text((k) => '<' + k + '>').length > 30)
+    && TUTORIAL_STEPS.find((s) => s.id === 'upgrade')!.text((k) => '<' + k + '>').includes('<upDamage>'));
 }
 
 // ------------------------------------------------------------------ (q) waveActive (auto-send)

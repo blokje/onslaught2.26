@@ -202,7 +202,7 @@ pooled meshes for attackers/projectiles).
 - **Settings**: master volume / mute, wave interval override, snap-to-grid toggle (grid 22 units), unlock-all switch,
   show FPS, `autoPause` (pause while the tab is hidden), `autoSend` (send the next wave when the field is clear, see
   `game.waveActive()`), `panelPos` (moved turret panel), `keys` (rebound keys: `{ action: KeyboardEvent.code }`, only
-  the ones that differ from `src/ui/keymap.ts`), `undo` (Relaxed: undo, off by default), `colorSymbols` (shape badges on the map, default on), `uiScale` (0.8 to 1.6, `clampScale`), `highContrast`, `reduceMotion` (first start follows `prefers-reduced-motion`), `sfxVolume` and `uiVolume` (bus volumes on top of the master volume). `getSettings()` drops stored values
+  the ones that differ from `src/ui/keymap.ts`), `undo` (Relaxed: undo, off by default), `colorSymbols` (shape badges on the map, default on), `uiScale` (0.8 to 1.6, `clampScale`), `highContrast`, `reduceMotion` (first start follows `prefers-reduced-motion`), `sfxVolume` and `uiVolume` (bus volumes on top of the master volume), `tutorialDone` (tutorial finished or skipped). `getSettings()` drops stored values
   whose type does not match the default.
 - **Audio** (`src/ui/audio.ts`): Web Audio synthesized SFX driven by game events (cannon pop, laser zap, rocket whoosh,
   spark crackle, blasts by size, nuke boom, kill tick, leak alarm, wave horn, combo chord, UI clicks). Rate-limit

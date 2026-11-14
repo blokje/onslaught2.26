@@ -12,6 +12,12 @@ import type { AppGame } from './appTypes.ts';
 import { DpsTracker } from './dps.ts';
 import { COMBO_HEX, colorDot, colorName } from './colors.ts';
 import type { KeyAction } from './keymap.ts';
+
+/** What the coach card shows: a tutorial step or a tip. `key` identifies it (the card rebuilds when it changes). */
+export interface CoachView {
+  key: string; title: string; text: string; progress?: string; tip?: boolean;
+  buttons: { label: string; primary?: boolean; onClick: () => void }[];
+}
 import type { TurretState, GameState, KeyColor, Stat, TargetMode, DirectionalMode, TurretDef, Category } from '../types.ts';
 
 const TARGET_NAMES: Record<TargetMode, string> = { near: 'Nearest', far: 'Furthest', weak: 'Weakest', strong: 'Strongest', slow: 'Slowest', fast: 'Fastest', oldest: 'Oldest', newest: 'Newest' };
@@ -96,6 +102,9 @@ export class Hud {
   leak!: HTMLElement;
   focusBadge!: HTMLElement;
   modeHint!: HTMLElement;
+  /** Coach card (tutorial steps and tips), top centre below the top bar. */
+  coach!: HTMLElement;
+  coachKey = '';
   paused!: HTMLElement;
   collapseBtn: HTMLButtonElement | null = null;
   incomingEl: HTMLElement | null = null;
@@ -192,9 +201,29 @@ export class Hud {
       h('div', { class: 'os-paused-title' }, 'PAUSED'),
       h('div', { class: 'os-paused-hint' }, 'Press ', this.hk('pause'), ' or click Resume. No waves are sent while paused.'));
     // the pause tint goes first so the top bar, side panel and rack stay above it and clickable
-    this.el.append(this.paused, this.leak, this.top, this.log, this.toasts, this.focusBadge, this.modeHint, this.side, this.rack);
+    this.coach = h('div', { class: 'os-panel os-coach', role: 'region', 'aria-label': 'Tutorial and tips' });
+    this.el.append(this.paused, this.leak, this.top, this.log, this.toasts, this.focusBadge, this.modeHint, this.side, this.rack, this.coach);
     // the error bubble sits outside of the clipped root so it can sit anywhere
     this.el.append(this.err, this.live);
+  }
+
+  // ------------------------------------------------------------ coach card (tutorial and tips)
+  /** Show a coach card, or hide it with null. Rebuilt only when `key` changes; the text is also announced. */
+  showCoach(v: CoachView | null): void {
+    const key = v ? v.key : '';
+    if (key === this.coachKey) return;
+    this.coachKey = key;
+    if (!v) { this.coach.classList.remove('on'); this.coach.replaceChildren(); return; }
+    this.coach.className = 'os-panel os-coach on ' + (v.tip ? 'tip' : 'tut');
+    this.coach.replaceChildren(
+      h('div', { class: 'os-coach-head' }, h('span', { class: 'os-coach-tag' }, v.tip ? 'Tip' : 'Tutorial'), h('b', null, v.title), v.progress ? h('span', { class: 'os-coach-prog' }, v.progress) : null),
+      h('p', null, v.text),
+      h('div', { class: 'os-coach-btns' }, ...v.buttons.map((b) => {
+        const el = h('button', { class: 'os-btn small' + (b.primary ? ' primary' : ''), type: 'button', tabindex: -1 }, b.label);
+        el.addEventListener('click', () => { b.onClick(); el.blur(); });
+        return el;
+      })));
+    this.announce((v.tip ? 'Tip: ' : '') + v.title + '. ' + v.text);
   }
 
   // ------------------------------------------------------------ feedback
@@ -280,7 +309,7 @@ export class Hud {
     setText(this.v.wave, s.wave);
     setText(this.v.kills, formatNum(s.kills));
     setText(this.v.score, formatNum(s.score));
-    setText(this.v.next, s.over ? '-' : formatTime(s.nextWaveIn));
+    setText(this.v.next, s.over ? '-' : app.tutorial && s.wave === 0 ? 'you start' : formatTime(s.nextWaveIn));
     this.updateIncoming(game, s.wave);
     this.dps.sample(game, s.time, s.turrets);
     this.speedBtns.forEach((b, i) => setClass(b, 'is-on', s.speed === SPEEDS[i]));

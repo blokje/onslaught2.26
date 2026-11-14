@@ -34,6 +34,8 @@ export interface AppGame {
   sendWave(): CommandResult;
   wavePreview(n?: number): WavePreview;
   waveActive(): boolean;
+  /** Optional (real Game): change the wave interval of the running game, ms >= 1000. */
+  setWaveInterval?(ms: number): CommandResult | unknown;
   undo(): CommandResult;
   undoInfo(): { label: string; refund: number } | null;
   setSpeed(speed: number): CommandResult | void;

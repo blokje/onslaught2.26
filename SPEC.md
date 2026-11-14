@@ -263,6 +263,11 @@ arrows, Esc and Enter are fixed. Keys are physical positions (QWERTY names).
 wave exactly like Space as soon as no wave is spawning and no attacker is alive, so the early-wave bonus is paid as usual.
 It never starts wave 1 (the player does) and waits while paused, while a dialog is open and after game over.
 
+**Tutorial** [NEW, UI only]: the How to Play map always runs the interactive tutorial (Easy, Normal mode). Until the
+player sends wave 1 the game holds the first wave (wave interval 600 s); the first Send restores the normal interval
+first, so the early-wave bonus is the usual one, and later waves come by themselves. Skipping or finishing also restores
+the interval. Nothing else changes.
+
 **Relaxed: undo** [NEW, optional, off by default]: with the setting on, U (or the Undo button) takes back the last build
 or upgrade with a full refund; `spent` and the score go back too. Only the newest build or upgrade counts, and only until
 that turret fires (a normal shot, a laser-chain contribution, a holding-pattern rocket or a combo); a later build,

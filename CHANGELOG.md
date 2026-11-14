@@ -6,11 +6,20 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
 ## Unreleased
 
 ### Added (2026 roadmap, phase 2: onboarding)
+- Interactive tutorial on the How to Play map: 8 steps you play (build, send a wave, upgrade, targeting, a second turret,
+  combos) in a coach card with Back, Next and Skip, the target element outlined, texts with your own keys and read out
+  for screen readers. First-start banner "New here? Play the tutorial", a Tutorial button in the menu and Replay in
+  Settings (setting `tutorialDone`). Wave 1 waits for the player; the first Send restores the normal interval so the
+  early bonus stays normal (a first try paid $592, found in the browser check). New `src/ui/tutorial.ts`, coach card in
+  the HUD, optional `AppGame.setWaveInterval`. New sim-test checks (onb). Checked in Chromium: banner, full walk-through
+  with keys and mouse, no wave before Send, $25 bonus, finish restores waves and hides the banner, no console errors.
+  Docs: `SPEC.md` §9, `ARCHITECTURE.md`, `README.md`, `docs/claude/ui.md`, `docs/claude/gotchas.md`, `docs/claude/testing.md`.
 - Combo Codex (K, the main menu, the in-game menu, or "All combos" in the Combos tab): all 20 recipes per lead colour
   with partners as shape dots, recharge, a "new" badge for [NEW] recipes and the effect, generated from the recipe data
   by `describeCombo` so text and numbers cannot drift apart. Combos you fire are counted over all games (`os226.codex`,
   cleared by Reset progress) and marked as discovered. The shaped colour dot moved to `src/ui/colors.ts` (`colorDot`).
-  New sim-test checks (onb). Checked in Chromium (dialog from the menu, 20 recipes, no console errors).
+  New sim-test checks (onb). Checked in Chromium (20 recipes from the menu; a real Nuke in Sandbox is counted and shown
+  as discovered; K and the Combos-tab link open it; no console errors).
   Docs: `SPEC.md` §8, `ARCHITECTURE.md`, `README.md`, `docs/claude/ui.md`, `docs/claude/testing.md`.
 
 ### Added (2026 roadmap, phase 3: accessibility)
