@@ -33,7 +33,7 @@ export function buildSettings(app: App): HTMLElement {
     wave.value = String(v);
     app.updateSettings({ waveInterval: v });
   });
-  const check = (key: 'snap' | 'unlockAll' | 'showFps' | 'autoPause' | 'autoSend' | 'undo' | 'colorSymbols' | 'highContrast' | 'reduceMotion'): HTMLInputElement => {
+  const check = (key: 'snap' | 'unlockAll' | 'showFps' | 'autoPause' | 'autoSend' | 'undo' | 'colorSymbols' | 'highContrast' | 'reduceMotion' | 'hints'): HTMLInputElement => {
     const c = h('input', { type: 'checkbox' });
     c.checked = !!s[key];
     c.addEventListener('change', () => app.updateSettings({ [key]: c.checked } as Partial<storage.Settings>)); // key is one of the boolean settings above
@@ -44,6 +44,8 @@ export function buildSettings(app: App): HTMLElement {
   const scale = h('input', { type: 'range', min: storage.UI_SCALE.min, max: storage.UI_SCALE.max, step: storage.UI_SCALE.step, value: s.uiScale, 'aria-label': 'Interface size' });
   const scaleTxt = h('span', { class: 'os-hint' }, Math.round(s.uiScale * 100) + '%');
   scale.addEventListener('input', () => { const v = storage.clampScale(Number(scale.value)); scaleTxt.textContent = Math.round(v * 100) + '%'; app.updateSettings({ uiScale: v }); });
+  const resetTipsBtn = h('button', { class: 'os-btn small', type: 'button' }, 'Reset tips');
+  resetTipsBtn.addEventListener('click', () => { app.resetTips(); resetTipsBtn.textContent = 'Tips reset'; });
   const tutBtn = h('button', { class: 'os-btn small', type: 'button' }, 'Replay tutorial');
   tutBtn.addEventListener('click', () => app.startTutorial());
   const keysBtn = h('button', { class: 'os-btn small', type: 'button' }, 'Keys...');
@@ -77,6 +79,8 @@ export function buildSettings(app: App): HTMLElement {
     field('Relaxed: undo', 'U takes back your last build or upgrade with a full refund, until that turret fires. High scores of such games get a U mark.', check('undo')),
     field('Controls', 'See and change the keyboard keys (also the ? key).', keysBtn),
     field('Tutorial', 'Play the interactive tutorial again on the How to Play map.', tutBtn),
+    field('Tips', 'Short tips the first time something happens (a leak, your first combo, a new unlock).', check('hints')),
+    field('Seen tips', 'Show every tip again.', resetTipsBtn),
     h('h3', { class: 'os-set-h' }, 'Accessibility'),
     field('Interface size', 'Scales all text, panels and buttons.', h('div', { style: 'display:flex;align-items:center;gap:.6em' }, scale, scaleTxt)),
     field('High contrast', 'Solid panels, brighter text and stronger outlines.', check('highContrast')),

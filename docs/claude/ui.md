@@ -14,6 +14,7 @@ DOM overlay over the canvas, input, persistence and audio. Contract: `ARCHITECTU
 | `audio.ts` | Web Audio synthesized SFX, created on the first user gesture, rate limited, master gain plus compressor. Two buses feed the compressor: `sfx` (game effects) and `ui` (`UI_SOUNDS`: click, hover, error, build, sell, upgrade, unlock); `busOf(name)` routes, `setBusVolume(bus, v)` sets each. A new interface sound goes into `UI_SOUNDS`. |
 | `dps.ts` | `DpsTracker`: per-turret DPS from `damageDealt` samples in game time (no DOM, tested in `sim-test`). Resets when the game object changes or time goes back. |
 | `tutorial.ts` | Interactive tutorial: `TUTORIAL_STEPS` and the `Tutorial` step machine (pure, tested in sim-test). |
+| `hints.ts` | One-time tips: `HINTS` (event- or state-triggered) and the `Hints` queue (pure, tested in sim-test). |
 | `codex.ts` | Combo Codex: `describeCombo(recipe)` builds the effect line from the recipe's `fx` data (pure, tested in sim-test), `partnerList`, `buildCodex(fired)` the dialog body. |
 | `colors.ts` | Combo colours with shapes: `COMBO_HEX`, `COLOR_SYMBOL`, `colorName`, `colorDot` (shared by the HUD and the Codex). |
 | `format.ts` | Big numbers: 1,234 then 12.3K, 4.56M, 7.89B, 1.23T, then 1.23e15. |
@@ -80,6 +81,18 @@ DOM overlay over the canvas, input, persistence and audio. Contract: `ARCHITECTU
   `sendWave()` so the early bonus stays normal (it would otherwise pay about $590). Finish or Skip also restore it
   (`AppGame.setWaveInterval` is optional; the mock has none). The top bar shows "you start" until wave 1.
 - To add a step: append to `TUTORIAL_STEPS` (id, title, text, optional target and done) and extend the sim-test (onb).
+
+## Tips
+
+- `HINTS` (`hints.ts`): a leak, few lives left, the first modifier unlock, a late weapon unlock, freak-out, a turret ready
+  for combos, the first combo, and wave 10 without any upgrade. Each has an `event` (with an optional `match` on the
+  payload) or a `when(state)` check.
+- `App.onGameEvent` feeds events to `hints.onEvent`, `App.tipTick()` (from `coachTick`, about 10 Hz) checks the state
+  ones and shows the next queued tip in the coach card (green border, "Tip"), one at a time, never during the tutorial or
+  while a dialog is open. It closes with Got it or after 12 s (`TIP_MS`).
+- Each tip comes once: ids go into `Hints.seen` as soon as they are queued and are stored in `os226.hints`
+  (`storage.getHints/saveHints`, unknown ids dropped). Settings: Tips on/off (`hints`) and Reset tips.
+- To add a tip: append to `HINTS` and extend the sim-test (onb).
 
 ## Combo Codex
 

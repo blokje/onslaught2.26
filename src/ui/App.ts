@@ -10,9 +10,13 @@ import { Hud } from './hud.ts';
 import { buildSettings, buildHelp, buildScores, buildGameOver, buildKeys } from './dialogs.ts';
 import { buildCodex } from './codex.ts';
 import { Tutorial } from './tutorial.ts';
+import { Hints } from './hints.ts';
+import type { Hint } from './hints.ts';
 
 /** Wave interval on the tutorial map while the coach runs: long, so no wave comes before the player sends one. */
 const TUTORIAL_WAVE_MS = 600000;
+/** A tip closes by itself after this many ms. */
+const TIP_MS = 12000;
 import { codeLookup, keyLabel, resolveBindings } from './keymap.ts';
 import { clampScale } from './storage.ts';
 import type { KeyAction } from './keymap.ts';
@@ -113,6 +117,10 @@ export class App {
   previewRange: Overlay['previewRange'] = null;
   /** Running tutorial (How to Play map), or null. */
   tutorial: Tutorial | null = null;
+  /** One-time tips: which are due and which one is on screen (with its auto-close timer). */
+  hints: Hints = new Hints(storage.getHints());
+  tipShown: Hint | null = null;
+  tipTimer: ReturnType<typeof setTimeout> | null = null;
   /** Element currently highlighted by the coach. */
   coachTargetEl: Element | null = null;
   /** KeyboardEvent.code -> action, from settings.keys over the defaults in keymap.ts. */
@@ -360,7 +368,7 @@ export class App {
   /** Show the current tutorial step in the coach card (or hide it). */
   renderCoach(): void {
     const t = this.tutorial;
-    if (!t || t.over) { this.hud.showCoach(null); this.setCoachTarget(null); return; }
+    if (!t || t.over) { this.dismissTip(false); this.hud.showCoach(null); this.setCoachTarget(null); return; }
     const st = t.step, last = t.index === t.count - 1;
     const buttons: { label: string; primary?: boolean; onClick: () => void }[] = [];
     if (t.index > 0) buttons.push({ label: 'Back', onClick: () => { t.back(); this.renderCoach(); } });
@@ -379,6 +387,33 @@ export class App {
     this.renderCoach();
     this.hud.toast(skipped ? 'Tutorial skipped. Replay it from the menu.' : 'Tutorial done. Waves now come by themselves.');
   }
+
+  /** Tips (setting hints): queue state-based ones, show the next when none is on screen. Never during the tutorial. */
+  tipTick(): void {
+    if (!this.settings.hints || !this.game) return;
+    const before = this.hints.seen.size;
+    this.hints.onState(this.game.state);
+    if (this.hints.seen.size !== before) storage.saveHints(this.hints.seen);
+    if (this.tipShown || this.modalOpen()) return;
+    const h = this.hints.next();
+    if (!h) return;
+    storage.saveHints(this.hints.seen);
+    this.tipShown = h;
+    this.hud.showCoach({ key: 'tip:' + h.id, tip: true, title: h.title, text: h.text((a) => this.keyFor(a)), buttons: [{ label: 'Got it', primary: true, onClick: () => this.dismissTip(true) }] });
+    if (this.tipTimer) clearTimeout(this.tipTimer);
+    this.tipTimer = setTimeout(() => { if (this.tipShown === h) this.dismissTip(true); }, TIP_MS);
+  }
+
+  /** Close the tip on screen (`redraw`: hide the coach card now). */
+  dismissTip(redraw: boolean): void {
+    if (this.tipTimer) { clearTimeout(this.tipTimer); this.tipTimer = null; }
+    if (!this.tipShown) return;
+    this.tipShown = null;
+    if (redraw) this.hud.showCoach(null);
+  }
+
+  /** Forget which tips were shown (Settings > Reset tips). */
+  resetTips(): void { this.dismissTip(true); this.hints = new Hints(); storage.saveHints([]); }
 
   /** Highlight one element for the coach (class os-coach-target), or none. Re-applied each tick: panels rebuild. */
   setCoachTarget(selector: string | null): void {
@@ -479,6 +514,7 @@ export class App {
   onGameEvent(name: GameEventName, p: LooseEvent): void {
     const a = this.audio;
     if (this.tutorial) this.tutorial.observe(name, typeof p.kind === 'string' ? p.kind : undefined);
+    else if (this.settings.hints) this.hints.onEvent(name, p as Record<string, unknown>);
     switch (name) {
       case 'shot': {
         let kind: string | null | undefined = p.kind;
@@ -591,7 +627,8 @@ export class App {
   /** Advance the tutorial when its goal is met, keep the highlight on the (rebuilt) target. */
   coachTick(): void {
     const t = this.tutorial;
-    if (!t || !this.game) return;
+    if (!this.game) return;
+    if (!t) { this.tipTick(); return; }
     if (t.check({ state: this.game.state, tab: this.hud.refs?.active ?? null })) this.renderCoach();
     else if (!t.over) this.setCoachTarget(t.step.target || null);
   }

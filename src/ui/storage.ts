@@ -2,6 +2,7 @@
 // an in-memory fallback keeps the game working when storage is disabled or full.
 
 import { cleanKeyOverrides } from './keymap.ts';
+import { cleanHintIds } from './hints.ts';
 import { COMBOS } from '../data/combos.ts';
 
 const COMBO_IDS: ReadonlySet<string> = new Set(Object.values(COMBOS).flat().map((r) => r.id));
@@ -32,6 +33,7 @@ export interface Settings {
   reduceMotion: boolean;
   sfxVolume: number;
   tutorialDone: boolean;
+  hints: boolean;
   uiVolume: number;
   infoCollapsed: boolean;
   panelPos: PanelPos | null;
@@ -89,7 +91,9 @@ export const DEFAULT_SETTINGS: Settings = {
   colorSymbols: true,   // accessibility: shape badge of the combo colour on every turret on the map
   uiScale: 1,           // accessibility: UI size factor, UI_SCALE.min to UI_SCALE.max
   highContrast: false,  // accessibility: solid panels, brighter secondary text, stronger outlines
-  tutorialDone: false,  // the tutorial was finished or skipped (hides the menu banner)
+  tutorialDone: false,
+  hints: true,          // one-time tips (src/ui/hints.ts) in the coach card
+  // the tutorial was finished or skipped (hides the menu banner)
   sfxVolume: 1,         // game effects bus (shots, blasts, combos), on top of the master volume
   uiVolume: 1,          // interface bus (clicks, build, upgrade, sell, errors)
   reduceMotion: false,  // accessibility: calm UI and map; when never saved, getSettings() follows prefers-reduced-motion
@@ -205,6 +209,10 @@ export function getCodex(): Record<string, number> {
   }
   return out;
 }
+
+/** Ids of the tips already shown (unknown ids dropped). */
+export function getHints(): string[] { return cleanHintIds(read<unknown>('hints', [])); }
+export function saveHints(ids: Iterable<string>): void { write('hints', cleanHintIds([...ids])); }
 
 /** Count one firing of a combo recipe in the Codex. */
 export function recordCombo(id: string): void {

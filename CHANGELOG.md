@@ -6,6 +6,12 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
 ## Unreleased
 
 ### Added (2026 roadmap, phase 2: onboarding)
+- One-time tips in the coach card: the first leak, few lives left, the first modifier and late-weapon unlocks,
+  freak-out, a turret ready for combos, the first combo, and wave 10 without upgrades. Each shows once (stored in
+  `os226.hints`), never during the tutorial, closes with Got it or after 12 s. Settings: Tips on/off (`hints`) and Reset
+  tips. New `src/ui/hints.ts`. New sim-test checks (onb). Checked in Chromium (tip on the first leak, not repeated,
+  stored; no tips during the tutorial; steady highlight with reduce motion; no console errors).
+  Docs: `ARCHITECTURE.md`, `README.md`, `docs/claude/ui.md`, `docs/claude/testing.md`.
 - Interactive tutorial on the How to Play map: 8 steps you play (build, send a wave, upgrade, targeting, a second turret,
   combos) in a coach card with Back, Next and Skip, the target element outlined, texts with your own keys and read out
   for screen readers. First-start banner "New here? Play the tutorial", a Tutorial button in the menu and Replay in

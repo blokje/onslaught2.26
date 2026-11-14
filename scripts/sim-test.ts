@@ -9,6 +9,7 @@ import { COLOR_SYMBOL } from '../src/ui/colors.ts';
 import { clampScale, getSettings, getCodex, recordCombo } from '../src/ui/storage.ts';
 import { describeCombo, partnerList, COMBO_COUNT } from '../src/ui/codex.ts';
 import { Tutorial, TUTORIAL_STEPS } from '../src/ui/tutorial.ts';
+import { Hints, HINTS, cleanHintIds } from '../src/ui/hints.ts';
 import { COMBOS } from '../src/data/combos.ts';
 import { formatNum } from '../src/ui/format.ts';
 import { AudioEngine, UI_SOUNDS, busOf } from '../src/ui/audio.ts';
@@ -681,6 +682,29 @@ function makePlayer(game: Game, spots: Spot[]): () => void {
   check('(onb) tutorial: Skip ends it', t2.over);
   check('(onb) tutorial: every step text is non-empty and names the bound keys', TUTORIAL_STEPS.every((s) => s.text((k) => '<' + k + '>').length > 30)
     && TUTORIAL_STEPS.find((s) => s.id === 'upgrade')!.text((k) => '<' + k + '>').includes('<upDamage>'));
+}
+
+// ------------------------------------------------------------------ (onb) one-time tips (src/ui/hints.ts, pure)
+{
+  const hs = new Hints(['freakout']);
+  hs.onEvent('leak', { lives: 9 }); hs.onEvent('leak', { lives: 8 });
+  hs.onEvent('unlock', { kind: 'rangeUp' }); hs.onEvent('unlock', { kind: 'blue' });
+  const ids = () => { const out: string[] = []; for (let h = hs.next(); h; h = hs.next()) out.push(h.id); return out; };
+  check('(onb) tips: a leak and a modifier unlock queue their tip once, a basic unlock none', ids().join() === 'leak,modifier');
+  const g = new Game({ mapId: 'map1', mode: 'sandbox', seed: 22 });
+  const [p1] = bestSpots('map1', 1);
+  const id = must(g.build('blue', p1.x, p1.y)).id;
+  g.state.wave = 10;
+  hs.onState(g.state);
+  check('(onb) tips: wave 10 without any upgrade queues the upgrade tip', ids().join() === 'noUpgrades');
+  must(g.upgrade(id, 'damage', true)); must(g.upgrade(id, 'rate', true));
+  hs.onState(g.state);
+  check('(onb) tips: a damage-maxed weapon queues comboReady; freak-out was already seen', ids().join() === 'comboReady');
+  hs.onState(g.state); hs.onEvent('leak', {});
+  check('(onb) tips: nothing comes twice', hs.next() === null);
+  check('(onb) tips: stored ids are cleaned', cleanHintIds(['leak', 'nope', 3, null]).join() === 'leak' && cleanHintIds('x').length === 0);
+  check('(onb) tips: every tip has text that names bound keys where it mentions them', HINTS.every((h) => h.text((k) => '<' + k + '>').length > 40)
+    && HINTS.find((h) => h.id === 'comboReady')!.text((k) => '<' + k + '>').includes('<combo>'));
 }
 
 // ------------------------------------------------------------------ (q) waveActive (auto-send)
