@@ -6,7 +6,7 @@ import { waveHp, waveBounty, laneOffset } from '../src/game/Attacker.ts';
 import { ladderValue } from '../src/game/modifiers.ts';
 import { DpsTracker } from '../src/ui/dps.ts';
 import { COLOR_SYMBOL } from '../src/ui/colors.ts';
-import { clampScale, getSettings, getCodex, recordCombo } from '../src/ui/storage.ts';
+import { clampScale, getSettings, getCodex, recordCombo, saveSlot, getSlot, clearSlot, cleanSaveWrapper } from '../src/ui/storage.ts';
 import { describeCombo, partnerList, COMBO_COUNT } from '../src/ui/codex.ts';
 import { Tutorial, TUTORIAL_STEPS } from '../src/ui/tutorial.ts';
 import { Hints, HINTS, cleanHintIds } from '../src/ui/hints.ts';
@@ -822,6 +822,19 @@ function makePlayer(game: Game, spots: Spot[]): () => void {
   check('(plat) gamepad: dead zone, full tilt moves 90 px per 100 ms, half tilt much less (fine control)', still.dx === 0 && still.dy === 0 && near(full.dx, 90) && slow.dx > 0 && slow.dx < 30);
   check('(plat) gamepad: triggers count by value, every standard button 0..15 has an action', rd.poll({ buttons: [{ pressed: false }, { pressed: false }, { pressed: false }, { pressed: false }, { pressed: false }, { pressed: false }, { pressed: false, value: 0.9 }], axes: [0, 0] }, 16).actions.join() === 'upRange'
     && Array.from({ length: 16 }, (_, i) => PAD_BUTTONS[i]).every(Boolean));
+}
+
+// ------------------------------------------------------------------ (plat) save slots (src/ui/storage.ts)
+{
+  const g = new Game({ mapId: 'map3', difficulty: 'hard', seed: 41 });
+  g.sendWave(); g.advance(120);
+  const w = { v: 1, at: 123, meta: { mapId: 'map3', difficulty: 'hard', mode: 'normal', wave: g.state.wave }, data: g.serialize() };
+  saveSlot(2, w); // in Node it lands in the in-memory fallback and reports false (no localStorage)
+  check('(plat) slots: save, read back, clear; out-of-range slots refused', getSlot(2)!.meta.wave === 1 && !saveSlot(4, w) && getSlot(0) === null
+    && (clearSlot(2), getSlot(2) === null));
+  check('(plat) slots: an imported file is shape-checked (junk refused, extra fields dropped)', cleanSaveWrapper('x') === null && cleanSaveWrapper({ meta: { mapId: 1 }, data: {} }) === null
+    && JSON.stringify(Object.keys(cleanSaveWrapper({ ...w, evil: 1 })!)) === '["v","at","meta","data"]');
+  check('(plat) slots: a saved wrapper restores the same game', JSON.stringify(Game.deserialize(cleanSaveWrapper(JSON.parse(JSON.stringify(w)))!.data).serialize()) === JSON.stringify(g.serialize()));
 }
 
 // ------------------------------------------------------------------ (q) waveActive (auto-send)

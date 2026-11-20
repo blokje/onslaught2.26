@@ -60,6 +60,7 @@ npm run build:single # writes dist-single/index.html
 - **Daily challenge:** one map, difficulty and seed per day for everyone, with its own score list.
 - **Map stars:** 1 to 3 stars per map and difficulty for reaching wave 25, 50 and 100.
 - **Achievements:** 22 goals, from the first kill to all 20 combos and wave 100 on Hard.
+- Saves: three save slots next to the autosave, with export and import of save files (move a game to another device).
 - Saving: the game autosaves and you can continue later. High scores per map and difficulty.
 
 ## Controls

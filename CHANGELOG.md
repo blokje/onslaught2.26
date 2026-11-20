@@ -6,6 +6,11 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
 ## Unreleased
 
 ### Added (2026 roadmap, phase 7: platform)
+- Save slots and save files: Menu > Saves (also in the in-game menu) shows the autosave and three slots with Load, Save
+  here, Delete and Export (a JSON file), and imports a save file (shape-checked, then validated by `Game.deserialize`).
+  New storage `os226.slot1..3`, `cleanSaveWrapper`, `App.saveWrapper/loadWrapper`. New sim-test checks (plat). Checked in
+  Chromium (save to slot 1, load, export, import the file into a fresh profile, no console errors).
+  Docs: `ARCHITECTURE.md`, `README.md`, `docs/claude/ui.md`, `docs/claude/testing.md`.
 - Gamepad support (standard mapping): the left stick moves a cursor with a crosshair, A clicks, B goes back, X builds
   the highlighted turret, Y/LT/RT upgrade, LB/RB and the D-pad walk the rack or change speed, View sends a wave, Menu
   pauses; listed in the Controls overlay. New `src/ui/gamepad.ts`. New sim-test checks (plat). Checked in Chromium with

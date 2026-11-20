@@ -30,6 +30,11 @@ Optional demo builds (not part of the checks): `npx vite build --config scripts/
 CI: `.github/workflows/pages.yml` runs `npm test` (`sim-test`, `combo-test`) and `npm run build` (typecheck included) on every push to `main`
 (and on manual dispatch), then deploys `dist/` to GitHub Pages. A failing test or type error blocks the deploy. PRs are not built.
 
+## Saves
+
+In the browser: save to slot 1 from the in-game menu, quit, load it, export it (`acceptDownloads`, `waitForEvent('download')`),
+clear storage and import the file with `setInputFiles`. In Node `write()` returns false (in-memory fallback), reads still work.
+
 ## Gamepad
 
 Replace `navigator.getGamepads` in an init script with a fake standard pad (`window.__pad`, buttons and axes) and press

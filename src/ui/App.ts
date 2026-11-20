@@ -2,6 +2,7 @@
 import './ui.css';
 import { h } from './dom.ts';
 import { TURRETS, BUILD_ORDER, MOVE_COST } from '../data/turrets.ts';
+import { MAPS } from '../data/maps.ts';
 import { DIFFICULTIES, MODES, SPEEDS, TARGET_MODES } from '../data/rules.ts';
 import * as storage from './storage.ts';
 import { AudioEngine } from './audio.ts';
@@ -72,6 +73,8 @@ export interface RunReport {
 }
 export interface ScoreHighlight { mapId: string; difficulty: string; mode: string; rank: number }
 type GhostState = Overlay['ghost'];
+
+const MAPS_BY_ID: Record<string, { name: string }> = Object.fromEntries(MAPS.map((m) => [m.id, m]));
 
 let modalSeq = 0;
 
@@ -310,6 +313,7 @@ export class App {
         } },
         { label: 'Settings', cls: '', onClick: () => this.openSettings() },
         { label: 'Combo Codex', cls: '', onClick: () => this.openCodex() },
+        { label: 'Saves', cls: '', onClick: () => this.openSaves() },
         { label: 'Quit to menu', cls: 'danger', onClick: (hd) => { hd.close(); this.toMenu(); } }, // close() resumes a menu pause, so the autosave is not paused
       ],
     });
@@ -568,17 +572,79 @@ export class App {
     this.menu.show();
   }
 
-  autosave(): void {
+  /** A save wrapper of the running game (autosave, slots, export), or null (no game, game over, watching a replay). */
+  saveWrapper(): storage.SaveWrapper | null {
     const g = this.game;
-    if (!g || g.state.over || this.replayView) return;
-    try {
-      const s = g.state;
-      const data = g.serialize();
-      // the Esc menu pauses the game only while it is open, so never save that pause
-      const saved = data as { state?: { paused?: boolean } } | null;
-      if (this._pausedByMenu && saved && saved.state) saved.state.paused = false;
-      storage.saveGame({ v: 1, at: Date.now(), meta: { mapId: s.mapId, difficulty: s.difficulty, mode: s.mode, wave: s.wave, ...(this.daily ? { daily: this.daily } : {}) }, data });
-    } catch (e) { /* never break the game over a failed save */ }
+    if (!g || g.state.over || this.replayView) return null;
+    const s = g.state;
+    const data = g.serialize();
+    // the Esc menu pauses the game only while it is open, so never save that pause
+    const saved = data as { state?: { paused?: boolean } } | null;
+    if (this._pausedByMenu && saved && saved.state) saved.state.paused = false;
+    return { v: 1, at: Date.now(), meta: { mapId: s.mapId, difficulty: s.difficulty, mode: s.mode, wave: s.wave, ...(this.daily ? { daily: this.daily } : {}) }, data };
+  }
+
+  autosave(): void {
+    try { const w = this.saveWrapper(); if (w) storage.saveGame(w); } catch (e) { /* never break the game over a failed save */ }
+  }
+
+  /** Load a save wrapper (autosave, slot or import) as the running game. Returns an error text or null. */
+  loadWrapper(w: storage.SaveWrapper): string | null {
+    let game: AppGame;
+    try { game = this.restoreGame(w.data); } catch (e) { console.error(e); return e instanceof Error ? e.message : 'The save could not be loaded.'; }
+    this.closeAllModals();
+    this.attachGame(game);
+    this.daily = typeof w.meta?.daily === 'string' ? w.meta.daily : null;
+    return null;
+  }
+
+  /** Saves dialog: the autosave and the slots (load, delete, export; "Save here" while a game runs) and import. */
+  openSaves(): void {
+    const body = h('div', { class: 'os-saves' });
+    const msg = h('p', { class: 'os-hint' }, '');
+    const desc = (w: storage.SaveWrapper | null): string => {
+      if (!w) return 'Empty';
+      const map = MAPS_BY_ID[w.meta.mapId];
+      let when = '';
+      try { when = w.at ? new Date(w.at).toLocaleString() : ''; } catch (e) { /* ignore */ }
+      return `${map ? map.name : w.meta.mapId}, ${DIFFICULTIES[w.meta.difficulty]?.name || w.meta.difficulty}${w.meta.mode === 'sandbox' ? ' (Sandbox)' : ''}, wave ${w.meta.wave}${w.meta.daily ? ', daily ' + w.meta.daily : ''}${when ? ' - ' + when : ''}`;
+    };
+    const exportFile = (w: storage.SaveWrapper): void => {
+      const url = URL.createObjectURL(new Blob([JSON.stringify(w)], { type: 'application/json' }));
+      const a = h('a', { href: url, download: `onslaught-save-${w.meta.mapId}-wave${w.meta.wave}.json` });
+      document.body.append(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    };
+    const btn = (label: string, fn: () => void, cls = ''): HTMLButtonElement => { const b = h('button', { class: 'os-btn small ' + cls, type: 'button' }, label); b.addEventListener('click', fn); return b; };
+    const render = (): void => {
+      const rows: HTMLElement[] = [];
+      const auto = storage.loadGame();
+      rows.push(h('div', { class: 'os-save-row' }, h('b', null, 'Autosave'), h('span', null, desc(auto)),
+        auto ? btn('Load', () => { msg.textContent = this.loadWrapper(auto) || ''; }) : null, auto ? btn('Export', () => exportFile(auto)) : null));
+      const cur = this.saveWrapper();
+      for (let i = 1; i <= storage.SLOT_COUNT; i++) {
+        const w = storage.getSlot(i);
+        rows.push(h('div', { class: 'os-save-row' }, h('b', null, 'Slot ' + i), h('span', null, desc(w)),
+          cur ? btn('Save here', () => { const c = this.saveWrapper(); if (c && storage.saveSlot(i, c)) { msg.textContent = 'Saved in slot ' + i + '.'; render(); } else msg.textContent = 'Could not save (storage full or disabled?).'; }, 'primary') : null,
+          w ? btn('Load', () => { msg.textContent = this.loadWrapper(w) || ''; }) : null,
+          w ? btn('Export', () => exportFile(w)) : null,
+          w ? btn('Delete', () => { storage.clearSlot(i); msg.textContent = 'Slot ' + i + ' cleared.'; render(); }, 'danger') : null));
+      }
+      body.replaceChildren(...rows);
+    };
+    const file = h('input', { type: 'file', accept: '.json,application/json', 'aria-label': 'Import a save file' });
+    file.addEventListener('change', () => {
+      const f = file.files && file.files[0];
+      if (!f) return;
+      f.text().then((t) => {
+        let w: storage.SaveWrapper | null = null;
+        try { w = storage.cleanSaveWrapper(JSON.parse(t)); } catch (e) { w = null; }
+        msg.textContent = w ? (this.loadWrapper(w) || '') : 'That file is not an OnSlaught2.26 save.';
+      }, () => { msg.textContent = 'Could not read the file.'; });
+    });
+    render();
+    this.openModal('Saves', h('div', { class: 'os-help' }, body, h('h3', null, 'Import'), h('p', { class: 'os-hint' }, 'Load a save file exported here or on another device:'), file, msg),
+      { cls: 'wide', buttons: [{ label: 'Close', cls: 'primary', onClick: (hd) => hd.close() }] });
   }
 
   // =================================================================== game events

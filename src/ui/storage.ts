@@ -196,6 +196,22 @@ export function loadGame(): SaveWrapper | null {
 /** Delete the autosave. */
 export function clearGame(): void { remove('save'); }
 
+/** Manual save slots 1..SLOT_COUNT (os226.slot1 ...), next to the autosave. */
+export const SLOT_COUNT = 3;
+/** A save wrapper read from untrusted data (a slot or an imported file): shape checked, the game data itself is checked by restoreGame. */
+export function cleanSaveWrapper(v: unknown): SaveWrapper | null {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const w = v as Record<string, unknown>;
+  const m = w.meta as Record<string, unknown> | undefined;
+  if (!w.data || typeof w.data !== 'object' || !m || typeof m !== 'object') return null;
+  if (typeof m.mapId !== 'string' || typeof m.difficulty !== 'string' || typeof m.mode !== 'string' || !Number.isFinite(m.wave)) return null;
+  return { v: 1, at: Number.isFinite(w.at) ? (w.at as number) : 0, meta: { mapId: m.mapId, difficulty: m.difficulty, mode: m.mode, wave: m.wave as number, ...(typeof m.daily === 'string' ? { daily: m.daily } : {}) }, data: w.data };
+}
+const slotOk = (i: number): boolean => Number.isInteger(i) && i >= 1 && i <= SLOT_COUNT;
+export function getSlot(i: number): SaveWrapper | null { return slotOk(i) ? cleanSaveWrapper(read<unknown>('slot' + i, null)) : null; }
+export function saveSlot(i: number, w: SaveWrapper): boolean { return slotOk(i) && write('slot' + i, w); }
+export function clearSlot(i: number): void { if (slotOk(i)) remove('slot' + i); }
+
 // Resets unlocks, high scores and the autosave (settings are kept).
 export function resetProgress(): void {
   remove('unlocks');
@@ -205,6 +221,7 @@ export function resetProgress(): void {
   remove('achievements');
   remove('stats');
   remove('daily');
+  for (let i = 1; i <= SLOT_COUNT; i++) remove('slot' + i);
 }
 
 /** Daily challenge scores: top 10 per UTC day key ("YYYY-MM-DD"), the last 30 days kept. */

@@ -181,6 +181,14 @@ The panel is docked top right by CSS, which can cover the road on some maps, so 
 - Saved in settings as `panelPos` (`{ x, y }` in CSS px from the HUD's top-left, `null` = the default dock), written once when the drag ends.
 - A second press on the header within 350 ms (double-click or double-tap) puts the panel back in the default dock. This is detected in `pointerdown`, because pointer capture retargets a `dblclick` event to the panel itself.
 
+## Saves
+
+Menu > Saves (also in the in-game menu): the autosave and three slots, each with Load, Export (a `.json` file of the
+save wrapper) and, for slots, Delete and "Save here" while a game runs (`App.saveWrapper()`, the same wrapper the
+autosave writes). Import loads a file exported here or on another device: `storage.cleanSaveWrapper` checks its shape,
+`restoreGame` (`Game.deserialize`) validates the game itself; errors are shown in the dialog. `App.loadWrapper` attaches
+the loaded game and keeps a daily key. Reset progress clears the slots too.
+
 ## Gamepad
 
 `App.padTick()` (every frame) reads the first connected pad from `navigator.getGamepads()`. The left stick moves the
