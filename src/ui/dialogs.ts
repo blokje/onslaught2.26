@@ -88,7 +88,7 @@ export function buildSettings(app: App): HTMLElement {
     field('Screen shake', 'The view shakes a little on big explosions. Always off with Reduce motion.', check('screenShake')),
     field('Reduce motion and flashes', 'No blinking, pulsing or shaking; dimmer explosions. Starts on when your system asks for less motion.', check('reduceMotion')),
     field('Colour shapes on the map', 'Each turret shows the shape of its combo colour: red triangle, green circle, blue square, yellow diamond.', check('colorSymbols')),
-    field('Saved progress', 'Unlocks, high scores and the autosave.', resetBtn));
+    field('Saved progress', 'Unlocks, high scores, the autosave, Combo Codex counts and achievements.', resetBtn));
 }
 
 // ---------------- Controls (? key): overview and rebinding ----------------

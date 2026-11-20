@@ -3,6 +3,7 @@
 
 import { cleanKeyOverrides } from './keymap.ts';
 import { cleanHintIds } from './hints.ts';
+import { cleanEarned } from './achievements.ts';
 import { COMBOS } from '../data/combos.ts';
 
 const COMBO_IDS: ReadonlySet<string> = new Set(Object.values(COMBOS).flat().map((r) => r.id));
@@ -201,7 +202,24 @@ export function resetProgress(): void {
   remove('scores');
   remove('save');
   remove('codex');
+  remove('achievements');
+  remove('stats');
 }
+
+/** Earned achievements: id -> ISO date (unknown ids dropped). */
+export function getEarned(): Record<string, string> { return cleanEarned(read<unknown>('achievements', {})); }
+export function saveEarned(e: Record<string, string>): void { write('achievements', cleanEarned(e)); }
+
+/** Lifetime stats for achievements: maps a game was started on, daily challenges finished. */
+export interface Stats { maps: string[]; dailies: number }
+export function getStats(): Stats {
+  const raw = read<unknown>('stats', {});
+  const o = (raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}) as Record<string, unknown>;
+  const maps = Array.isArray(o.maps) ? o.maps.filter((m): m is string => typeof m === 'string' && m.length < 40).slice(0, 200) : [];
+  const dailies = typeof o.dailies === 'number' && Number.isFinite(o.dailies) && o.dailies > 0 ? Math.floor(o.dailies) : 0;
+  return { maps, dailies };
+}
+export function saveStats(s: Stats): void { write('stats', s); }
 
 /** Combo Codex: times each recipe was fired, over all games. Unknown ids and bad counts are dropped. */
 export function getCodex(): Record<string, number> {

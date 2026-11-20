@@ -16,6 +16,7 @@ DOM overlay over the canvas, input, persistence and audio. Contract: `ARCHITECTU
 | `tutorial.ts` | Interactive tutorial: `TUTORIAL_STEPS` and the `Tutorial` step machine (pure, tested in sim-test). |
 | `hints.ts` | One-time tips: `HINTS` (event- or state-triggered) and the `Hints` queue (pure, tested in sim-test). |
 | `music.ts` | Adaptive synthesized music: `musicStep(step, intensity)` and `musicTempo` (pure, tested), `musicIntensity(state)`, `MusicPlayer` (look-ahead scheduler on the music bus). |
+| `achievements.ts` | `ACHIEVEMENTS` (22 pure checks on an `AchCtx`), `newlyEarned`, `cleanEarned` (tested in sim-test). |
 | `codex.ts` | Combo Codex: `describeCombo(recipe)` builds the effect line from the recipe's `fx` data (pure, tested in sim-test), `partnerList`, `buildCodex(fired)` the dialog body. |
 | `colors.ts` | Combo colours with shapes: `COMBO_HEX`, `COLOR_SYMBOL`, `colorName`, `colorDot` (shared by the HUD and the Codex). |
 | `format.ts` | Big numbers: 1,234 then 12.3K, 4.56M, 7.89B, 1.23T, then 1.23e15. |
@@ -101,6 +102,15 @@ DOM overlay over the canvas, input, persistence and audio. Contract: `ARCHITECTU
 - Each tip comes once: ids go into `Hints.seen` as soon as they are queued and are stored in `os226.hints`
   (`storage.getHints/saveHints`, unknown ids dropped). Settings: Tips on/off (`hints`) and Reset tips.
 - To add a tip: append to `HINTS` and extend the sim-test (onb).
+
+## Achievements
+
+`App.checkAchievements(event?)` builds an `AchCtx` (game state, Combo Codex ids, maps started, tutorial done, start lives,
+dailies) and earns everything new: toast, log line, unlock sound, saved in `os226.achievements`. It runs on `combo`,
+`gameover` and the first `kill` event, about once a second from `tick()`, on game start and when the tutorial ends.
+Sandbox games never count for wave, score or cash goals (`real()` in `achievements.ts`). The menu button "Achievements"
+lists all of them with the date earned. Reset progress clears them and the stats. To add one: append to `ACHIEVEMENTS`
+and extend the sim-test (mot).
 
 ## Combo Codex
 

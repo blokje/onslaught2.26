@@ -11,6 +11,7 @@ import { describeCombo, partnerList, COMBO_COUNT } from '../src/ui/codex.ts';
 import { Tutorial, TUTORIAL_STEPS } from '../src/ui/tutorial.ts';
 import { Hints, HINTS, cleanHintIds } from '../src/ui/hints.ts';
 import { musicStep, musicTempo, musicIntensity } from '../src/ui/music.ts';
+import { ACHIEVEMENTS, newlyEarned, cleanEarned } from '../src/ui/achievements.ts';
 import { COMBOS } from '../src/data/combos.ts';
 import { formatNum } from '../src/ui/format.ts';
 import { AudioEngine, UI_SOUNDS, busOf } from '../src/ui/audio.ts';
@@ -720,6 +721,28 @@ function makePlayer(game: Game, spots: Spot[]): () => void {
   check('(feel) music: intensity is low before wave 1, rises with attackers and lost lives, stays in 0..1',
     musicIntensity(base, 10) <= 0.15 && musicIntensity({ ...base, wave: 3 }, 10) < musicIntensity({ ...base, wave: 3, attackers: Array(30).fill({}) }, 10)
     && musicIntensity({ ...base, wave: 3, lives: 2, attackers: Array(50).fill({}) }, 10) <= 1);
+}
+
+// ------------------------------------------------------------------ (mot) achievements (src/ui/achievements.ts, pure)
+{
+  const ids = (xs: { id: string }[]): string => xs.map((x) => x.id).sort().join();
+  const base = { codex: new Set<string>(), mapsPlayed: new Set<string>(), tutorialDone: false, startLives: 10, dailies: 0 };
+  const g = new Game({ mapId: 'map1', difficulty: 'medium', seed: 30 });
+  check('(mot) achievements: nothing for a fresh game', ids(newlyEarned({}, { ...base, state: g.state })) === '');
+  check('(mot) achievements: first kill and first combo from events', ids(newlyEarned({}, { ...base, state: g.state, event: { name: 'kill', payload: {} } })) === 'firstKill'
+    && ids(newlyEarned({}, { ...base, state: g.state, event: { name: 'combo', payload: { id: 'nuke' } } })) === 'firstCombo,nuke');
+  g.state.wave = 30;
+  check('(mot) achievements: wave 30 on Medium with all lives earns wave25 and clean30, not wave50', ids(newlyEarned({}, { ...base, state: g.state })) === 'clean30,wave25');
+  g.state.lives = 9;
+  check('(mot) achievements: a lost life blocks clean30', !newlyEarned({}, { ...base, state: g.state }).some((x) => x.id === 'clean30'));
+  check('(mot) achievements: already earned ones are not repeated', ids(newlyEarned({ wave25: 'x' }, { ...base, state: g.state })) === '');
+  const sb = new Game({ mapId: 'map1', mode: 'sandbox', seed: 31 });
+  sb.state.wave = 120; sb.state.cash = 1e7;
+  check('(mot) achievements: sandbox never counts for wave or cash goals', ids(newlyEarned({}, { ...base, state: sb.state })) === '');
+  const allCodex = new Set(Object.values(COMBOS).flat().map((r) => r.id));
+  check('(mot) achievements: codex, maps, tutorial and daily goals', ids(newlyEarned({}, { ...base, state: null, codex: allCodex, mapsPlayed: new Set(MAPS.map((m) => m.id)), tutorialDone: true, dailies: 1 }))
+    === 'allMaps,blackHole,combos10,combos20,daily,firstCombo,nuke,tutorial');
+  check('(mot) achievements: stored data is cleaned', JSON.stringify(cleanEarned({ nuke: '2026', bogus: 'x', wave25: 5 })) === '{"nuke":"2026"}' && ACHIEVEMENTS.length >= 20);
 }
 
 // ------------------------------------------------------------------ (q) waveActive (auto-send)

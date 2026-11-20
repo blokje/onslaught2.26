@@ -198,7 +198,8 @@ pooled meshes for attackers/projectiles).
 - **Persistence** (`src/ui/storage.ts`, localStorage key prefix `os226.`, all access in try/catch):
   settings, unlocks (Extreme after reaching wave 100 on Medium, Sandbox after wave 50 on anything),
   high scores per map+difficulty (top 10), autosave of the running game every 10 s and on page hide,
-  the Combo Codex counts (`os226.codex`, times each recipe was fired over all games), the ids of tips already shown (`os226.hints`).
+  the Combo Codex counts (`os226.codex`, times each recipe was fired over all games), the ids of tips already shown (`os226.hints`),
+  earned achievements (`os226.achievements`, id -> date) and lifetime stats (`os226.stats`: maps started, dailies finished).
 - **Settings**: master volume / mute, wave interval override, snap-to-grid toggle (grid 22 units), unlock-all switch,
   show FPS, `autoPause` (pause while the tab is hidden), `autoSend` (send the next wave when the field is clear, see
   `game.waveActive()`), `panelPos` (moved turret panel), `keys` (rebound keys: `{ action: KeyboardEvent.code }`, only

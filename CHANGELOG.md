@@ -5,6 +5,15 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
 
 ## Unreleased
 
+### Added (2026 roadmap, phase 5: motivation)
+- Achievements: 22 local goals (first kill and combo, Nuke, Black Hole, 10 and 20 combos discovered, freak-out, a fully
+  upgraded weapon, all modifiers, 50 turrets, $100K, waves 25/50/100, Hard and Extreme goals, a clean run to wave 30, an
+  extra map, every map, a billion points, a daily challenge). Toast and log on earning, an overview in the menu. Sandbox
+  never counts for wave, score or cash goals. New `src/ui/achievements.ts`, storage `os226.achievements` and
+  `os226.stats`; Reset progress clears them. New sim-test checks (mot). Checked in Chromium (First Blood toast on the
+  first kill, stored, listed 1 of 22 in the menu, no console errors).
+  Docs: `ARCHITECTURE.md`, `README.md`, `docs/claude/ui.md`, `docs/claude/testing.md`.
+
 ### Added (2026 roadmap, phase 4: game feel)
 - Soft screen transitions: the menu and the HUD fade in, dialogs fade and pop in. None with reduce motion. CSS only.
   Checked in Chromium (dialog focus and reduce-motion checks still pass, no console errors). Docs: `docs/claude/ui.md`.

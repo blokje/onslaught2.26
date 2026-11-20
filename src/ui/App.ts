@@ -12,6 +12,7 @@ import { buildCodex } from './codex.ts';
 import { Tutorial } from './tutorial.ts';
 import { Hints } from './hints.ts';
 import { musicIntensity } from './music.ts';
+import { ACHIEVEMENTS, newlyEarned } from './achievements.ts';
 import type { Hint } from './hints.ts';
 
 /** Wave interval on the tutorial map while the coach runs: long, so no wave comes before the player sends one. */
@@ -121,6 +122,9 @@ export class App {
   /** One-time tips: which are due and which one is on screen (with its auto-close timer). */
   hints: Hints = new Hints(storage.getHints());
   tipShown: Hint | null = null;
+  /** Earned achievements (id -> date), loaded once and saved on change. */
+  earned: Record<string, string> = storage.getEarned();
+  _achTick = 0;
   tipTimer: ReturnType<typeof setTimeout> | null = null;
   /** Element currently highlighted by the coach. */
   coachTargetEl: Element | null = null;
@@ -333,6 +337,7 @@ export class App {
 
   resetProgress(): void {
     storage.resetProgress();
+    this.earned = {};
     this.unlocks = storage.getUnlocks();
     this.menu.refresh();
   }
@@ -363,6 +368,42 @@ export class App {
     try { game = this.createGame(opts); } catch (e) { console.error(e); this.menu.show(); this.menu.flash('Could not start the game.'); return; }
     this.attachGame(game);
     if (tut) { this.tutorial = new Tutorial(); this.renderCoach(); }
+    const st = storage.getStats();
+    if (!st.maps.includes(sel.mapId)) { st.maps.push(sel.mapId); storage.saveStats(st); }
+    this.checkAchievements();
+  }
+
+  /** Earn any new achievements for the current state (and the event that triggered the check, if any). */
+  checkAchievements(event?: { name: string; payload: Record<string, unknown> }): void {
+    const g = this.game;
+    const st = storage.getStats();
+    const ctx = {
+      state: g ? g.state : null, event, codex: new Set(Object.keys(storage.getCodex())), mapsPlayed: new Set(st.maps),
+      tutorialDone: !!this.settings.tutorialDone, startLives: g ? DIFFICULTIES[g.state.difficulty]?.lives || 10 : 10, dailies: st.dailies,
+    };
+    const fresh = newlyEarned(this.earned, ctx);
+    if (!fresh.length) return;
+    const now = new Date().toISOString();
+    for (const a of fresh) {
+      this.earned[a.id] = now;
+      this.hud.toast('Achievement: ' + a.name, 'unlock');
+      this.hud.addLog('Achievement unlocked: ' + a.name + ' (' + a.desc + ')');
+    }
+    this.audio.play('unlock');
+    storage.saveEarned(this.earned);
+  }
+
+  openAchievements(): void {
+    const done = ACHIEVEMENTS.filter((a) => this.earned[a.id]).length;
+    const list = h('div', { class: 'os-ach-list' }, ...ACHIEVEMENTS.map((a) => {
+      const d = this.earned[a.id];
+      let when = '';
+      try { if (d) when = new Date(d).toLocaleDateString(); } catch (e) { /* ignore */ }
+      return h('div', { class: 'os-ach' + (d ? ' done' : '') }, h('span', { class: 'os-ach-mark', 'aria-hidden': 'true' }, d ? '\u2605' : '\u2606'),
+        h('div', null, h('b', null, a.name), h('div', { class: 'os-hint' }, a.desc)), h('span', { class: 'os-ach-when' }, d ? when : 'locked'));
+    }));
+    this.openModal('Achievements', h('div', null, h('p', { class: 'os-hint' }, `Earned ${done} of ${ACHIEVEMENTS.length}. Sandbox games do not count for wave, score or cash goals.`), list),
+      { cls: 'wide', buttons: [{ label: 'Close', cls: 'primary', onClick: (hd) => hd.close() }] });
   }
 
   /** Start the interactive tutorial on the How to Play map (Easy, Normal mode). */
@@ -386,6 +427,7 @@ export class App {
     if (!this.tutorial) return;
     this.tutorial = null;
     this.updateSettings({ tutorialDone: true });
+    this.checkAchievements();
     this.restoreWaveInterval();
     this.renderCoach();
     this.hud.toast(skipped ? 'Tutorial skipped. Replay it from the menu.' : 'Tutorial done. Waves now come by themselves.');
@@ -517,6 +559,7 @@ export class App {
   onGameEvent(name: GameEventName, p: LooseEvent): void {
     const a = this.audio;
     if (this.tutorial) this.tutorial.observe(name, typeof p.kind === 'string' ? p.kind : undefined);
+    if (name === 'combo' || name === 'gameover' || (name === 'kill' && !this.earned.firstKill)) this.checkAchievements({ name, payload: p as Record<string, unknown> });
     else if (this.settings.hints) this.hints.onEvent(name, p as Record<string, unknown>);
     switch (name) {
       case 'shot': {
@@ -637,6 +680,7 @@ export class App {
     if (this.mode === 'build' || this.mode === 'move') this.cursorDirty = true;   // validity depends on cash, camera may move
     this.hud.update();
     this.coachTick();
+    if (++this._achTick % 10 === 0) this.checkAchievements(); // about once a second
   }
 
   /** Advance the tutorial when its goal is met, keep the highlight on the (rebuilt) target. */
