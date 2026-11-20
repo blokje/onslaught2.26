@@ -40,6 +40,16 @@ const dot = colorDot;
 const formatWait = (ms: number): string => (ms <= 0 ? 'ready' : (ms / 1000).toFixed(1) + 's');
 const formatAgo = (ms: number): string => { const sec = Math.max(0, Math.floor(ms / 1000)); return sec < 60 ? sec + 's ago' : Math.floor(sec / 60) + 'm ago'; };
 
+/** Long-press time (ms) on a rack slot that shows the turret's info on touch screens. */
+const LONG_PRESS_MS = 450;
+/** Below this window width (CSS px) the HUD uses the phone layout (see the max-width media query in ui.css). */
+export const NARROW_PX = 760;
+/** One line about a turret kind for the long-press toast. */
+const slotInfo = (kind: string): string => {
+  const d = TURRETS[kind];
+  return `${d.name}, ${formatCash(d.cost)}${d.unlockKills ? ' (unlocks at ' + formatNum(d.unlockKills) + ' kills)' : ''}: ${d.blurb}`;
+};
+
 export const hotkeyLabel = (i: number): string => (i < 8 ? String(i + 1) : '⇧' + (i - 7));
 
 /** Cached DOM references of one upgrade row in the turret panel. */
@@ -182,7 +192,18 @@ export class Hud {
         h('span', { class: 'os-nm' }, def.name),
         h('span', { class: 'os-cost' }, formatCash(def.cost)),
         h('span', { class: 'os-lockov' }, h('i', { html: LOCK_SVG }), lockTxt));
-      slot.addEventListener('click', (e) => { app.armKind(kind, e.shiftKey); slot.blur(); });
+      // touch: a long press shows what the turret is (there is no hover tooltip on a phone) instead of arming it
+      let pressTimer: ReturnType<typeof setTimeout> | null = null, longPress = false;
+      slot.addEventListener('pointerdown', (e) => {
+        longPress = false;
+        if (e.pointerType !== 'touch') return;
+        pressTimer = setTimeout(() => { longPress = true; this.toast(slotInfo(kind)); }, LONG_PRESS_MS);
+      });
+      const cancelPress = (): void => { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } };
+      slot.addEventListener('pointerup', cancelPress);
+      slot.addEventListener('pointerleave', cancelPress);
+      slot.addEventListener('contextmenu', (e) => e.preventDefault());
+      slot.addEventListener('click', (e) => { if (longPress) { longPress = false; return; } app.armKind(kind, e.shiftKey); slot.blur(); });
       slot.addEventListener('pointerdown', () => { app.rackIndex = i; });
       this.rack.append(slot);
       return { kind, el: slot, lockTxt, def };
@@ -424,7 +445,8 @@ export class Hud {
   applyPanelPos(): void {
     const p = this.app.settings.panelPos;
     const st = this.side.style;
-    if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y)) { st.left = st.top = st.right = st.maxHeight = ''; return; }
+    // narrow screens dock the panel as a bottom sheet (CSS); a dragged position would not fit there
+    if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y) || window.innerWidth <= NARROW_PX) { st.left = st.top = st.right = st.maxHeight = ''; return; }
     if (this.side.classList.contains('on')) this.placePanel(p.x, p.y);
   }
 

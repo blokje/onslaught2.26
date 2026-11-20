@@ -30,6 +30,12 @@ Optional demo builds (not part of the checks): `npx vite build --config scripts/
 CI: `.github/workflows/pages.yml` runs `npm test` (`sim-test`, `combo-test`) and `npm run build` (typecheck included) on every push to `main`
 (and on manual dispatch), then deploys `dist/` to GitHub Pages. A failing test or type error blocks the deploy. PRs are not built.
 
+## Phones
+
+Emulate `devices['iPhone 13']` and `devices['iPhone 13 landscape']` in Playwright: no horizontal overflow, tap a rack
+slot then the field to build (the field fits the screen with a 3% margin), the panel position, and a long press (CDP
+`Input.dispatchTouchEvent`) on a slot shows its info without arming it.
+
 ## Offline and install (PWA)
 
 `public/` holds `manifest.webmanifest`, `sw.js` and `icons/` (copied into `dist/` by Vite). The service worker only

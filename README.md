@@ -4,7 +4,8 @@ A browser tower-defense game. Protect your base from endless waves by building t
 upgrading them, boosting them with modifiers and arranging them into combos (nukes, black holes, cluster bombs and more).
 It remakes the mechanics of a classic 2007 Flash game, with all-new code, art and sound.
 
-Runs full-window in any modern browser, with zoom and pan. Built for desktop (mouse and keyboard); iPad works in landscape.
+Runs full-window in any modern browser, with zoom and pan. Built for desktop (mouse and keyboard); tablets and phones work
+in both orientations.
 
 ## About this project
 

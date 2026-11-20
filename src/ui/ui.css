@@ -373,7 +373,7 @@
 /* rotate notice */
 .os-rotate { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; flex-direction: column; gap: 1em; background: #130e08; pointer-events: auto; z-index: 50; text-align: center; font-size: 1.4em; font-weight: 700; color: var(--amber-hi); }
 .os-rotate svg { width: 5em; height: 5em; animation: os-rot 2.2s ease-in-out infinite; }
-@media (orientation: portrait) and (pointer: coarse) { .os-rotate { display: flex; } }
+/* portrait is supported (phone layout below), so the rotate notice is no longer shown */
 
 /* ---------- animations ---------- */
 @keyframes os-fade { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
@@ -399,4 +399,32 @@
 @media (max-height: 700px) {
   .os-logo h1 { font-size: 2.5em; }
   .os-logo svg { width: 3.4em; height: 3.4em; }
+}
+
+/* ---------- phones and narrow windows (NARROW_PX in hud.ts) ---------- */
+@media (max-width: 760px) {
+  .os-menu { align-items: flex-start; }
+  .os-menu-card { padding: 0.7em; }
+  .os-menu-main { grid-template-columns: 1fr; }
+  .os-maps { grid-template-columns: repeat(3, 1fr); max-height: none; overflow: visible; }
+  .os-logo h1 { font-size: 2.1em; }
+  .os-logo svg { width: 2.8em; height: 2.8em; }
+  .os-top { left: 0.3em; right: 0.3em; gap: 0.25em; justify-content: center; }
+  .os-stat { min-width: 3.2em; }
+  .os-rack { width: calc(100% - 0.6em); overflow-x: auto; overscroll-behavior-x: contain; touch-action: pan-x; scrollbar-width: none; }
+  .os-slot { flex: 0 0 4.3em; max-width: none; }
+  .os-side { left: 0.3em; right: 0.3em; width: auto; top: auto; bottom: 6.4em; max-height: 46%; }
+  .os-coach { left: 0.3em; right: 0.3em; width: auto; min-width: 0; transform: none; }
+  .os-modal { width: calc(100vw - 1em); }
+}
+/* short screens (a phone in landscape): the panel goes back to the right as a narrow column, so the field stays free */
+@media (max-height: 500px) {
+  .os-side { left: auto; right: 0.3em; width: min(16em, 40vw); top: calc(var(--top-h, 4.2em) + 0.3em); bottom: 6.2em; max-height: none; font-size: 0.85em; }
+  .os-coach { font-size: 0.85em; }
+}
+/* touch: bigger targets */
+@media (pointer: coarse) {
+  .os-btn { min-height: 2.5em; }
+  .os-iconbtn { min-width: 2.2em; min-height: 2.2em; }
+  .os-tab { min-height: 2.4em; }
 }

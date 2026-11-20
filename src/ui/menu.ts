@@ -111,7 +111,8 @@ export class Menu {
     });
     // arrow keys move between maps (the grid has MAP_COLS columns); Enter or Space picks one
     maps.addEventListener('keydown', (e) => {
-      const step = ({ ArrowLeft: -1, ArrowRight: 1, ArrowUp: -MAP_COLS, ArrowDown: MAP_COLS } as Record<string, number>)[e.key];
+      const cols = getComputedStyle(maps).gridTemplateColumns.split(' ').length || MAP_COLS; // 3 on a phone
+      const step = ({ ArrowLeft: -1, ArrowRight: 1, ArrowUp: -cols, ArrowDown: cols } as Record<string, number>)[e.key];
       if (!step) return;
       const list = [...this.mapBtns.values()];
       const i = list.indexOf(document.activeElement as HTMLButtonElement);

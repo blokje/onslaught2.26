@@ -180,6 +180,18 @@ The panel is docked top right by CSS, which can cover the road on some maps, so 
 - Saved in settings as `panelPos` (`{ x, y }` in CSS px from the HUD's top-left, `null` = the default dock), written once when the drag ends.
 - A second press on the header within 350 ms (double-click or double-tap) puts the panel back in the default dock. This is detected in `pointerdown`, because pointer capture retargets a `dblclick` event to the panel itself.
 
+## Phones and touch
+
+- Below 760 px wide (`NARROW_PX` in `hud.ts`, the `max-width: 760px` query in `ui.css`): the menu is one column with 3 maps
+  per row (the arrow keys read the real column count), the top bar centres and wraps, the build rack scrolls sideways,
+  the turret panel is a bottom sheet above the rack (a dragged `panelPos` is ignored there) and the coach card spans the
+  width. On short screens (`max-height: 500px`, a phone in landscape) the panel is a narrow column on the right instead,
+  so the field stays free.
+- `pointer: coarse`: buttons, icon buttons and tabs get larger minimum sizes.
+- Long press (450 ms) on a rack slot shows the turret's name, cost, unlock and blurb as a toast instead of arming it,
+  because touch has no hover tooltip.
+- Portrait is supported; the "rotate to landscape" notice is no longer shown.
+
 ## Input
 
 - Left button and single touch: handled by `App` on the canvas (build, select, move, join, focus fire). Right/middle/two-finger: renderer (pan, zoom). Right click also cancels the current mode.

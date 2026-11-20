@@ -6,6 +6,12 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
 ## Unreleased
 
 ### Added (2026 roadmap, phase 7: platform)
+- Phones: a compact layout below 760 px wide (one-column menu, scrolling build rack, the turret panel as a bottom sheet,
+  or a narrow right column on short landscape screens), larger touch targets, portrait support instead of the "rotate"
+  notice, and a long press on a rack slot to see a turret's info. Checked in Chromium with iPhone 13 emulation in
+  portrait and landscape (no overflow, tap to build, panel placement, long press; the first landscape try showed the
+  panel covering the field, fixed) and the desktop scale check. Not checked on a real phone.
+  Docs: `ARCHITECTURE.md`, `README.md`, `docs/claude/ui.md`, `docs/claude/testing.md`.
 - Installable app and offline play (PWA): web manifest, a service worker (pages network-first, other files cache-first)
   registered only in the production build over http(s), and original app icons (`public/icons/icon.svg` plus PNGs from
   the new `scripts/make-icons.ts`; adding these files was approved). Checked with `vite preview` in Chromium: the worker

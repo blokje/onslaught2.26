@@ -217,8 +217,9 @@ pooled meshes for attackers/projectiles).
 - **Audio** (`src/ui/audio.ts`): Web Audio synthesized SFX driven by game events (cannon pop, laser zap, rocket whoosh,
   spark crackle, blasts by size, nuke boom, kill tick, leak alarm, wave horn, combo chord, UI clicks). Rate-limit
   per sound so 8× speed stays pleasant. Starts after the first user gesture.
-- Layout must work from 1024 × 640 up to 4K, and on iPad landscape (touch: tap = left click; a "pan mode" is not
-  needed because two-finger gestures pan/zoom). Show a "rotate to landscape" notice in portrait.
+- Layout must work from 1024 × 640 up to 4K, on iPad, and on phones in portrait and landscape (touch: tap = left click;
+  a "pan mode" is not needed because two-finger gestures pan/zoom). Below 760 px wide the phone layout applies; portrait is
+  supported, the old "rotate to landscape" notice is no longer shown.
 
 ## 4. `src/main.ts` (coordinator)
 
