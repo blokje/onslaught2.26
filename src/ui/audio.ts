@@ -3,10 +3,12 @@
 // a master gain and a compressor so it never clips. Two volume buses feed the compressor: game effects (sfx) and
 // interface sounds (ui), each with its own setting.
 
+import { MusicPlayer } from './music.ts';
+
 /** Sounds on the interface bus; every other sound (shots, blasts, combos, leaks, wave horn) is a game effect. */
 export const UI_SOUNDS: ReadonlySet<string> = new Set(['click', 'hover', 'error', 'build', 'sell', 'upgrade', 'unlock']);
-export type SoundBus = 'sfx' | 'ui';
-export const busOf = (name: string): SoundBus => (UI_SOUNDS.has(name) ? 'ui' : 'sfx');
+export type SoundBus = 'sfx' | 'ui' | 'music';
+export const busOf = (name: string): 'sfx' | 'ui' => (UI_SOUNDS.has(name) ? 'ui' : 'sfx');
 
 // Relative minimum gap per sound name (multiplier on the base gap).
 const GAP: Record<string, number> = {
@@ -36,6 +38,7 @@ export class AudioEngine {
   bus: GainNode | null;
   master: GainNode | null;
   buses: Record<SoundBus, GainNode> | null;
+  musicPlayer: MusicPlayer | null;
   busVol: Record<SoundBus, number>;
   /** Bus the sound being synthesised right now goes to (set by play()). */
   _out: SoundBus;
@@ -53,7 +56,8 @@ export class AudioEngine {
     this.bus = null;
     this.master = null;
     this.buses = null;
-    this.busVol = { sfx: 1, ui: 1 };
+    this.busVol = { sfx: 1, ui: 1, music: 0.6 };
+    this.musicPlayer = null;
     this._out = 'sfx';
     this.noiseBuf = null;
     this.volume = 0.7;
@@ -75,7 +79,7 @@ export class AudioEngine {
     if (!this.master || !this.ctx) return;
     const g = this.muted ? 0 : this.volume * 0.85;
     try { this.master.gain.setTargetAtTime(g, this.ctx.currentTime, 0.02); } catch (e) { /* ignore */ }
-    if (this.buses) for (const k of ['sfx', 'ui'] as const) {
+    if (this.buses) for (const k of ['sfx', 'ui', 'music'] as const) {
       try { this.buses[k].gain.setTargetAtTime(this.busVol[k], this.ctx.currentTime, 0.02); } catch (e) { /* ignore */ }
     }
   }
@@ -98,9 +102,10 @@ export class AudioEngine {
         comp.release.value = 0.15;
         this.master = ctx.createGain();
         this.bus.connect(comp);
-        this.buses = { sfx: ctx.createGain(), ui: ctx.createGain() };
+        this.buses = { sfx: ctx.createGain(), ui: ctx.createGain(), music: ctx.createGain() };
         this.buses.sfx.connect(this.bus);
         this.buses.ui.connect(this.bus);
+        this.buses.music.connect(this.bus);
         comp.connect(this.master);
         this.master.connect(ctx.destination);
         const len = ctx.sampleRate * 2;
@@ -112,6 +117,12 @@ export class AudioEngine {
       }
       if (this.ctx && this.ctx.state !== 'running') this.ctx.resume().catch(() => {});
     } catch (e) { /* audio unavailable */ }
+  }
+
+  /** The music player (created once the audio context exists, so after the first user gesture), or null. */
+  music(): MusicPlayer | null {
+    if (!this.musicPlayer && this.ctx && this.buses && this.noiseBuf) this.musicPlayer = new MusicPlayer(this.ctx, this.buses.music, this.noiseBuf);
+    return this.musicPlayer;
   }
 
   // ---- public entry points used by the App

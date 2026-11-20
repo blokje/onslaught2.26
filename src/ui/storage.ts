@@ -36,6 +36,7 @@ export interface Settings {
   tutorialDone: boolean;
   hints: boolean;
   uiVolume: number;
+  musicVolume: number;
   infoCollapsed: boolean;
   panelPos: PanelPos | null;
   /** Rebound keys (action -> KeyboardEvent.code); actions not listed use the default in keymap.ts. */
@@ -97,6 +98,7 @@ export const DEFAULT_SETTINGS: Settings = {
   // the tutorial was finished or skipped (hides the menu banner)
   sfxVolume: 1,         // game effects bus (shots, blasts, combos), on top of the master volume
   uiVolume: 1,          // interface bus (clicks, build, upgrade, sell, errors)
+  musicVolume: 0.6,     // music bus (src/ui/music.ts); 0 stops the music
   screenShake: true,    // shake the view on big blasts (never with reduce motion)
   reduceMotion: false,  // accessibility: calm UI and map; when never saved, getSettings() follows prefers-reduced-motion
   infoCollapsed: false,
@@ -135,7 +137,7 @@ export function getSettings(): Settings {
     } else if (typeof v === typeof d && (typeof d !== 'number' || Number.isFinite(v))) out[k] = v;
   }
   out.uiScale = clampScale(out.uiScale);
-  for (const k of ['sfxVolume', 'uiVolume'] as const) out[k] = Math.max(0, Math.min(1, out[k] as number));
+  for (const k of ['sfxVolume', 'uiVolume', 'musicVolume'] as const) out[k] = Math.max(0, Math.min(1, out[k] as number));
   if (typeof src.reduceMotion !== 'boolean') out.reduceMotion = prefersReducedMotion(); // first start: follow the OS
   return out as unknown as Settings; // every key was checked against the type of its default
 }

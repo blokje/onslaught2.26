@@ -10,6 +10,7 @@ import { clampScale, getSettings, getCodex, recordCombo } from '../src/ui/storag
 import { describeCombo, partnerList, COMBO_COUNT } from '../src/ui/codex.ts';
 import { Tutorial, TUTORIAL_STEPS } from '../src/ui/tutorial.ts';
 import { Hints, HINTS, cleanHintIds } from '../src/ui/hints.ts';
+import { musicStep, musicTempo, musicIntensity } from '../src/ui/music.ts';
 import { COMBOS } from '../src/data/combos.ts';
 import { formatNum } from '../src/ui/format.ts';
 import { AudioEngine, UI_SOUNDS, busOf } from '../src/ui/audio.ts';
@@ -705,6 +706,20 @@ function makePlayer(game: Game, spots: Spot[]): () => void {
   check('(onb) tips: stored ids are cleaned', cleanHintIds(['leak', 'nope', 3, null]).join() === 'leak' && cleanHintIds('x').length === 0);
   check('(onb) tips: every tip has text that names bound keys where it mentions them', HINTS.every((h) => h.text((k) => '<' + k + '>').length > 40)
     && HINTS.find((h) => h.id === 'comboReady')!.text((k) => '<' + k + '>').includes('<combo>'));
+}
+
+// ------------------------------------------------------------------ (feel) adaptive music (src/ui/music.ts, pure parts)
+{
+  const voices = (i: number): Set<string> => { const v = new Set<string>(); for (let st = 0; st < 64; st++) for (const n of musicStep(st, i)) v.add(n.voice); return v; };
+  const calm = voices(0), mid = voices(0.5), hot = voices(1);
+  check('(feel) music: calm is only the pad, layers join with intensity', calm.size === 1 && calm.has('pad') && mid.has('kick') && mid.has('bass') && mid.has('arp') && !mid.has('hat') && hot.has('hat'));
+  check('(feel) music: tempo 96 bpm calm, 132 bpm at full intensity, clamped', near(musicTempo(0), 96 / 15) && near(musicTempo(1), 132 / 15) && near(musicTempo(5), musicTempo(1)));
+  const all = Array.from({ length: 64 }, (_, st) => musicStep(st, 1)).flat();
+  check('(feel) music: notes are sane (pitch 30..96, length >= 1, velocity 0..1)', all.every((n) => (n.midi === 0 || (n.midi >= 30 && n.midi <= 96)) && n.len >= 1 && n.vel > 0 && n.vel <= 1));
+  const base = { attackers: [] as { dead?: boolean }[], lives: 10, wave: 0, over: false };
+  check('(feel) music: intensity is low before wave 1, rises with attackers and lost lives, stays in 0..1',
+    musicIntensity(base, 10) <= 0.15 && musicIntensity({ ...base, wave: 3 }, 10) < musicIntensity({ ...base, wave: 3, attackers: Array(30).fill({}) }, 10)
+    && musicIntensity({ ...base, wave: 3, lives: 2, attackers: Array(50).fill({}) }, 10) <= 1);
 }
 
 // ------------------------------------------------------------------ (q) waveActive (auto-send)

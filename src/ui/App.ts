@@ -11,6 +11,7 @@ import { buildSettings, buildHelp, buildScores, buildGameOver, buildKeys } from 
 import { buildCodex } from './codex.ts';
 import { Tutorial } from './tutorial.ts';
 import { Hints } from './hints.ts';
+import { musicIntensity } from './music.ts';
 import type { Hint } from './hints.ts';
 
 /** Wave interval on the tutorial map while the coach runs: long, so no wave comes before the player sends one. */
@@ -167,6 +168,7 @@ export class App {
     this.audio.setMuted(this.settings.muted);
     this.audio.setBusVolume('sfx', this.settings.sfxVolume);
     this.audio.setBusVolume('ui', this.settings.uiVolume);
+    this.audio.setBusVolume('music', this.settings.musicVolume);
 
     // input state
     this.mode = 'none';            // 'none' | 'build' | 'move' | 'join' | 'focus'
@@ -305,6 +307,7 @@ export class App {
     if ('muted' in patch) this.audio.setMuted(this.settings.muted);
     if ('sfxVolume' in patch) this.audio.setBusVolume('sfx', this.settings.sfxVolume);
     if ('uiVolume' in patch) this.audio.setBusVolume('ui', this.settings.uiVolume);
+    if ('musicVolume' in patch) this.audio.setBusVolume('music', this.settings.musicVolume);
     if ('showFps' in patch) this.applyFps();
     if ('uiScale' in patch || 'highContrast' in patch || 'reduceMotion' in patch || 'screenShake' in patch) this.applyLook();
     if ('keys' in patch) this.applyKeys();
@@ -587,6 +590,7 @@ export class App {
       }
       this.fpsAcc = 0; this.fpsN = 0;
     }
+    this.musicTick();
     const game = this.game;
     if (!game) return;
     if (this.cursorDirty) { this.cursorDirty = false; this.updateCursorWorld(); }
@@ -595,6 +599,17 @@ export class App {
     if (this.overlayDirty) this.pushOverlay();
     this.autoSendCheck(game);
     if (game.state.over && !this._overShown) this.onGameOver({});
+  }
+
+  /** Music: calm in the menu, follows the pressure in a game, silent while paused, after game over or at volume 0. */
+  musicTick(): void {
+    const m = this.audio.music();
+    if (!m) return;
+    const g = this.game;
+    const quiet = this.settings.musicVolume <= 0 || this.settings.muted || (g != null && (g.state.paused || g.state.over));
+    if (quiet) { if (m.playing) m.stop(); return; }
+    if (!m.playing) m.start();
+    m.setIntensity(g ? musicIntensity(g.state, DIFFICULTIES[g.state.difficulty]?.lives || 10) : 0);
   }
 
   /** Auto-send (setting autoSend): once the player has started wave 1, send the next wave when the field is clear. */

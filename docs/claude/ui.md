@@ -15,6 +15,7 @@ DOM overlay over the canvas, input, persistence and audio. Contract: `ARCHITECTU
 | `dps.ts` | `DpsTracker`: per-turret DPS from `damageDealt` samples in game time (no DOM, tested in `sim-test`). Resets when the game object changes or time goes back. |
 | `tutorial.ts` | Interactive tutorial: `TUTORIAL_STEPS` and the `Tutorial` step machine (pure, tested in sim-test). |
 | `hints.ts` | One-time tips: `HINTS` (event- or state-triggered) and the `Hints` queue (pure, tested in sim-test). |
+| `music.ts` | Adaptive synthesized music: `musicStep(step, intensity)` and `musicTempo` (pure, tested), `musicIntensity(state)`, `MusicPlayer` (look-ahead scheduler on the music bus). |
 | `codex.ts` | Combo Codex: `describeCombo(recipe)` builds the effect line from the recipe's `fx` data (pure, tested in sim-test), `partnerList`, `buildCodex(fired)` the dialog body. |
 | `colors.ts` | Combo colours with shapes: `COMBO_HEX`, `COLOR_SYMBOL`, `colorName`, `colorDot` (shared by the HUD and the Codex). |
 | `format.ts` | Big numbers: 1,234 then 12.3K, 4.56M, 7.89B, 1.23T, then 1.23e15. |
@@ -49,6 +50,10 @@ DOM overlay over the canvas, input, persistence and audio. Contract: `ARCHITECTU
   white outline on active buttons and tabs).
 - Separate volumes: Game effects (`sfxVolume`) and Interface (`uiVolume`), 0 to 1 on top of the master volume, sliders in
   Settings; releasing a slider plays a sample of that bus. A bus at 0 skips synthesis entirely.
+- Music (`musicVolume`, default 0.6, the third audio bus): `App.musicTick()` every frame starts the player once the audio
+  context exists, plays the calm pad layer in the menu, follows `musicIntensity` in a game (attackers on the field and
+  lives lost) and stops while paused, after game over, when muted or at volume 0. Layers: pad, kick and bass from 0.15 and
+  0.25, arpeggio from 0.45, hats from 0.65; tempo 96 to 132 bpm. A 4-bar A minor loop (Am F C G).
 - Screen shake (`screenShake`, default on), sent with `renderer.setOptions`; reduce motion always wins.
 - Reduce motion and flashes (`reduceMotion`): on the first start (no stored value) `getSettings()` follows
   `prefers-reduced-motion`. `App.applyLook()` toggles `os-rm` on `.os-root` and calls `renderer.setOptions` (optional on

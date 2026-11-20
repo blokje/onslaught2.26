@@ -6,6 +6,11 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
 ## Unreleased
 
 ### Added (2026 roadmap, phase 4: game feel)
+- Adaptive synthesized music (no audio files): a calm pad in the menu, and in a game layers and tempo follow the pressure
+  (attackers on the field, lives lost); silent while paused or after game over. New `src/ui/music.ts`, a third audio bus
+  and the setting "Music volume" (default 60%, 0 turns it off). New sim-test checks (feel). Checked in Chromium by
+  counting scheduled oscillators (menu, wave, none while paused, no console errors); the music itself was not listened to.
+  Docs: `ARCHITECTURE.md`, `docs/claude/ui.md`, `docs/claude/testing.md`.
 - Screen shake on big blasts and black holes (setting "Screen shake", default on, never with reduce motion) and a quick
   impact ring on every kill. Presentation only (`R.shake` in the renderer, new `RenderOptions.screenShake`). Checked in
   Chromium that a real Nuke and normal waves run without console errors; the shake itself was checked by code review,

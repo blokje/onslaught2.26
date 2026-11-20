@@ -18,10 +18,10 @@ export function buildSettings(app: App): HTMLElement {
   const vol = h('input', { type: 'range', min: 0, max: 100, step: 1, value: Math.round(s.volume * 100), 'aria-label': 'Master volume' });
   vol.addEventListener('input', () => app.updateSettings({ volume: Number(vol.value) / 100 }));
   vol.addEventListener('change', () => app.audio.play('click'));
-  const busSlider = (key: 'sfxVolume' | 'uiVolume', label: string): HTMLInputElement => {
+  const busSlider = (key: 'sfxVolume' | 'uiVolume' | 'musicVolume', label: string): HTMLInputElement => {
     const el = h('input', { type: 'range', min: 0, max: 100, step: 1, value: Math.round(s[key] * 100), 'aria-label': label });
     el.addEventListener('input', () => app.updateSettings({ [key]: Number(el.value) / 100 } as Partial<storage.Settings>)); // key is one of the two bus volumes
-    el.addEventListener('change', () => app.audio.play(key === 'uiVolume' ? 'click' : 'shot_cannon'));
+    el.addEventListener('change', () => { if (key !== 'musicVolume') app.audio.play(key === 'uiVolume' ? 'click' : 'shot_cannon'); });
     return el;
   };
   const mute = h('input', { type: 'checkbox' });
@@ -68,6 +68,7 @@ export function buildSettings(app: App): HTMLElement {
   return h('div', null,
     field('Master volume', null, h('div', { style: 'display:flex;align-items:center;gap:.6em' }, vol)),
     field('Game effects volume', 'Shots, explosions, combos, alarms.', busSlider('sfxVolume', 'Game effects volume')),
+    field('Music volume', 'Synthesized music that follows the pressure of the game. 0 turns it off.', busSlider('musicVolume', 'Music volume')),
     field('Interface volume', 'Clicks, build, upgrade, sell, errors.', busSlider('uiVolume', 'Interface volume')),
     field('Mute', null, mute),
     field('Wave interval (seconds)', '0 = difficulty default. Applies to new games.', wave),
