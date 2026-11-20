@@ -6,6 +6,12 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
 ## Unreleased
 
 ### Added (2026 roadmap, phase 5: motivation)
+- Daily challenge: one map, difficulty and seed per UTC day (from a hash of the date), started from a card in the menu,
+  with its own top 10 per day (`os226.daily`, last 30 days) and the rank shown at game over. Continue keeps it a daily.
+  New `src/ui/daily.ts`, optional `meta.daily` in the autosave. New sim-test checks (mot). Checked in Chromium (card,
+  start on the right map, score and rank stored, card shows the best score, Daily Habit earned; that last one failed at
+  first because achievements were checked before the score was stored, fixed). Docs: `SPEC.md` §9, `ARCHITECTURE.md`,
+  `README.md`, `docs/claude/ui.md`, `docs/claude/testing.md`.
 - Map stars: 1 to 3 stars per map for the selected difficulty (best Normal-mode wave reaching 25, 50, 100), shown in the
   map grid and updated with the difficulty buttons. New sim-test check (mot). Checked in Chromium with stored scores
   (2 stars on Medium, 3 on Hard where expected, no console errors). Docs: `README.md`, `docs/claude/ui.md`, `docs/claude/testing.md`.

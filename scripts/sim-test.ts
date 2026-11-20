@@ -12,6 +12,7 @@ import { Tutorial, TUTORIAL_STEPS } from '../src/ui/tutorial.ts';
 import { Hints, HINTS, cleanHintIds } from '../src/ui/hints.ts';
 import { musicStep, musicTempo, musicIntensity } from '../src/ui/music.ts';
 import { ACHIEVEMENTS, newlyEarned, cleanEarned, starsForWave, bestWave } from '../src/ui/achievements.ts';
+import { dailyFor } from '../src/ui/daily.ts';
 import { COMBOS } from '../src/data/combos.ts';
 import { formatNum } from '../src/ui/format.ts';
 import { AudioEngine, UI_SOUNDS, busOf } from '../src/ui/audio.ts';
@@ -745,6 +746,18 @@ function makePlayer(game: Game, spots: Spot[]): () => void {
   check('(mot) map stars: 0 below 25, then 1/2/3 at waves 25/50/100; best wave from a score list', starsForWave(24) === 0 && starsForWave(25) === 1
     && starsForWave(99) === 2 && starsForWave(250) === 3 && bestWave([{ wave: 12 }, { wave: 61 }, { wave: NaN }]) === 61 && bestWave([]) === 0);
   check('(mot) achievements: stored data is cleaned', JSON.stringify(cleanEarned({ nuke: '2026', bogus: 'x', wave25: 5 })) === '{"nuke":"2026"}' && ACHIEVEMENTS.length >= 20);
+}
+
+// ------------------------------------------------------------------ (mot) daily challenge (src/ui/daily.ts, pure)
+{
+  const d1 = dailyFor(new Date('2026-11-20T08:00:00Z')), d2 = dailyFor(new Date('2026-11-20T23:59:00Z')), d3 = dailyFor(new Date('2026-11-21T00:01:00Z'));
+  check('(mot) daily: same UTC day gives the same challenge, the next day another seed', JSON.stringify(d1) === JSON.stringify(d2) && d1.key === '2026-11-20' && d3.seed !== d1.seed);
+  const days = Array.from({ length: 60 }, (_, i) => dailyFor(new Date(Date.UTC(2026, 0, 1 + i))));
+  check('(mot) daily: valid maps (never the tutorial) and difficulties, and some variety over 60 days',
+    days.every((d) => MAPS.some((m) => m.id === d.mapId) && d.mapId !== 'tutorial' && ['easy', 'medium', 'hard'].includes(d.difficulty))
+    && new Set(days.map((d) => d.mapId)).size >= 8 && new Set(days.map((d) => d.difficulty)).size === 3);
+  const play = () => { const g = new Game({ mapId: d1.mapId, difficulty: d1.difficulty, seed: d1.seed }); g.sendWave(); g.advance(60 * 20); return JSON.stringify(g.serialize()); };
+  check('(mot) daily: the same seed plays out the same game', play() === play());
 }
 
 // ------------------------------------------------------------------ (q) waveActive (auto-send)

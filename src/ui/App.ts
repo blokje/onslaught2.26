@@ -13,6 +13,7 @@ import { Tutorial } from './tutorial.ts';
 import { Hints } from './hints.ts';
 import { musicIntensity } from './music.ts';
 import { ACHIEVEMENTS, newlyEarned } from './achievements.ts';
+import { dailyFor } from './daily.ts';
 import type { Hint } from './hints.ts';
 
 /** Wave interval on the tutorial map while the coach runs: long, so no wave comes before the player sends one. */
@@ -56,7 +57,7 @@ export interface ModalHandle {
 
 interface CursorState { cx: number; cy: number; over: boolean; known: boolean; wx?: number; wy?: number }
 interface PointerDown { id: number; x: number; y: number; button: number; moved: boolean; touch: boolean }
-export interface GameOverInfo { score: number; kills: number; wave: number; mapId: string; difficulty: string; mode: string; rank: number; report?: RunReport }
+export interface GameOverInfo { score: number; kills: number; wave: number; mapId: string; difficulty: string; mode: string; rank: number; report?: RunReport; daily?: { key: string; rank: number } }
 /** End-of-run report data for the game-over dialog (built from game.state in App.onGameOver). */
 export interface RunReport {
   history: WaveRecord[];
@@ -125,6 +126,8 @@ export class App {
   /** Earned achievements (id -> date), loaded once and saved on change. */
   earned: Record<string, string> = storage.getEarned();
   _achTick = 0;
+  /** Key of the daily challenge being played ("YYYY-MM-DD"), or null. */
+  daily: string | null = null;
   tipTimer: ReturnType<typeof setTimeout> | null = null;
   /** Element currently highlighted by the coach. */
   coachTargetEl: Element | null = null;
@@ -358,15 +361,18 @@ export class App {
   }
 
   // =================================================================== game lifecycle
-  startGame(sel: { mapId: string; difficulty: string; mode: string }): void {
+  startGame(sel: { mapId: string; difficulty: string; mode: string }, extra: { seed?: number; daily?: string } = {}): void {
     this.closeAllModals();
     const opts: GameOptions = { mapId: sel.mapId, difficulty: sel.difficulty, mode: sel.mode, unlockAll: !!this.settings.unlockAll };
     if (this.settings.waveInterval > 0) opts.waveInterval = this.settings.waveInterval * 1000;
+    if (extra.seed != null) opts.seed = extra.seed;
+    if (extra.daily) { opts.unlockAll = false; delete opts.waveInterval; } // the same rules for everyone on that day
     const tut = sel.mapId === 'tutorial'; // the How to Play map always runs the coach
     if (tut) opts.waveInterval = TUTORIAL_WAVE_MS;
     let game: AppGame;
     try { game = this.createGame(opts); } catch (e) { console.error(e); this.menu.show(); this.menu.flash('Could not start the game.'); return; }
     this.attachGame(game);
+    this.daily = extra.daily || null;
     if (tut) { this.tutorial = new Tutorial(); this.renderCoach(); }
     const st = storage.getStats();
     if (!st.maps.includes(sel.mapId)) { st.maps.push(sel.mapId); storage.saveStats(st); }
@@ -404,6 +410,12 @@ export class App {
     }));
     this.openModal('Achievements', h('div', null, h('p', { class: 'os-hint' }, `Earned ${done} of ${ACHIEVEMENTS.length}. Sandbox games do not count for wave, score or cash goals.`), list),
       { cls: 'wide', buttons: [{ label: 'Close', cls: 'primary', onClick: (hd) => hd.close() }] });
+  }
+
+  /** Start today's daily challenge (UTC day): fixed map, difficulty and seed, no unlock-all, default wave interval. */
+  startDaily(): void {
+    const d = dailyFor(new Date());
+    this.startGame({ mapId: d.mapId, difficulty: d.difficulty, mode: 'normal' }, { seed: d.seed, daily: d.key });
   }
 
   /** Start the interactive tutorial on the How to Play map (Easy, Normal mode). */
@@ -482,6 +494,7 @@ export class App {
     }
     this.closeAllModals();
     this.attachGame(game);
+    this.daily = typeof save.meta?.daily === 'string' ? save.meta.daily : null;
   }
 
   restart(): void {
@@ -520,6 +533,7 @@ export class App {
     this.handlers = [];
     this.game = null;
     this.tutorial = null;
+    this.daily = null;
     this.renderCoach();
     this.resetInput();
     // the menu must not keep drawing the old game, selection rings or build ghost
@@ -551,7 +565,7 @@ export class App {
       // the Esc menu pauses the game only while it is open, so never save that pause
       const saved = data as { state?: { paused?: boolean } } | null;
       if (this._pausedByMenu && saved && saved.state) saved.state.paused = false;
-      storage.saveGame({ v: 1, at: Date.now(), meta: { mapId: s.mapId, difficulty: s.difficulty, mode: s.mode, wave: s.wave }, data });
+      storage.saveGame({ v: 1, at: Date.now(), meta: { mapId: s.mapId, difficulty: s.difficulty, mode: s.mode, wave: s.wave, ...(this.daily ? { daily: this.daily } : {}) }, data });
     } catch (e) { /* never break the game over a failed save */ }
   }
 
@@ -604,6 +618,12 @@ export class App {
     const s = g.state;
     const info: GameOverInfo = { rank: 0, score: p.score != null ? p.score : s.score, kills: p.kills != null ? p.kills : s.kills, wave: p.wave != null ? p.wave : s.wave, mapId: s.mapId, difficulty: s.difficulty, mode: s.mode };
     info.report = buildReportData(s);
+    if (this.daily && info.score > 0) {
+      const dr = storage.addDailyScore(this.daily, { score: info.score, kills: info.kills, wave: info.wave, date: new Date().toISOString(), ...(s.undoUsed ? { undo: true } : {}) });
+      const st = storage.getStats(); st.dailies++; storage.saveStats(st);
+      info.daily = { key: this.daily, rank: dr };
+      this.checkAchievements(); // the daily goal counts as soon as the score is stored
+    }
     info.rank = info.score > 0 ? storage.addScore(info.mapId, info.difficulty, info.mode, { score: info.score, kills: info.kills, wave: info.wave, date: new Date().toISOString(), undo: !!s.undoUsed }) : 0;
     storage.clearGame();
     this.checkUnlocks(info.wave);

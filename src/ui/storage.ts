@@ -55,7 +55,7 @@ export interface ScoreEntry { score: number; kills: number; wave: number; date: 
 export interface SaveWrapper {
   v: number;
   at: number;
-  meta: { mapId: string; difficulty: string; mode: string; wave: number };
+  meta: { mapId: string; difficulty: string; mode: string; wave: number; /** daily challenge key, if it is one */ daily?: string };
   data: any; // opaque serialized game; only the game layer knows its shape (and the mock game its own)
 }
 
@@ -204,6 +204,27 @@ export function resetProgress(): void {
   remove('codex');
   remove('achievements');
   remove('stats');
+  remove('daily');
+}
+
+/** Daily challenge scores: top 10 per UTC day key ("YYYY-MM-DD"), the last 30 days kept. */
+export function getDailyScores(key: string): ScoreEntry[] {
+  const all = read<Record<string, ScoreEntry[]> | null>('daily', {});
+  const list = all && typeof all === 'object' ? all[key] : null;
+  return Array.isArray(list) ? list.filter((e) => e && Number.isFinite(e.score)) : [];
+}
+/** Add a daily score; returns its 1-based rank, or 0 outside the top 10. */
+export function addDailyScore(key: string, entry: ScoreEntry): number {
+  const raw = read<Record<string, ScoreEntry[]> | null>('daily', {});
+  const all: Record<string, ScoreEntry[]> = raw && typeof raw === 'object' && !Array.isArray(raw) ? { ...raw } : {};
+  const list = (Array.isArray(all[key]) ? all[key] : []).slice();
+  let idx = list.findIndex((x) => x.score < entry.score);
+  if (idx < 0) idx = list.length;
+  list.splice(idx, 0, entry);
+  all[key] = list.slice(0, 10);
+  for (const k of Object.keys(all).sort().slice(0, -30)) delete all[k]; // keep the newest 30 days
+  write('daily', all);
+  return idx < 10 ? idx + 1 : 0;
 }
 
 /** Earned achievements: id -> ISO date (unknown ids dropped). */

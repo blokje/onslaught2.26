@@ -215,6 +215,8 @@ export function buildGameOver(info: GameOverInfo): HTMLElement {
       h('div', null, h('b', null, formatNum(info.kills)), h('span', null, 'Kills')),
       h('div', null, h('b', null, info.wave), h('span', null, 'Wave'))),
     h('p', { class: 'os-hint', style: 'text-align:center;font-size:.95em;margin:.7em 0 0' }, rankText),
+    info.daily ? h('p', { class: 'os-hint', style: 'text-align:center;font-size:.95em;margin:.3em 0 0' },
+      `Daily challenge ${info.daily.key}: ` + (info.daily.rank > 0 ? `rank ${info.daily.rank} of your runs today.` : 'not in your top 10 today.')) : null,
     info.report ? buildRunReport(info.report) : null);
 }
 

@@ -17,6 +17,7 @@ DOM overlay over the canvas, input, persistence and audio. Contract: `ARCHITECTU
 | `hints.ts` | One-time tips: `HINTS` (event- or state-triggered) and the `Hints` queue (pure, tested in sim-test). |
 | `music.ts` | Adaptive synthesized music: `musicStep(step, intensity)` and `musicTempo` (pure, tested), `musicIntensity(state)`, `MusicPlayer` (look-ahead scheduler on the music bus). |
 | `achievements.ts` | `ACHIEVEMENTS` (22 pure checks on an `AchCtx`), `newlyEarned`, `cleanEarned` (tested in sim-test). |
+| `daily.ts` | `dailyFor(date)`: key, seed, map and difficulty of a UTC day from `hash32` (pure, tested). |
 | `codex.ts` | Combo Codex: `describeCombo(recipe)` builds the effect line from the recipe's `fx` data (pure, tested in sim-test), `partnerList`, `buildCodex(fired)` the dialog body. |
 | `colors.ts` | Combo colours with shapes: `COMBO_HEX`, `COLOR_SYMBOL`, `colorName`, `colorDot` (shared by the HUD and the Codex). |
 | `format.ts` | Big numbers: 1,234 then 12.3K, 4.56M, 7.89B, 1.23T, then 1.23e15. |
@@ -111,6 +112,13 @@ dailies) and earns everything new: toast, log line, unlock sound, saved in `os22
 Sandbox games never count for wave, score or cash goals (`real()` in `achievements.ts`). The menu button "Achievements"
 lists all of them with the date earned. Reset progress clears them and the stats. To add one: append to `ACHIEVEMENTS`
 and extend the sim-test (mot).
+
+## Daily challenge
+
+The menu card shows today's map and difficulty and your best score today. `App.startDaily()` calls `startGame` with the
+day's seed and `daily` key (no unlock-all, default wave interval). `App.daily` holds the key; the autosave meta stores
+it so Continue keeps it. At game over a daily score goes to `storage.addDailyScore`, the stat `dailies` grows and the
+dialog names the rank of the day; `checkAchievements()` runs again right after, so the daily goal counts at once.
 
 ## Map stars
 

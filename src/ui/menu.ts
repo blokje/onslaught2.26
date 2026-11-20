@@ -6,6 +6,7 @@ import { LOCK_SVG } from './icons.ts';
 import * as storage from './storage.ts';
 import type { App } from './App.ts';
 import { STAR_WAVES, starsForWave, bestWave } from './achievements.ts';
+import { dailyFor } from './daily.ts';
 import type { MapDef } from '../types.ts';
 
 /** Columns of the map grid (6 x 3, see .os-maps in ui.css). */
@@ -60,6 +61,8 @@ export class Menu {
   app: App;
   el: HTMLElement;
   tutBanner!: HTMLElement;
+  dailyBox!: HTMLElement;
+  dailyTxt!: HTMLElement;
   /** Star row per map (stars for the selected difficulty). */
   starEls = new Map<string, HTMLElement>();
   mapBtns: Map<string, HTMLButtonElement>;
@@ -132,6 +135,9 @@ export class Menu {
       mode.append(b);
     }
     this.note = h('div', { class: 'os-menu-note' });
+    this.dailyTxt = h('span', null, '');
+    this.dailyBox = h('div', { class: 'os-daily' }, this.dailyTxt,
+      h('button', { class: 'os-btn small', type: 'button', onclick: () => app.startDaily() }, 'Play daily'));
     this.tutBanner = h('div', { class: 'os-tut-banner' }, h('span', null, 'New here?'),
       h('button', { class: 'os-btn primary small', type: 'button', onclick: () => app.startTutorial() }, 'Play the tutorial'));
     this.startBtn = h('button', { class: 'os-btn primary big', type: 'button', onclick: () => this.start() }, 'Start');
@@ -143,6 +149,7 @@ export class Menu {
       this.tutBanner,
       this.note,
       this.startBtn,
+      this.dailyBox,
       this.contBtn,
       h('div', { class: 'os-menu-btns' },
         h('button', { class: 'os-btn', type: 'button', onclick: () => app.openScores() }, 'High scores'),
@@ -207,6 +214,12 @@ export class Menu {
       el.title = `${diffName}: best wave ${best}. Stars at waves ${STAR_WAVES.join(', ')}.`;
       el.setAttribute('aria-label', `${n} of 3 stars on ${diffName}`);
     }
+    // today's daily challenge (UTC day) and the best score on it so far
+    const dl = dailyFor(new Date());
+    const dmap = MAPS.find((x) => x.id === dl.mapId);
+    const best = storage.getDailyScores(dl.key)[0];
+    this.dailyTxt.replaceChildren(h('b', null, 'Daily ' + dl.key), h('br'),
+      `${dmap ? dmap.name : dl.mapId}, ${DIFFICULTIES[dl.difficulty]?.name || dl.difficulty}` + (best ? `, best ${best.score.toLocaleString('en-US')} (wave ${best.wave})` : ', not played yet'));
     // first-time players: offer the tutorial until it is done or skipped, and only before any high score exists
     this.tutBanner.style.display = !app.settings.tutorialDone && !Object.keys(storage.getAllScores()).length ? '' : 'none';
     const save = storage.loadGame();

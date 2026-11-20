@@ -268,6 +268,11 @@ player sends wave 1 the game holds the first wave (wave interval 600 s); the fir
 first, so the early-wave bonus is the usual one, and later waves come by themselves. Skipping or finishing also restores
 the interval. Nothing else changes.
 
+**Daily challenge** [NEW]: each UTC day has one challenge for everyone: map (never the tutorial), difficulty (Easy,
+Medium or Hard) and random seed come from a hash of the date (`src/ui/daily.ts`). Normal mode, no unlock-all, the
+difficulty's own wave interval. The game is deterministic, so the same moves give the same game. Scores are kept per day
+(top 10, last 30 days) next to the normal high scores.
+
 **Relaxed: undo** [NEW, optional, off by default]: with the setting on, U (or the Undo button) takes back the last build
 or upgrade with a full refund; `spent` and the score go back too. Only the newest build or upgrade counts, and only until
 that turret fires (a normal shot, a laser-chain contribution, a holding-pattern rocket or a combo); a later build,
