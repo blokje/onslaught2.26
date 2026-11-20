@@ -6,6 +6,8 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
 ## Unreleased
 
 ### Added (2026 roadmap, phase 4: game feel)
+- Soft screen transitions: the menu and the HUD fade in, dialogs fade and pop in. None with reduce motion. CSS only.
+  Checked in Chromium (dialog focus and reduce-motion checks still pass, no console errors). Docs: `docs/claude/ui.md`.
 - Adaptive synthesized music (no audio files): a calm pad in the menu, and in a game layers and tempo follow the pressure
   (attackers on the field, lives lost); silent while paused or after game over. New `src/ui/music.ts`, a third audio bus
   and the setting "Music volume" (default 60%, 0 turns it off). New sim-test checks (feel). Checked in Chromium by
