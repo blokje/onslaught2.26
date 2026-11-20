@@ -65,6 +65,11 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
   Docs: `ARCHITECTURE.md`, `README.md`, `docs/claude/ui.md`, `docs/claude/testing.md`.
 
 ### Added (2026 roadmap, phase 4: game feel)
+- Tilted view (setting, default off): the field as if seen at an angle (about 39 degrees) with drop shadows under the
+  turrets. Implemented as an exact vertical scale in the camera (`scaleY`, `setTilt`, `TILT_Y`), so building, selecting,
+  zooming and panning stay precise; new `tShadow` batch and `RenderOptions.tilted`. Checked in Chromium: build at a
+  point, zoom twice at it (the turret stays under the click) and pan (selection still hits it), no console errors.
+  Docs: `ARCHITECTURE.md`, `docs/claude/rendering.md`, `docs/claude/ui.md`.
 - Soft screen transitions: the menu and the HUD fade in, dialogs fade and pop in. None with reduce motion. CSS only.
   Checked in Chromium (dialog focus and reduce-motion checks still pass, no console errors). Docs: `docs/claude/ui.md`.
 - Adaptive synthesized music (no audio files): a calm pad in the menu, and in a game layers and tempo follow the pressure

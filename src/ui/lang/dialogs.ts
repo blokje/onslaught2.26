@@ -5,6 +5,8 @@ import type { LangPack } from '../i18n.ts';
 
 export const DIALOG_TEXT: LangPack = {
   nl: {
+    'Tilted view': 'Schuin aanzicht',
+    'Shows the field at an angle, with shadows under the turrets.': 'Toont het veld van schuin boven, met schaduwen onder de torens.',
     // ---- settings
     'Language': 'Taal',
     'Automatic (browser)': 'Automatisch (browser)',
@@ -229,6 +231,8 @@ export const DIALOG_TEXT: LangPack = {
     'Undo is off. Turn on "Relaxed: undo" in Settings.': 'Ongedaan maken staat uit. Zet "Ontspannen: ongedaan maken" aan in Instellingen.',
   },
   de: {
+    'Tilted view': 'Schräge Ansicht',
+    'Shows the field at an angle, with shadows under the turrets.': 'Zeigt das Feld schräg von oben, mit Schatten unter den Türmen.',
     // ---- settings
     'Language': 'Sprache',
     'Automatic (browser)': 'Automatisch (Browser)',

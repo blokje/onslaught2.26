@@ -41,7 +41,7 @@ export function buildSettings(app: App): HTMLElement {
     wave.value = String(v);
     app.updateSettings({ waveInterval: v });
   });
-  const check = (key: 'snap' | 'unlockAll' | 'showFps' | 'autoPause' | 'autoSend' | 'undo' | 'colorSymbols' | 'highContrast' | 'reduceMotion' | 'hints' | 'screenShake'): HTMLInputElement => {
+  const check = (key: 'snap' | 'unlockAll' | 'showFps' | 'autoPause' | 'autoSend' | 'undo' | 'colorSymbols' | 'highContrast' | 'reduceMotion' | 'hints' | 'screenShake' | 'tiltedView'): HTMLInputElement => {
     const c = h('input', { type: 'checkbox' });
     c.checked = !!s[key];
     c.addEventListener('change', () => app.updateSettings({ [key]: c.checked } as Partial<storage.Settings>)); // key is one of the boolean settings above
@@ -95,6 +95,7 @@ export function buildSettings(app: App): HTMLElement {
     field(t('Interface size'), t('Scales all text, panels and buttons.'), h('div', { style: 'display:flex;align-items:center;gap:.6em' }, scale, scaleTxt)),
     field(t('High contrast'), t('Solid panels, brighter text and stronger outlines.'), check('highContrast')),
     field(t('Screen shake'), t('The view shakes a little on big explosions. Always off with Reduce motion.'), check('screenShake')),
+    field(t('Tilted view'), t('Shows the field at an angle, with shadows under the turrets.'), check('tiltedView')),
     field(t('Reduce motion and flashes'), t('No blinking, pulsing or shaking; dimmer explosions. Starts on when your system asks for less motion.'), check('reduceMotion')),
     field(t('Colour shapes on the map'), t('Each turret shows the shape of its combo colour: red triangle, green circle, blue square, yellow diamond.'), check('colorSymbols')),
     field(t('Saved progress'), t('Unlocks, high scores, the autosave, Combo Codex counts and achievements.'), resetBtn));

@@ -55,6 +55,9 @@ export function drawTurrets(R: Res, f: Frame): void {
     const seed = t.id * 0.731;
     const x = t.x, y = t.y;
 
+    // tilted view: a soft drop shadow below and in front of the turret, so it reads as standing on the field
+    if (R.opts.tilted) b.tShadow.add(x + 2, y + 7, 0, 54, 40, c.fx.glow, 0, 0, 0, 0.55);
+
     // halo when a combo is possible
     if (t.comboCapable) {
       const a = calm ? 0.3 : 0.26 + 0.1 * Math.sin(t0 * 2.2 + seed);

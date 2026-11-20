@@ -297,6 +297,8 @@ export interface RenderOptions {
   reduceMotion: boolean;
   /** Shake the view on big blasts and black holes (ignored while reduceMotion is on). */
   screenShake?: boolean;
+  /** Tilted view: the field drawn as if seen at an angle (vertical squash) with turret drop shadows. */
+  tilted?: boolean;
 }
 
 export interface ViewInsets { top: number; right: number; bottom: number; left: number }

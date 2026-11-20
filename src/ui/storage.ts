@@ -33,6 +33,7 @@ export interface Settings {
   /** No blinking, pulsing, jitter or bright flashes. */
   reduceMotion: boolean;
   screenShake: boolean;
+  tiltedView: boolean;
   sfxVolume: number;
   tutorialDone: boolean;
   /** UI language ('' = from the browser). */
@@ -104,6 +105,7 @@ export const DEFAULT_SETTINGS: Settings = {
   uiVolume: 1,          // interface bus (clicks, build, upgrade, sell, errors)
   musicVolume: 0.6,     // music bus (src/ui/music.ts); 0 stops the music
   screenShake: true,    // shake the view on big blasts (never with reduce motion)
+  tiltedView: false,    // game feel: the field seen at an angle with turret shadows (renderer option `tilted`)
   reduceMotion: false,  // accessibility: calm UI and map; when never saved, getSettings() follows prefers-reduced-motion
   infoCollapsed: false,
   panelPos: null,       // turret panel { x, y } in px from the HUD's top-left, null = default dock

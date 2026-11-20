@@ -171,7 +171,7 @@ r.setOverlay({                              // UI-driven overlays, call whenever
 r.resetView();                              // fit field to screen
 r.setViewInsets({ top, right, bottom, left }) // optional: CSS px covered by HUD panels, the fitted field avoids them
 r.getZoom()                                 // -> current zoom factor
-r.setOptions({ reduceMotion, screenShake }) // optional presentation options, partial objects merge; never touches game state
+r.setOptions({ reduceMotion, screenShake, tilted }) // optional presentation options, partial objects merge; never touches game state
 r.dispose();                                // remove listeners and the canvas, release WebGL
 r.canvas                                    // the canvas element
 ```
@@ -213,7 +213,7 @@ pooled meshes for attackers/projectiles).
 - **Settings**: master volume / mute, wave interval override, snap-to-grid toggle (grid 22 units), unlock-all switch,
   show FPS, `autoPause` (pause while the tab is hidden), `autoSend` (send the next wave when the field is clear, see
   `game.waveActive()`), `panelPos` (moved turret panel), `keys` (rebound keys: `{ action: KeyboardEvent.code }`, only
-  the ones that differ from `src/ui/keymap.ts`), `undo` (Relaxed: undo, off by default), `colorSymbols` (shape badges on the map, default on), `uiScale` (0.8 to 1.6, `clampScale`), `highContrast`, `reduceMotion` (first start follows `prefers-reduced-motion`), `sfxVolume`, `uiVolume` and `musicVolume` (bus volumes on top of the master volume), `language` ('' = from the browser, else en/nl/de; a change reloads the page), `tutorialDone` (tutorial finished or skipped), `screenShake` (default on, never with reduce motion), `hints` (one-time tips, default on). `getSettings()` drops stored values
+  the ones that differ from `src/ui/keymap.ts`), `undo` (Relaxed: undo, off by default), `colorSymbols` (shape badges on the map, default on), `uiScale` (0.8 to 1.6, `clampScale`), `highContrast`, `reduceMotion` (first start follows `prefers-reduced-motion`), `sfxVolume`, `uiVolume` and `musicVolume` (bus volumes on top of the master volume), `language` ('' = from the browser, else en/nl/de; a change reloads the page), `tutorialDone` (tutorial finished or skipped), `screenShake` (default on, never with reduce motion), `tiltedView` (renderer option `tilted`, default off), `hints` (one-time tips, default on). `getSettings()` drops stored values
   whose type does not match the default.
 - **Audio** (`src/ui/audio.ts`): Web Audio synthesized SFX driven by game events (cannon pop, laser zap, rocket whoosh,
   spark crackle, blasts by size, nuke boom, kill tick, leak alarm, wave horn, combo chord, UI clicks). Rate-limit

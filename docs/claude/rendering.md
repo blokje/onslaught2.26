@@ -26,6 +26,17 @@ three.js 0.160.0, orthographic top-down. Contract: `ARCHITECTURE.md` section 2. 
 - Never consume left-button or single-touch events: those belong to the UI.
 - DPR is capped at 2. Antialiasing is off because edges are shader or texture antialiased.
 
+## Tilted view (game feel, optional)
+
+`setOptions({ tilted })` calls `CameraController.setTilt`. An orthographic camera tilted over a flat field shows it
+squashed vertically by cos(angle), so the tilt is implemented exactly as a vertical scale: `camera.scaleY = scale * ys`
+with `ys = TILT_Y` (0.78, about 39 degrees). Every y conversion uses `scaleY` (`screenToWorld`, `worldToScreen`, fit,
+clamp, zoom at the cursor, pan, pinch) and `render()` sets the frustum half-height to `H / 2 / scaleY`. No raycasting,
+so clicks stay exact; the Playwright check builds at a point, zooms at it and pans, and the turret stays under the
+click. Turrets get a soft drop shadow in the new `tShadow` batch (order 3.4, under the turret bases). Turrets and rings
+show as ellipses, which is what a tilted flat field looks like. A real perspective camera was not used: it would make
+picking, pan clamping and the screen-constant line widths much harder for little gain.
+
 ## Screen shake and kill impact (game feel)
 
 `R.shake` (0..1) is raised on the first frame of a big blast (radius > 70: +0.45, nuke and BFG size +0.75) and of a

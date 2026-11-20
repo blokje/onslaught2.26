@@ -109,6 +109,7 @@ export class Renderer {
     this.terrain = new Terrain(this.scene, FXT);
     const b: Batches = {
       ringUnder: mk(new RingBatch(600, { order: 3 })),
+      tShadow: mk(new SpriteBatch(FXT, 400, { order: 3.4 })), // tilted view: turret drop shadows under everything else
       tGlow: mk(new SpriteBatch(FXT, 600, { additive: true, order: 3.5 })),
       tBase: mk(new SpriteBatch(TB, 400, { order: 4 })),
       tWeap: mk(new SpriteBatch(TW, 400, { order: 5 })),
@@ -136,7 +137,7 @@ export class Renderer {
       ovAdd: mk(new SpriteBatch(FXT, 800, { additive: true, order: 12.6 })),
     };
     this.res.b = b;
-    this.sprites = ['tGlow', 'tBase', 'tWeap', 'tWeapAdd', 'tIcon', 'groundFx', 'groundFxAdd', 'attSh', 'attGlow', 'att', 'attTop', 'smoke', 'proj', 'projAdd', 'beams', 'blastAdd', 'text', 'ghostBase', 'ghostWeap', 'ghostIcon', 'ovAdd'].map((n) => b[n as keyof Batches] as SpriteBatch);
+    this.sprites = ['tShadow', 'tGlow', 'tBase', 'tWeap', 'tWeapAdd', 'tIcon', 'groundFx', 'groundFxAdd', 'attSh', 'attGlow', 'att', 'attTop', 'smoke', 'proj', 'projAdd', 'beams', 'blastAdd', 'text', 'ghostBase', 'ghostWeap', 'ghostIcon', 'ovAdd'].map((n) => b[n as keyof Batches] as SpriteBatch);
     this.rings = (['ringUnder', 'tRing', 'groundRing', 'ringAdd', 'ringTop'] as const).map((n) => b[n]);
 
     // --- camera + input
@@ -170,7 +171,11 @@ export class Renderer {
   worldToScreen(x: number, y: number): { x: number; y: number } { return this.view.worldToScreen(x, y); }
 
   /** Presentation options (accessibility); partial objects merge. Never touches game state. */
-  setOptions(o: Partial<RenderOptions>): void { Object.assign(this.res.opts, o); }
+  setOptions(o: Partial<RenderOptions>): void {
+    const was = !!this.res.opts.tilted;
+    Object.assign(this.res.opts, o);
+    if (!!this.res.opts.tilted !== was) this.view.setTilt(!!this.res.opts.tilted);
+  }
 
   /** Merge overlay settings (full or partial objects both work). */
   setOverlay(o?: Partial<Overlay> | null): void { Object.assign(this.overlay, o || {}); }
@@ -193,14 +198,14 @@ export class Renderer {
 
     // camera
     const view = this.view, s = view.scale, c = view.center();
-    const hw = view.W / 2 / s, hh = view.H / 2 / s;
+    const hw = view.W / 2 / s, hh = view.H / 2 / view.scaleY; // taller world window when tilted (scaleY < scale)
     const cam = this.camera;
     cam.left = -hw; cam.right = hw; cam.top = hh; cam.bottom = -hh;
     // screen shake: offset grows with shake^2 (small blasts barely move it), max 7 CSS px, decays in about 0.6 s real time
     let sx = 0, sy = 0;
     if (R.shake > 0) {
       if (R.opts.screenShake !== false && !R.opts.reduceMotion) {
-        const amp = R.shake * R.shake * 7 / s;
+        const amp = R.shake * R.shake * 7 / s; // world units (x scale; close enough for y)
         sx = amp * Math.sin(this.t * 61.7) * Math.cos(this.t * 17.3);
         sy = amp * Math.sin(this.t * 53.1 + 1.3);
       }
