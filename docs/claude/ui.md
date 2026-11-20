@@ -112,6 +112,12 @@ Sandbox games never count for wave, score or cash goals (`real()` in `achievemen
 lists all of them with the date earned. Reset progress clears them and the stats. To add one: append to `ACHIEVEMENTS`
 and extend the sim-test (mot).
 
+## Map stars
+
+Every map in the grid shows 0 to 3 stars for the selected difficulty: the best wave of its Normal-mode high scores
+(`bestWave`) against `STAR_WAVES` 25, 50, 100 (`starsForWave`, both in `achievements.ts`). `Menu.refresh()` redraws them,
+so they follow the difficulty buttons. The tooltip names the best wave.
+
 ## Combo Codex
 
 All 20 recipes per lead colour (in the order they are tried), the lead plus partners as shape dots, recharge, the effect

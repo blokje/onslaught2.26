@@ -5,10 +5,11 @@ import { DIFFICULTIES, MODES } from '../data/rules.ts';
 import { LOCK_SVG } from './icons.ts';
 import * as storage from './storage.ts';
 import type { App } from './App.ts';
+import { STAR_WAVES, starsForWave, bestWave } from './achievements.ts';
+import type { MapDef } from '../types.ts';
 
 /** Columns of the map grid (6 x 3, see .os-maps in ui.css). */
 const MAP_COLS = 6;
-import type { MapDef } from '../types.ts';
 
 const FIELD_W = 720;
 const FIELD_H = 450;
@@ -59,6 +60,8 @@ export class Menu {
   app: App;
   el: HTMLElement;
   tutBanner!: HTMLElement;
+  /** Star row per map (stars for the selected difficulty). */
+  starEls = new Map<string, HTMLElement>();
   mapBtns: Map<string, HTMLButtonElement>;
   diffBtns: Map<string, HTMLButtonElement>;
   modeBtns: Map<string, HTMLButtonElement>;
@@ -97,8 +100,10 @@ export class Menu {
       const label = m.extra ? `E${++extraNo}. ${m.name}` : `${i + 1}. ${m.name}`;
       const cv = h('canvas');
       drawMapPreview(cv, m);
-      const b = h('button', { class: 'os-map', type: 'button', onclick: () => this.pickMap(m.id) }, cv, h('span', null, label));
+      const stars = h('i', { class: 'os-stars' });
+      const b = h('button', { class: 'os-map', type: 'button', onclick: () => this.pickMap(m.id) }, cv, h('span', null, label), stars);
       this.mapBtns.set(m.id, b);
+      this.starEls.set(m.id, stars);
       maps.append(b);
     });
     // arrow keys move between maps (the grid has MAP_COLS columns); Enter or Space picks one
@@ -193,6 +198,15 @@ export class Menu {
     this.note.textContent = this.sel.mode === 'sandbox'
       ? 'Sandbox: huge starting cash, everything unlocked.'
       : `${d.name}: $${d.startCash} start, ${d.lives} ${d.lives === 1 ? 'life' : 'lives'}, new wave every ${secs}s.`;
+    // map stars for the selected difficulty: best wave in Normal mode reaching 25 / 50 / 100
+    const diffName = DIFFICULTIES[this.sel.difficulty]?.name || this.sel.difficulty;
+    for (const [id, el] of this.starEls) {
+      const best = bestWave(storage.getScores(id, this.sel.difficulty, 'normal'));
+      const n = starsForWave(best);
+      el.textContent = '\u2605'.repeat(n) + '\u2606'.repeat(STAR_WAVES.length - n);
+      el.title = `${diffName}: best wave ${best}. Stars at waves ${STAR_WAVES.join(', ')}.`;
+      el.setAttribute('aria-label', `${n} of 3 stars on ${diffName}`);
+    }
     // first-time players: offer the tutorial until it is done or skipped, and only before any high score exists
     this.tutBanner.style.display = !app.settings.tutorialDone && !Object.keys(storage.getAllScores()).length ? '' : 'none';
     const save = storage.loadGame();

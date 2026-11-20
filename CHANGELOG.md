@@ -6,6 +6,9 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
 ## Unreleased
 
 ### Added (2026 roadmap, phase 5: motivation)
+- Map stars: 1 to 3 stars per map for the selected difficulty (best Normal-mode wave reaching 25, 50, 100), shown in the
+  map grid and updated with the difficulty buttons. New sim-test check (mot). Checked in Chromium with stored scores
+  (2 stars on Medium, 3 on Hard where expected, no console errors). Docs: `README.md`, `docs/claude/ui.md`, `docs/claude/testing.md`.
 - Achievements: 22 local goals (first kill and combo, Nuke, Black Hole, 10 and 20 combos discovered, freak-out, a fully
   upgraded weapon, all modifiers, 50 turrets, $100K, waves 25/50/100, Hard and Extreme goals, a clean run to wave 30, an
   extra map, every map, a billion points, a daily challenge). Toast and log on earning, an overview in the menu. Sandbox

@@ -58,6 +58,13 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   { id: 'daily', name: 'Daily Habit', desc: 'Finish a daily challenge.', check: (c) => c.dailies >= 1 },
 ];
 
+/** Waves that earn map stars (1, 2, 3) on a map and difficulty, in Normal mode. */
+export const STAR_WAVES = [25, 50, 100] as const;
+/** Stars (0 to 3) for the best wave reached. */
+export const starsForWave = (wave: number): number => STAR_WAVES.filter((w) => wave >= w).length;
+/** Best wave on a map and difficulty from its high-score list (Normal mode lists only). */
+export const bestWave = (list: readonly { wave: number }[]): number => list.reduce((m, e) => Math.max(m, Number.isFinite(e.wave) ? e.wave : 0), 0);
+
 const IDS = new Set(ACHIEVEMENTS.map((a) => a.id));
 /** Keep only known ids with a date string (stored data). */
 export function cleanEarned(v: unknown): Record<string, string> {

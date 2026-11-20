@@ -11,7 +11,7 @@ import { describeCombo, partnerList, COMBO_COUNT } from '../src/ui/codex.ts';
 import { Tutorial, TUTORIAL_STEPS } from '../src/ui/tutorial.ts';
 import { Hints, HINTS, cleanHintIds } from '../src/ui/hints.ts';
 import { musicStep, musicTempo, musicIntensity } from '../src/ui/music.ts';
-import { ACHIEVEMENTS, newlyEarned, cleanEarned } from '../src/ui/achievements.ts';
+import { ACHIEVEMENTS, newlyEarned, cleanEarned, starsForWave, bestWave } from '../src/ui/achievements.ts';
 import { COMBOS } from '../src/data/combos.ts';
 import { formatNum } from '../src/ui/format.ts';
 import { AudioEngine, UI_SOUNDS, busOf } from '../src/ui/audio.ts';
@@ -742,6 +742,8 @@ function makePlayer(game: Game, spots: Spot[]): () => void {
   const allCodex = new Set(Object.values(COMBOS).flat().map((r) => r.id));
   check('(mot) achievements: codex, maps, tutorial and daily goals', ids(newlyEarned({}, { ...base, state: null, codex: allCodex, mapsPlayed: new Set(MAPS.map((m) => m.id)), tutorialDone: true, dailies: 1 }))
     === 'allMaps,blackHole,combos10,combos20,daily,firstCombo,nuke,tutorial');
+  check('(mot) map stars: 0 below 25, then 1/2/3 at waves 25/50/100; best wave from a score list', starsForWave(24) === 0 && starsForWave(25) === 1
+    && starsForWave(99) === 2 && starsForWave(250) === 3 && bestWave([{ wave: 12 }, { wave: 61 }, { wave: NaN }]) === 61 && bestWave([]) === 0);
   check('(mot) achievements: stored data is cleaned', JSON.stringify(cleanEarned({ nuke: '2026', bogus: 'x', wave25: 5 })) === '{"nuke":"2026"}' && ACHIEVEMENTS.length >= 20);
 }
 
