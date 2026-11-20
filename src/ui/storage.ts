@@ -31,6 +31,7 @@ export interface Settings {
   highContrast: boolean;
   /** No blinking, pulsing, jitter or bright flashes. */
   reduceMotion: boolean;
+  screenShake: boolean;
   sfxVolume: number;
   tutorialDone: boolean;
   hints: boolean;
@@ -96,6 +97,7 @@ export const DEFAULT_SETTINGS: Settings = {
   // the tutorial was finished or skipped (hides the menu banner)
   sfxVolume: 1,         // game effects bus (shots, blasts, combos), on top of the master volume
   uiVolume: 1,          // interface bus (clicks, build, upgrade, sell, errors)
+  screenShake: true,    // shake the view on big blasts (never with reduce motion)
   reduceMotion: false,  // accessibility: calm UI and map; when never saved, getSettings() follows prefers-reduced-motion
   infoCollapsed: false,
   panelPos: null,       // turret panel { x, y } in px from the HUD's top-left, null = default dock

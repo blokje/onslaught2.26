@@ -5,6 +5,12 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
 
 ## Unreleased
 
+### Added (2026 roadmap, phase 4: game feel)
+- Screen shake on big blasts and black holes (setting "Screen shake", default on, never with reduce motion) and a quick
+  impact ring on every kill. Presentation only (`R.shake` in the renderer, new `RenderOptions.screenShake`). Checked in
+  Chromium that a real Nuke and normal waves run without console errors; the shake itself was checked by code review,
+  not on screen. Docs: `ARCHITECTURE.md`, `docs/claude/rendering.md`, `docs/claude/ui.md`.
+
 ### Added (2026 roadmap, phase 2: onboarding)
 - One-time tips in the coach card: the first leak, few lives left, the first modifier and late-weapon unlocks,
   freak-out, a turret ready for combos, the first combo, and wave 10 without upgrades. Each shows once (stored in

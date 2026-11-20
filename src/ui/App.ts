@@ -306,7 +306,7 @@ export class App {
     if ('sfxVolume' in patch) this.audio.setBusVolume('sfx', this.settings.sfxVolume);
     if ('uiVolume' in patch) this.audio.setBusVolume('ui', this.settings.uiVolume);
     if ('showFps' in patch) this.applyFps();
-    if ('uiScale' in patch || 'highContrast' in patch || 'reduceMotion' in patch) this.applyLook();
+    if ('uiScale' in patch || 'highContrast' in patch || 'reduceMotion' in patch || 'screenShake' in patch) this.applyLook();
     if ('keys' in patch) this.applyKeys();
     if ('colorSymbols' in patch) this.overlayDirty = true;
     if ('unlockAll' in patch || 'waveInterval' in patch) this.menu.refresh();
@@ -318,7 +318,7 @@ export class App {
     this.root.style.setProperty('--ui-scale', String(sc));
     this.root.classList.toggle('os-hc', !!this.settings.highContrast);
     this.root.classList.toggle('os-rm', !!this.settings.reduceMotion);
-    try { this.renderer.setOptions?.({ reduceMotion: !!this.settings.reduceMotion }); } catch (e) { console.error(e); }
+    try { this.renderer.setOptions?.({ reduceMotion: !!this.settings.reduceMotion, screenShake: !!this.settings.screenShake }); } catch (e) { console.error(e); }
     this.hud.applyPanelPos(); // the panel size changed with the scale; keep it on screen
   }
 

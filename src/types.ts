@@ -295,6 +295,8 @@ export interface Overlay {
 export interface RenderOptions {
   /** Accessibility: no jitter or blinking, dimmer and shorter blast flashes, fewer debris particles. */
   reduceMotion: boolean;
+  /** Shake the view on big blasts and black holes (ignored while reduceMotion is on). */
+  screenShake?: boolean;
 }
 
 export interface ViewInsets { top: number; right: number; bottom: number; left: number }

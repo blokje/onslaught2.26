@@ -101,7 +101,8 @@ export class Renderer {
       game: null,
       trailSeen: new Map(),
       fxSeen: new Map(),
-      opts: { reduceMotion: false },
+      opts: { reduceMotion: false, screenShake: true },
+      shake: 0,
     };
     const mk = <T extends SpriteBatch | RingBatch>(batch: T): T => { this.scene.add(batch.mesh); return batch; };
     const FXT = fxA.texture, UT = unitA.texture, TB = turA.base, TW = turA.weapon, TI = turA.icon, TT = this.text.texture;
@@ -195,7 +196,17 @@ export class Renderer {
     const hw = view.W / 2 / s, hh = view.H / 2 / s;
     const cam = this.camera;
     cam.left = -hw; cam.right = hw; cam.top = hh; cam.bottom = -hh;
-    cam.position.x = c.x; cam.position.y = -c.y;
+    // screen shake: offset grows with shake^2 (small blasts barely move it), max 7 CSS px, decays in about 0.6 s real time
+    let sx = 0, sy = 0;
+    if (R.shake > 0) {
+      if (R.opts.screenShake !== false && !R.opts.reduceMotion) {
+        const amp = R.shake * R.shake * 7 / s;
+        sx = amp * Math.sin(this.t * 61.7) * Math.cos(this.t * 17.3);
+        sy = amp * Math.sin(this.t * 53.1 + 1.3);
+      }
+      R.shake = Math.max(0, R.shake - dt / 600);
+    }
+    cam.position.x = c.x + sx; cam.position.y = -c.y + sy;
     cam.updateProjectionMatrix();
     const wpp = 1 / s;
 

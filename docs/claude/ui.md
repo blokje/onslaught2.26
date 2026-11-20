@@ -49,6 +49,7 @@ DOM overlay over the canvas, input, persistence and audio. Contract: `ARCHITECTU
   white outline on active buttons and tabs).
 - Separate volumes: Game effects (`sfxVolume`) and Interface (`uiVolume`), 0 to 1 on top of the master volume, sliders in
   Settings; releasing a slider plays a sample of that bus. A bus at 0 skips synthesis entirely.
+- Screen shake (`screenShake`, default on), sent with `renderer.setOptions`; reduce motion always wins.
 - Reduce motion and flashes (`reduceMotion`): on the first start (no stored value) `getSettings()` follows
   `prefers-reduced-motion`. `App.applyLook()` toggles `os-rm` on `.os-root` and calls `renderer.setOptions` (optional on
   `AppRenderer`, the mock has none). CSS under `.os-rm`: no infinite pulses or the rotate spin, the leak cue is a thin red

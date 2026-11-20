@@ -51,7 +51,9 @@ export interface Res {
   game: RenderGame | null;
   trailSeen: Map<number, { x: number; y: number; s: number }>; // projectile id -> last trail point + frame stamp
   fxSeen: Map<number, number>;                                  // effect id -> frame stamp
-  opts: RenderOptions;                                          // renderer.setOptions (reduceMotion)
+  opts: RenderOptions;                                          // renderer.setOptions (reduceMotion, screenShake)
+  /** Screen-shake energy 0..1 (added by big blasts, decays each frame; see Renderer.render). */
+  shake: number;
 }
 
 /** Per-frame values shared by the draw functions. */

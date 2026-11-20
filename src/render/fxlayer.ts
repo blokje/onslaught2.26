@@ -104,6 +104,7 @@ export function drawEffects(R: Res, f: Frame): void {
         b.blastAdd.add(x, y, 0, r0 * 2.1 * (0.5 + 0.7 * easeOut(u)), r0 * 2.1 * (0.5 + 0.7 * easeOut(u)), c.fx.glow, 1, 0.72, 0.3, 0.9 * Math.pow(a, 1.6));
         const cs = r0 * 1.25 * (1 - u * 0.6);
         const calm = R.opts.reduceMotion; // accessibility: dimmer white core, no star flash, half the debris
+        if (first && big) R.shake = Math.min(1, R.shake + (r0 >= 85 ? 0.75 : 0.45)); // nuke and BFG size shake most
         b.blastAdd.add(x, y, 0, cs, cs, c.fx.glow, 1, 0.96, 0.82, Math.pow(a, 3) * (calm ? 0.35 : 1));
         if (u < 0.28 && !calm) b.blastAdd.add(x, y, u * 3, r0 * 1.9, r0 * 1.9, c.fx.star, 1, 0.9, 0.6, (1 - u / 0.28) * 0.8);
         b.ringAdd.add(x, y, r0 * easeOut(u, 2.6), Math.max(1.5, r0 * 0.16 * a), 0, 0.65, 0, 1, 0.62, 0.22, 0.9 * Math.pow(a, 1.3));
@@ -138,6 +139,7 @@ export function drawEffects(R: Res, f: Frame): void {
         break; }
       case 'blackHole': {
         const r0 = e.radius > 0 ? e.radius : 120;
+        if (first) R.shake = Math.min(1, R.shake + 0.5);
         const g = easeOut(Math.min(1, u / 0.12), 2) * Math.min(1, (1 - u) / 0.15);
         const core = 24 * g;
         b.groundRing.add(x, y, r0, 1.6, 0.05 * g, 0.5, 26, 0.6, 0.35, 1, 0.45 * g);
@@ -175,6 +177,8 @@ export function drawEffects(R: Res, f: Frame): void {
         const ent = text.get('+$' + fmtCompact(amount), 30);
         if (!ent) break;
         const al = u < 0.65 ? 1 : (1 - u) / 0.35;
+        // kill impact: a quick expanding ring where the attacker died
+        if (u < 0.25) { const k = u / 0.25; b.ringAdd.add(x, y, 4 + 14 * easeOut(k, 2), Math.max(0.8, 2.4 * (1 - k)), 0, 0.5, 0, 1, 0.95, 0.6, 0.7 * (1 - k)); }
         const pop = 1 + 0.35 * Math.max(0, 1 - u * 9);
         const hgt = 0.29 * ent.ph * pop * f.textScale;
         b.text.add(x, y - 6 - easeOut(u, 2) * 24, 0, hgt * ent.aspect, hgt, ent, 0.8, 1, 0.45, al);

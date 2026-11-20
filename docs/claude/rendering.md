@@ -26,6 +26,14 @@ three.js 0.160.0, orthographic top-down. Contract: `ARCHITECTURE.md` section 2. 
 - Never consume left-button or single-touch events: those belong to the UI.
 - DPR is capped at 2. Antialiasing is off because edges are shader or texture antialiased.
 
+## Screen shake and kill impact (game feel)
+
+`R.shake` (0..1) is raised on the first frame of a big blast (radius > 70: +0.45, nuke and BFG size +0.75) and of a
+black hole (+0.5), and decays by 1 per 600 ms of real time. `render()` offsets the camera by `shake^2 * 7` CSS px with
+two fast sines, so small hits barely move it. Off when `opts.screenShake` is false or `opts.reduceMotion` is on (the
+energy still decays). `screenToWorld` ignores the offset (at most 7 px, only for a moment).
+Every kill with a bounty gets a short expanding ring (first quarter of its `cash` effect).
+
 ## Reduce motion (accessibility)
 
 `renderer.setOptions({ reduceMotion })` stores the flag in `R.opts`. When on: the combo halo stays at a steady alpha,

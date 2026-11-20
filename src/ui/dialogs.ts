@@ -33,7 +33,7 @@ export function buildSettings(app: App): HTMLElement {
     wave.value = String(v);
     app.updateSettings({ waveInterval: v });
   });
-  const check = (key: 'snap' | 'unlockAll' | 'showFps' | 'autoPause' | 'autoSend' | 'undo' | 'colorSymbols' | 'highContrast' | 'reduceMotion' | 'hints'): HTMLInputElement => {
+  const check = (key: 'snap' | 'unlockAll' | 'showFps' | 'autoPause' | 'autoSend' | 'undo' | 'colorSymbols' | 'highContrast' | 'reduceMotion' | 'hints' | 'screenShake'): HTMLInputElement => {
     const c = h('input', { type: 'checkbox' });
     c.checked = !!s[key];
     c.addEventListener('change', () => app.updateSettings({ [key]: c.checked } as Partial<storage.Settings>)); // key is one of the boolean settings above
@@ -84,6 +84,7 @@ export function buildSettings(app: App): HTMLElement {
     h('h3', { class: 'os-set-h' }, 'Accessibility'),
     field('Interface size', 'Scales all text, panels and buttons.', h('div', { style: 'display:flex;align-items:center;gap:.6em' }, scale, scaleTxt)),
     field('High contrast', 'Solid panels, brighter text and stronger outlines.', check('highContrast')),
+    field('Screen shake', 'The view shakes a little on big explosions. Always off with Reduce motion.', check('screenShake')),
     field('Reduce motion and flashes', 'No blinking, pulsing or shaking; dimmer explosions. Starts on when your system asks for less motion.', check('reduceMotion')),
     field('Colour shapes on the map', 'Each turret shows the shape of its combo colour: red triangle, green circle, blue square, yellow diamond.', check('colorSymbols')),
     field('Saved progress', 'Unlocks, high scores and the autosave.', resetBtn));
