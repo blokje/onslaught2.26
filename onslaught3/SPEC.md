@@ -312,5 +312,33 @@ Tazer BFG 9 s, hit 4 M, 5.5 M blast, 6 sparks of 1.5 M.
 
 ## 11. OnSlaught 3 rules [OS3]
 
-Nothing yet beyond the copy of OnSlaught2.26. Planned first: enemy types with strengths and weaknesses, mixed waves,
-bosses every 10 waves and mutators.
+### 11.1 Enemy kinds (`src/data/enemies.ts`)
+
+Multipliers on the wave's normal attacker (HP from the wave curve, bounty, base speed 60). Weakness multipliers go by the
+source turret's weapon (a combo counts as its lead).
+
+| Kind | HP | Speed | Bounty | Special |
+|---|---|---|---|---|
+| Runner (normal) | x1 | x1 | x1 | none |
+| Armored | x1.1 | x0.85 | x1.3 | each hit loses 3% of its max HP (a hit keeps at least 25%); Rocket, Sniper, Railgun x1.4 |
+| Shielded | x0.8 | x1 | x1.3 | extra shield of 60% of max HP used first; vs the shield Tazer x3, Laser and Fusion x1.5 |
+| Swarmer | x0.35 | x1.3 | x0.45 | comes in pairs (one slot = two), drawn smaller |
+| Splitter | x0.8 | x0.95 | x0.8 | on death two Swarmers with 30% of its max HP and 30% of its bounty each (not when black-holed) |
+| Regenerator | x1 | x1 | x1.2 | heals 4% of max HP per second unless poisoned (slowed) |
+| Boss | x10 | x0.7 | x12 | armour 1.5%; Rocket x1.2, Sniper and Railgun x1.4; drawn 1.8x |
+
+### 11.2 Mixed waves (`waveKinds` in `src/game/Waves.ts`)
+
+Deterministic, no rng. Waves 1 to 4: ten Runners. From wave 5 every second attacker is the wave's special kind, rotating
+Armored, Swarmer, Shielded, Regenerator, Splitter (wave 5 Armored, 6 Swarmer, ...); from wave 15 every fourth attacker is a
+second special kind from the same rotation, two steps ahead. Every 10th wave a Boss leads. A Swarmer slot spawns two.
+
+### 11.3 Balance (greedy bot, `node onslaught3/scripts/balance.ts difficulty`, waves reached, mean of maps 1, 4, 9)
+
+| | Easy | Medium | Hard | Extreme |
+|---|---|---|---|---|
+| OnSlaught2.26 | 108 | 74 | 53 | 29 |
+| OnSlaught 3 (11.1, 11.2) | 136 | 75 | 52 | 23 |
+
+Medium and Hard match 2.26. Easy got easier (map 4: 177, an outlier) and Extreme harder (with one life a Boss that gets
+through ends the game). To do: a balance pass on Easy (probably Boss and Regenerator bounty) and on Extreme.

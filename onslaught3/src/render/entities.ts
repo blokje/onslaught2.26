@@ -6,6 +6,7 @@ import { KIND_INDEX, KIND_TINT, COMBO_COLOR } from './atlas.ts';
 import { clamp, hex, hash2, TAU } from './util.ts';
 import type { RGB } from './util.ts';
 import type { TurretState } from '../types.ts';
+import { ENEMIES } from '../data/enemies.ts';
 import type { Res, Frame } from './context.ts';
 
 const rgbCache = new Map<string, RGB>();
@@ -163,15 +164,31 @@ export function drawAttackers(R: Res, f: Frame): void {
       r *= 0.55; g *= 1; bl *= 0.5;
       b.attGlow.add(x, y, 0, 34, 34, c.fx.glow, 0.3, 1, 0.2, 0.42 + 0.12 * Math.sin(f.t * 6 + a.id));
     }
-    const s = 32 * scale;
+    // [OS3] enemy kinds: size, and a cue per kind that also works without colour (ring style, bars)
+    const kd = a.kind ? ENEMIES[a.kind] : null;
+    const ks = kd ? kd.size : 1;
+    if (kd && !a.blackholed) {
+      const rr = 13 * ks;
+      if (a.kind === 'armored' || a.kind === 'boss') b.groundRing.add(x, y, rr, 2.6, 0, 0.2, a.kind === 'boss' ? 0 : 6, a.kind === 'boss' ? 0.9 : 0.62, a.kind === 'boss' ? 0.18 : 0.64, a.kind === 'boss' ? 0.15 : 0.7, 0.95);
+      if (a.kind === 'boss') b.attGlow.add(x, y, 0, 70, 70, c.fx.glow, 1, 0.2, 0.1, R.opts.reduceMotion ? 0.35 : 0.3 + 0.12 * Math.sin(f.t * 3 + a.id));
+      if (a.shield && a.shield > 0) b.ringAdd.add(x, y, rr + 2.5, 1.6, 0.08, 0.6, 0, 0.35, 0.85, 1, 0.45 + 0.4 * Math.min(1, a.shield / Math.max(1, a.maxHp * (kd.shield || 1))));
+      if (a.kind === 'regen' && a.hp < a.maxHp && !a.poisoned) b.attGlow.add(x, y, 0, 30, 30, c.fx.glow, 0.3, 1, 0.45, R.opts.reduceMotion ? 0.35 : 0.25 + 0.2 * Math.sin(f.t * 5 + a.id));
+      if (a.kind === 'splitter') b.groundRing.add(x, y, rr, 1.4, 0, 0.3, 4, 1, 0.75, 0.3, 0.85);
+    }
+    const s = 32 * scale * ks;
     b.att.add(x, y, rot, s, s, cell, r, g, bl, 1);
-    // HP bar (always screen-up, drawn above the unit)
+    // HP bar (always screen-up, drawn above the unit); a boss gets a longer one, a shield a cyan bar above it
     const fr = clamp(a.maxHp > 0 ? a.hp / a.maxHp : 0, 0, 1);
-    const by = y - 13.2 * (0.4 + 0.6 * scale);
-    b.attTop.add(x, by, 0, HP_W + 1.4, 3.2, c.fx.whiteSolid, 0.03, 0.03, 0.04, 0.72);
+    const hw = HP_W * (ks > 1.4 ? 2 : 1);
+    const by = y - 13.2 * (0.4 + 0.6 * scale) * ks;
+    b.attTop.add(x, by, 0, hw + 1.4, 3.2, c.fx.whiteSolid, 0.03, 0.03, 0.04, 0.72);
     if (fr > 0) {
-      const w = HP_W * fr;
-      b.attTop.add(x - HP_W / 2 + w / 2, by, 0, w, 2, c.fx.whiteSolid, fr > 0.5 ? (1 - fr) * 2 : 1, fr > 0.5 ? 1 : fr * 2, 0.15, 1);
+      const w = hw * fr;
+      b.attTop.add(x - hw / 2 + w / 2, by, 0, w, 2, c.fx.whiteSolid, fr > 0.5 ? (1 - fr) * 2 : 1, fr > 0.5 ? 1 : fr * 2, 0.15, 1);
+    }
+    if (kd && kd.shield && a.shield && a.shield > 0) {
+      const sw = hw * clamp(a.shield / (a.maxHp * kd.shield), 0, 1);
+      b.attTop.add(x - hw / 2 + sw / 2, by - 3, 0, sw, 1.6, c.fx.whiteSolid, 0.35, 0.85, 1, 1);
     }
   }
 }

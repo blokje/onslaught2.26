@@ -4,6 +4,21 @@ import type { LangPack } from '../i18n.ts';
 
 export const CONTENT_TEXT: LangPack = {
   nl: {
+    // [OS3] enemy kinds (src/ui/enemies.ts)
+    "Runner": "Loper",
+    "The standard attacker.": "De gewone aanvaller.",
+    "Armored": "Gepantserd",
+    "Each hit loses a fixed chunk to the armour, so many small hits do little. Rockets, Sniper and Railgun do 40% more.": "Elke treffer verliest een vast stuk aan het pantser, dus veel kleine treffers doen weinig. Rockets, Sniper en Railgun doen 40% meer.",
+    "Shielded": "Met schild",
+    "A shield takes the first hits. Tazer sparks do triple damage to it, lasers and Fusion 50% more.": "Een schild vangt de eerste treffers op. Tazer-vonken doen er driedubbele schade aan, lasers en Fusion 50% meer.",
+    "Swarmer": "Zwermer",
+    "Small, fast and in pairs. Splash damage and chains clear them.": "Klein, snel en in paren. Explosies en kettingen ruimen ze op.",
+    "Splitter": "Splijter",
+    "Breaks into two Swarmers when destroyed. Keep turrets further down the road.": "Valt bij vernietiging uiteen in twee zwermers. Zet ook torens verderop langs de weg.",
+    "Regenerator": "Hersteller",
+    "Heals 4% of its HP per second, but not while a Tazer slows it.": "Herstelt 4% van zijn HP per seconde, maar niet zolang een Tazer hem afremt.",
+    "Boss": "Baas",
+    "Every 10th wave: slow, huge and armoured, worth a lot.": "Elke 10e golf: traag, enorm en gepantserd, en veel waard.",
     "Welcome": "Welkom",
     "Attackers drive along the road to your base. Each one that gets through costs a life. Build turrets beside the road to stop them. No wave comes until you send it, so take your time.": "Aanvallers rijden over de weg naar je basis. Elke aanvaller die erdoor komt, kost een leven. Bouw torens naast de weg om ze te stoppen. Er komt geen golf tot je hem stuurt, dus neem je tijd.",
     "Build a Cannon": "Bouw een Cannon",
@@ -143,6 +158,21 @@ export const CONTENT_TEXT: LangPack = {
     "Never fires. Counts as a fully upgraded turret of the colour you pick (X) in combos.": "Vuurt nooit. Telt in combo's als een volledig geüpgradede toren van de kleur die je kiest (X).",
   },
   de: {
+    // [OS3] enemy kinds (src/ui/enemies.ts)
+    "Runner": "Läufer",
+    "The standard attacker.": "Der normale Angreifer.",
+    "Armored": "Gepanzert",
+    "Each hit loses a fixed chunk to the armour, so many small hits do little. Rockets, Sniper and Railgun do 40% more.": "Jeder Treffer verliert ein festes Stück an der Panzerung, viele kleine Treffer bewirken also wenig. Rockets, Sniper und Railgun machen 40% mehr.",
+    "Shielded": "Mit Schild",
+    "A shield takes the first hits. Tazer sparks do triple damage to it, lasers and Fusion 50% more.": "Ein Schild fängt die ersten Treffer ab. Tazer-Funken machen dreifachen Schaden daran, Laser und Fusion 50% mehr.",
+    "Swarmer": "Schwärmer",
+    "Small, fast and in pairs. Splash damage and chains clear them.": "Klein, schnell und paarweise. Explosionen und Ketten räumen sie weg.",
+    "Splitter": "Spalter",
+    "Breaks into two Swarmers when destroyed. Keep turrets further down the road.": "Zerfällt beim Zerstören in zwei Schwärmer. Stell auch weiter hinten an der Straße Türme auf.",
+    "Regenerator": "Regenerierer",
+    "Heals 4% of its HP per second, but not while a Tazer slows it.": "Heilt 4% seiner HP pro Sekunde, aber nicht, solange ein Tazer ihn bremst.",
+    "Boss": "Boss",
+    "Every 10th wave: slow, huge and armoured, worth a lot.": "Jede 10. Welle: langsam, riesig und gepanzert, und viel wert.",
     "Welcome": "Willkommen",
     "Attackers drive along the road to your base. Each one that gets through costs a life. Build turrets beside the road to stop them. No wave comes until you send it, so take your time.": "Angreifer fahren die Straße entlang zu deiner Basis. Jeder, der durchkommt, kostet ein Leben. Bau Türme neben der Straße, um sie aufzuhalten. Keine Welle kommt, bevor du sie schickst, also lass dir Zeit.",
     "Build a Cannon": "Bau eine Cannon",

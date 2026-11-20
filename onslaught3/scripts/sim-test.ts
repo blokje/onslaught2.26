@@ -2,7 +2,9 @@
 import { Game, STEP_MS } from '../src/game/Game.ts';
 import { MAPS } from '../src/data/maps.ts';
 import { DIFFICULTIES, WAVES, WEAVE } from '../src/data/rules.ts';
-import { waveHp, waveBounty, laneOffset } from '../src/game/Attacker.ts';
+import { waveHp, waveBounty, laneOffset, createAttacker, applyPoison } from '../src/game/Attacker.ts';
+import { waveKinds } from '../src/game/Waves.ts';
+import type { EnemyKind } from '../src/types.ts';
 import { ladderValue } from '../src/game/modifiers.ts';
 import { DpsTracker } from '../src/ui/dps.ts';
 import { COLOR_SYMBOL } from '../src/ui/colors.ts';
@@ -445,15 +447,15 @@ function makePlayer(game: Game, spots: Spot[]): () => void {
   }
   check('(late) difficulties keep their HP order after wave 100', order);
   const gm = new Game({ mapId: 'map1', difficulty: 'medium', seed: 3 });
-  gm.state.wave = 129;
+  gm.state.wave = 130; // [OS3] wave 130 starts with a Boss, so test wave 131 (its first attacker is a normal one)
   let paid = null;
   gm.on('kill', (e) => { paid = e.bounty; });
   gm.sendWave();
   gm.advance(2);
   const a = gm.state.attackers[0];
-  check('(late) spawned wave-130 attacker uses the late curve', a && a.wave === 130 && near(a.maxHp, waveHp(130, 1.125)) && a.bounty === waveBounty(130),
+  check('(late) spawned wave-131 attacker uses the late curve', a && a.wave === 131 && near(a.maxHp, waveHp(131, 1.125)) && a.bounty === waveBounty(131),
     a ? `${a.maxHp.toExponential(2)} HP, $${a.bounty}` : 'no attacker');
-  if (a) { const c = gm.state.cash; gm.damageAttacker(a, a.hp + 1, null); check('(late) kill pays the late bounty', gm.state.cash - c === waveBounty(130) && paid === waveBounty(130)); }
+  if (a) { const c = gm.state.cash; gm.damageAttacker(a, a.hp + 1, null); check('(late) kill pays the late bounty', gm.state.cash - c === waveBounty(131) && paid === waveBounty(131)); }
 }
 
 // ------------------------------------------------------------------ (q) player information (read-only previews)
@@ -870,6 +872,57 @@ function makePlayer(game: Game, spots: Spot[]): () => void {
   setLang('nl'); const nlSend = t('Send wave'); setLang('de'); const deFill = t('Wave {n} started', { n: 7 }); setLang('en');
   check('(i18n) t() translates, fills placeholders and falls back to English', t('Not a known text {x}', { x: 1 }) === 'Not a known text 1' && (keys.has('Send wave') ? nlSend !== 'Send wave' : true) && (keys.has('Wave {n} started') ? deFill.includes('7') : true)
     && detectLang(['de-AT', 'en']) === 'de' && detectLang(['fr', 'nl-BE']) === 'nl' && detectLang(['fr']) === 'en', `${keys.size} keys`);
+}
+
+// ------------------------------------------------------------------ (os3) enemy kinds and mixed waves (SPEC.md section 11)
+{
+  const count = (n: number): Record<string, number> => { const c: Record<string, number> = {}; for (const k of waveKinds(n)) c[k] = (c[k] || 0) + 1; return c; };
+  check('(os3) waves 1 to 4 are ten normal attackers', [1, 2, 3, 4].every((n) => JSON.stringify(count(n)) === '{"normal":10}'));
+  check('(os3) from wave 5 every other attacker is the special kind (wave 5 armoured, wave 6 swarmers in pairs)',
+    JSON.stringify(count(5)) === '{"normal":5,"armored":5}' && JSON.stringify(count(6)) === '{"normal":5,"swarm":10}');
+  check('(os3) every 10th wave starts with a Boss; from wave 15 two special kinds', waveKinds(10)[0] === 'boss' && waveKinds(20)[0] === 'boss'
+    && Object.keys(count(17)).length === 3);
+  const g = new Game({ mapId: 'map1', mode: 'sandbox', seed: 51 });
+  const mk = (kind: EnemyKind) => { const a = g.addAttacker(createAttacker(g, 20, 10000, kind)); freeze(a, 300, 200); return a; };
+  const [p1, p2, p3] = bestSpots('map1', 3);
+  const blue = tur(g, must(g.build('blue', p1.x, p1.y)).id), red = tur(g, must(g.build('red', p2.x, p2.y)).id);
+  const yel = tur(g, must(g.build('yellow', p3.x, p3.y)).id);
+  const ar = mk('armored');
+  g.damageAttacker(ar, 400, blue);
+  const smallHit = 10000 - ar.hp;
+  g.damageAttacker(ar, 400, red);
+  const rocketHit = 10000 - smallHit - ar.hp;
+  check('(os3) armour: a small hit keeps 25%, a rocket hit gets x1.4 before the 300 armour', near(smallHit, 100) && near(rocketHit, 400 * 1.4 - 300), `${smallHit}, ${rocketHit}`);
+  const sh = mk('shielded');
+  g.damageAttacker(sh, 1000, blue);
+  const s1 = sh.shield!;
+  g.damageAttacker(sh, 1000, yel);
+  check('(os3) shield: takes hits first, Tazer sparks do x3 to it; HP untouched while it lasts', near(s1, 6000 - 1000) && near(sh.shield!, s1 - 3000) && sh.hp === 10000);
+  g.damageAttacker(sh, 10000, blue);
+  check('(os3) shield: damage beyond the shield goes on to HP', sh.shield === 0 && near(sh.hp, 10000 - (10000 - 2000)), String(sh.hp));
+  const rg = g.addAttacker(createAttacker(g, 20, 1000, 'regen'));
+  rg.hp = 500;
+  g.advance(60);
+  const healed = rg.hp;
+  rg.hp = 500; applyPoison(rg, 3); g.advance(60);
+  check('(os3) regen: heals 4% per second, not while poisoned', near(healed, 540, 1e-3) && rg.hp === 500 || (near(healed, 540, 1e-3) && rg.hp < 505), `${healed}, ${rg.hp}`);
+  const before = g.state.attackers.filter((x) => !x.dead).length;
+  const spl = g.addAttacker(createAttacker(g, 20, 10000, 'splitter')); // not frozen: freeze() marks it black-holed, which never splits
+  g.damageAttacker(spl, 1e9, blue);
+  const kids = g.state.attackers.filter((x) => !x.dead && x.kind === 'swarm');
+  check('(os3) splitter: dies into two Swarmers with 30% of its HP each', kids.length === 2 && kids.every((k) => near(k.maxHp, 3000)) && g.state.attackers.filter((x) => !x.dead).length === before + 2, `${kids.length} kids`);
+  const boss = createAttacker(g, 10, null, 'boss'), norm = createAttacker(g, 10, null, 'normal');
+  check('(os3) boss: 10x HP, 12x bounty, slower', near(boss.maxHp, norm.maxHp * 10) && boss.bounty === Math.round(norm.bounty * 12) && boss.baseSpeed < norm.baseSpeed);
+  // a mixed game saves and restores identically, and a save with an unknown kind still loads
+  const m = new Game({ mapId: 'map1', difficulty: 'easy', seed: 52 });
+  for (const p of bestSpots('map1', 3)) must(m.build('blue', p.x, p.y));
+  m.state.wave = 9; m.sendWave(); m.advance(400);
+  const m2 = Game.deserialize(JSON.parse(JSON.stringify(m.serialize())));
+  m.advance(900); m2.advance(900);
+  check('(os3) a boss wave saves and restores identically', JSON.stringify(m.serialize()) === JSON.stringify(m2.serialize()) && m.state.wave === 10);
+  const bad = JSON.parse(JSON.stringify(m.serialize())); if (bad.attackers[0]) bad.attackers[0].kind = 'dragon'; if (bad.spawners[0]) bad.spawners[0].kinds = ['dragon'];
+  let loaded = false; try { const b2 = Game.deserialize(bad); b2.advance(60); loaded = true; } catch (e) { loaded = false; }
+  check('(os3) an unknown enemy kind in a save is ignored, not a crash', loaded);
 }
 
 // ------------------------------------------------------------------ (q) waveActive (auto-send)

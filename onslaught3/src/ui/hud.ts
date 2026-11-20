@@ -19,6 +19,8 @@ export interface CoachView {
   key: string; title: string; text: string; progress?: string; tip?: boolean;
   buttons: { label: string; primary?: boolean; onClick: () => void }[];
 }
+import { ENEMY_TEXT } from './enemies.ts';
+import type { EnemyKind } from '../types.ts';
 import type { TurretState, GameState, KeyColor, Stat, TargetMode, DirectionalMode, TurretDef, Category } from '../types.ts';
 
 const TARGET_NAMES: Record<TargetMode, string> = { near: tx('Nearest'), far: tx('Furthest'), weak: tx('Weakest'), strong: tx('Strongest'), slow: tx('Slowest'), fast: tx('Fastest'), oldest: tx('Oldest'), newest: tx('Newest') };
@@ -328,12 +330,17 @@ export class Hud {
     this.incomingGame = game;
     const p = game.wavePreview();
     setText(this.incomingEl!.firstChild!, t('Wave {n}', { n: p.wave }));
+    // [OS3] the special kinds of the next wave follow the label ("Wave 7: Armored")
+    const mix = (q: { kinds?: Partial<Record<EnemyKind, number>> }): string => Object.entries(q.kinds || {}).map(([k, n]) => `${n} ${t(ENEMY_TEXT[k as EnemyKind]?.name || k)}`).join(', ');
+    const special = (Object.keys(p.kinds || {}) as EnemyKind[]).filter((k) => k !== 'normal');
+    setText(this.incomingEl!.firstChild!, t('Wave {n}', { n: p.wave }) + (special.length ? ': ' + special.map((k) => t(ENEMY_TEXT[k].name)).join(', ') : ''));
     setText(this.v.incoming, `${formatNum(p.hp)} HP $${formatNum(p.bounty)}`);
     const lines = [t('Coming up ({n} attackers per wave, HP and bounty each):', { n: p.count })];
     for (let n = p.wave; n < p.wave + 5; n++) {
       const q = game.wavePreview(n);
-      lines.push(t('Wave {n}: {hp} HP, {cash}', { n: q.wave, hp: formatNum(q.hp), cash: '$' + formatNum(q.bounty) }));
+      lines.push(t('Wave {n}: {hp} HP, {cash}', { n: q.wave, hp: formatNum(q.hp), cash: '$' + formatNum(q.bounty) }) + (q.kinds ? ' (' + mix(q) + ')' : ''));
     }
+    for (const k of special) lines.push('', t(ENEMY_TEXT[k].name) + ': ' + t(ENEMY_TEXT[k].blurb));
     this.incomingEl!.title = lines.join('\n');
   }
 

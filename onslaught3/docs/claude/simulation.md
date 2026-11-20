@@ -54,6 +54,11 @@ payloads are typed locally in `combos.ts` (`ComboProjData`).
   would replay the cycle twice; found by the replay test). Playback sets `stepHook` to run the log entries whose `s` is the
   current `stepCount` before that step, which is exactly when they ran originally, whatever the speed was. Commands after
   the last step run in `flush()`. `startOpts` matters because `setWaveInterval` rewrites `opts.waveInterval`.
+- [OS3] Enemy kinds: `createAttacker(game, wave, hp?, kind)` applies `ENEMIES[kind]` (HP, speed, bounty, shield); the
+  spawner carries `kinds` from `waveKinds(wave)`. `damageAttacker` runs `_defend` first (weakness by the source weapon,
+  then the shield with its own multiplier, then armour keeping 25%). Regen runs in `moveAttackers` unless poisoned.
+  `killAttacker` splits splitters (children placed a little behind). The piercing laser still spends `e.hp` of energy
+  on an attacker it kills, so armour or a shield there makes it stop a little early; accepted for now.
 - `state.damageTotal` adds the same effective damage for the whole game (sold turrets keep counting).
   `state.history` gets one `WaveRecord` per started wave in `startWave` (`Waves.ts`), after `wave` is raised and before
   the spawner exists: the economy as the wave starts. Capped at `HISTORY_MAX` (5000). Both are saved inside `state`;

@@ -29,6 +29,9 @@ DOM overlay over the canvas, input, persistence and audio. Contract: `ARCHITECTU
 
 ## Top bar
 
+[OS3] The Incoming label names the special enemy kinds of the next wave ("Wave 5: Armored"); the tooltip lists the kinds
+per wave and explains each special kind (`ENEMY_TEXT` in `src/ui/enemies.ts`, translated).
+
 - Stats: Cash, Lives, Wave, Kills, Score. Wave box: Next wave countdown, the **Incoming** preview, Send wave and **Auto**.
 - Auto (key A, setting `autoSend`, default off, also in Settings): `App.autoSendCheck` runs every frame and calls
   `sendWave()` (same as Space, early bonus included) when `game.waveActive()` is false. Never before wave 1, and not while

@@ -12,6 +12,8 @@ export type DirectionalMode = 'normal' | 'wide' | 'medium' | 'tight' | 'small' |
 export type FreakStage = 'off' | 'available' | 'warn' | 'on';
 export type DifficultyId = 'easy' | 'medium' | 'hard' | 'extreme';
 export type ModeId = 'normal' | 'sandbox';
+/** OnSlaught 3 enemy kinds (src/data/enemies.ts). */
+export type EnemyKind = 'normal' | 'armored' | 'shielded' | 'swarm' | 'splitter' | 'regen' | 'boss';
 export type BlastSize = 'small' | 'medium' | 'large' | 'huge' | 'bfg' | 'poison';
 
 // ------------------------------------------------------------------ data (src/data)
@@ -106,6 +108,9 @@ export interface Attacker {
   blackholed: boolean;
   progress: number;        // distance along the path
   weave?: [number, number, number, number];
+  /** [OS3] enemy kind (missing = normal) and the shield left (HP-like). */
+  kind?: EnemyKind;
+  shield?: number;
   // internals (src/game/Attacker.ts)
   wave: number;
   bounty: number;
@@ -249,7 +254,7 @@ export interface ComboPreview {
 }
 
 /** Outlook for one wave (game.wavePreview). */
-export interface WavePreview { wave: number; type: number; hp: number; bounty: number; count: number }
+export interface WavePreview { wave: number; type: number; hp: number; bounty: number; count: number; /** [OS3] attackers per kind */ kinds?: Partial<Record<EnemyKind, number>> }
 
 /** Effective stats before and after one more level of `stat` (game.upgradePreview). */
 export interface UpgradePreview { stat: Stat; cost: number; from: StatValues; to: StatValues }

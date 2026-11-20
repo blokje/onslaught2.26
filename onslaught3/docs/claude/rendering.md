@@ -26,6 +26,13 @@ three.js 0.160.0, orthographic top-down. Contract: `ARCHITECTURE.md` section 2. 
 - Never consume left-button or single-touch events: those belong to the UI.
 - DPR is capped at 2. Antialiasing is off because edges are shader or texture antialiased.
 
+## Enemy kinds [OS3]
+
+`drawAttackers` scales by `ENEMIES[kind].size`; cues that also work without colour: Armored a dashed grey ring, Boss a
+solid red ring, red glow and a double-length HP bar, Shielded a cyan bubble ring and a cyan bar above the HP bar that
+shrinks with the shield, Regenerator a green pulse while healing, Splitter a short-dashed amber ring. All in existing
+batches (`groundRing`, `ringAdd`, `attGlow`, `attTop`).
+
 ## Tilted view (game feel, optional)
 
 `setOptions({ tilted })` calls `CameraController.setTilt`. An orthographic camera tilted over a flat field shows it

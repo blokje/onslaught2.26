@@ -54,7 +54,8 @@ The constructor's default `seed` is a fixed constant, so callers that want a dif
 
   attackers: [ { id, type /*0..8*/, x, y, angle, hp, maxHp, speed, baseSpeed,
                  poisoned /*bool*/, blackholed /*bool*/, progress /*distance along path*/,
-                 weave /*optional [ph1, ph2, k1, k2]: sideways weave, see laneOffset() in Attacker.ts*/ } ],
+                 weave /*optional [ph1, ph2, k1, k2]: sideways weave, see laneOffset() in Attacker.ts*/,
+                 kind /*[OS3] optional EnemyKind, missing = normal*/, shield /*[OS3] optional shield left*/ } ],
 
   turrets: [ { id, kind /*key of TURRETS*/, x, y, angle /*weapon aim*/,
                levels: { damage, range, rate }, maxLevels: { damage, range, rate },
@@ -122,7 +123,8 @@ game.sendWave()                      // early wave, adds early bonus; refused wh
 game.undo()                          // relaxed rule: take back the last build/upgrade, full refund, until that turret fires (SPEC.md 9)
 game.undoInfo()                      // read-only: { label, refund } of what undo() would take back, or null
 game.waveActive()                    // read-only: true while a wave is still spawning or any attacker is alive (auto-send)
-game.wavePreview(n?)                 // read-only, no rng: { wave, type, hp, bounty, count } of wave n (default: the next wave, state.wave + 1)
+game.wavePreview(n?)                 // read-only, no rng: { wave, type, hp, bounty, count, kinds } of wave n (default: the next wave, state.wave + 1)
+                                     //   [OS3] hp/bounty are the normal attacker's; kinds counts the attackers per EnemyKind, count is their total
 game.setSpeed(s); game.togglePause(); game.setPaused(bool)
 game.setWaveInterval(ms)             // fails unless ms is a finite number >= 1000; clamps nextWaveIn
 game.advance(steps)                  // exactly `steps` 1/60 s steps, ignores speed and pause (tests and tools)

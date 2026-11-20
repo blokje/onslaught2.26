@@ -54,13 +54,14 @@ import { SpatialGrid } from './grid.ts';
 import { Turret, assignSafe } from './Turret.ts';
 import { emptyMods, addMod, computeStats, nextUpgradeCost, modRangeAt, STATS } from './modifiers.ts';
 import type { ModSum } from './modifiers.ts';
-import { createAttacker, moveAttackers, applyPoison, waveHp, waveBounty } from './Attacker.ts';
-import { startWave, updateSpawners, HISTORY_MAX } from './Waves.ts';
+import { createAttacker, moveAttackers, applyPoison, waveHp, waveBounty, laneOffset } from './Attacker.ts';
+import { ENEMIES } from '../data/enemies.ts';
+import { startWave, updateSpawners, HISTORY_MAX, waveKinds } from './Waves.ts';
 import { stepTurret, chainBonus, releaseOrbiter } from './weapons.ts';
 import { updateProjectiles } from './projectiles.ts';
 import type {
   Attacker, Beam, BeamKind, BlastSize, ComboPreview, DifficultyId, DirectionalMode, Effect, EffectKind, Fail, GameEventName, GameEvents,
-  GameOptions, GameState, KeyColor, ModeId, Projectile, ProjectileKind, Result, Stat, StatValues, TargetMode, TurretState, UpgradePreview, WavePreview, WaveRecord,
+  GameOptions, GameState, KeyColor, ModeId, Projectile, ProjectileKind, Result, Stat, StatValues, TargetMode, TurretState, UpgradePreview, WavePreview, WaveRecord, EnemyKind,
 } from '../types.ts';
 import type { Spawner } from './Waves.ts';
 import { Combos } from './combos.ts';
@@ -377,7 +378,10 @@ export class Game {
   /** Read-only outlook for wave n (default: the next wave). Same formulas as createAttacker, no rng. */
   wavePreview(n?: number): WavePreview {
     const w = Math.max(1, Math.floor(n ?? this.state.wave + 1));
-    return { wave: w, type: (w - 1) % WAVES.types, hp: waveHp(w, this.hpGrowth), bounty: waveBounty(w), count: WAVES.size };
+    const kinds: Partial<Record<EnemyKind, number>> = {};
+    const list = waveKinds(w);
+    for (const k of list) kinds[k] = (kinds[k] || 0) + 1;
+    return { wave: w, type: (w - 1) % WAVES.types, hp: waveHp(w, this.hpGrowth), bounty: waveBounty(w), count: list.length, kinds };
   }
 
   /** Add an attacker to the field (used by waves; also handy for tests). */
@@ -409,6 +413,7 @@ export class Game {
   /** Returns true if the attacker died from this hit. */
   damageAttacker(a: Attacker, dmg: number, sourceTurret: TurretState | null | undefined, poison = 0): boolean {
     if (a.dead) return false;
+    if (a.kind && dmg > 0) dmg = this._defend(a, dmg, sourceTurret);
     // effective damage for the turret's stats: overkill is not counted
     if (sourceTurret && dmg > 0) {
       const eff = Math.min(dmg, Math.max(0, a.hp));
@@ -426,6 +431,25 @@ export class Game {
     return false;
   }
 
+  /**
+   * [OS3] Damage after the attacker's weakness, shield and armour (ENEMIES): weakness multiplies first; a shield takes the
+   * hit (with its own multiplier) until it is gone, the rest goes on; armour then takes a fixed chunk off, keeping 25%.
+   */
+  _defend(a: Attacker, dmg: number, src: TurretState | null | undefined): number {
+    const def = ENEMIES[a.kind!];
+    const weapon = src ? TURRETS[src.kind]?.weapon || '' : '';
+    if (def.weakTo && def.weakTo[weapon]) dmg *= def.weakTo[weapon];
+    if (a.shield && a.shield > 0) {
+      const k = (def.shieldVs && def.shieldVs[weapon]) || 1;
+      const used = Math.min(a.shield, dmg * k);
+      a.shield -= used;
+      dmg -= used / k;
+      if (dmg <= 0) return 0;
+    }
+    if (def.armor) dmg = Math.max(dmg * 0.25, dmg - def.armor * a.maxHp);
+    return dmg;
+  }
+
   killAttacker(a: Attacker, opts?: { bounty?: number }): void {
     if (a.dead) return;
     const s = this.state;
@@ -439,6 +463,17 @@ export class Game {
     if (bounty > 0) this.addEffect('cash', { x: a.x, y: a.y, duration: 900, data: { amount: bounty } });
     this._refreshScore();
     this.emit('kill', { attackerId: a.id, x: a.x, y: a.y, bounty });
+    // [OS3] splitters break into smaller attackers at the same place (not when swallowed by a black hole)
+    const sd = a.kind ? ENEMIES[a.kind] : null;
+    if (sd && sd.split && sd.splitInto && !a.blackholed) {
+      for (let i = 0; i < sd.split; i++) {
+        const c = createAttacker(this, a.wave, a.maxHp * (sd.splitHp || 0.3), sd.splitInto);
+        c.bounty = Math.max(1, Math.round(a.bounty * (sd.splitBounty || 0.3)));
+        c.progress = Math.max(0, a.progress - 6 * i);
+        this.path.place(c, c.progress, laneOffset(c));
+        this.addAttacker(c);
+      }
+    }
     if (s.kills >= this._nextUnlock) this._checkUnlocks();
   }
 
@@ -971,7 +1006,13 @@ export class Game {
     if (!Number.isFinite(s.damageTotal)) s.damageTotal = 0;
     s.undoUsed = s.undoUsed === true;
     for (const o of d.turrets) { const t = Turret.fromJSON(o); s.turrets.push(t); g.turretMap.set(t.id, t); }
-    for (const a of d.attackers) { s.attackers.push(a); g.attackerMap.set(a.id, a); }
+    for (const a of d.attackers) {
+      // [OS3] an unknown enemy kind (edited save) becomes a normal attacker; a shield must be a finite number
+      if (a.kind != null && !Object.hasOwn(ENEMIES, a.kind)) delete a.kind;
+      if (a.shield != null && !Number.isFinite(a.shield)) delete a.shield;
+      s.attackers.push(a); g.attackerMap.set(a.id, a);
+    }
+    for (const sp of g.spawners) if (sp.kinds != null && !(Array.isArray(sp.kinds) && sp.kinds.every((k: unknown) => typeof k === 'string' && Object.hasOwn(ENEMIES, k)))) delete sp.kinds;
     s.projectiles.push(...d.projectiles);
     s.beams.push(...d.beams);
     s.effects.push(...d.effects);
