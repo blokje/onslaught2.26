@@ -925,6 +925,26 @@ function makePlayer(game: Game, spots: Spot[]): () => void {
   check('(os3) an unknown enemy kind in a save is ignored, not a crash', loaded);
 }
 
+// ------------------------------------------------------------------ (os3) mutators
+{
+  const plain = new Game({ mapId: 'map1', difficulty: 'medium', seed: 61 });
+  const all = new Game({ mapId: 'map1', difficulty: 'medium', seed: 61, mutators: ['poor', 'fast', 'dragon', 'tough', 'noSell', 'fast'] });
+  check('(os3) mutators: unknown ids dropped, each once, table order', JSON.stringify(all.opts.mutators) === JSON.stringify(['fast', 'tough', 'noSell', 'poor']), JSON.stringify(all.opts.mutators));
+  check('(os3) mutators: Poor halves the start cash', all.state.cash === Math.round(plain.state.cash * 0.5), `${all.state.cash} vs ${plain.state.cash}`);
+  const a0 = createAttacker(plain, 12, null, 'normal'), a1 = createAttacker(all, 12, null, 'normal');
+  check('(os3) mutators: Tough x1.6 HP, Fast x1.5 speed, Poor bounty x0.85', near(a1.maxHp, a0.maxHp * 1.6) && near(a1.baseSpeed, a0.baseSpeed * 1.5) && a1.bounty === Math.max(1, Math.round(waveBounty(12) * 0.85)), `${a1.maxHp} ${a1.baseSpeed} ${a1.bounty}`);
+  const sp = bestSpots('map1', 1)[0];
+  const tid = must(all.build('blue', sp.x, sp.y)).id!;
+  const sold = all.sell(tid);
+  check('(os3) mutators: No selling refuses a sale', !sold.ok && all.state.turrets.length === 1);
+  all.state.kills = 10; all.state.spent = 100; all._refreshScore();
+  check('(os3) mutators: score multiplied by every active mutator', all.state.score === Math.round(1000 * 1.1 * 1.3 * 1.1 * 1.15), String(all.state.score));
+  const r = Game.deserialize(JSON.parse(JSON.stringify(all.serialize())));
+  check('(os3) mutators survive save and load', JSON.stringify(r.opts.mutators) === JSON.stringify(all.opts.mutators) && r.mut.noSell && near(r.mut.score, all.mut.score));
+  const days = Array.from({ length: 60 }, (_, i) => dailyFor(new Date(Date.UTC(2026, 0, 1 + i))));
+  check('(os3) daily: some days have one mutator, others none', days.some((d) => d.mutators.length === 1) && days.some((d) => d.mutators.length === 0) && days.every((d) => d.mutators.length <= 1));
+}
+
 // ------------------------------------------------------------------ (q) waveActive (auto-send)
 {
   const g = new Game({ mapId: 'map1', difficulty: 'medium', seed: 9 });

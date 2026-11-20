@@ -36,6 +36,8 @@ export interface Settings {
   tiltedView: boolean;
   sfxVolume: number;
   tutorialDone: boolean;
+  /** [OS3] mutators picked last time (cleaned on use). */
+  lastMutators: string[];
   /** UI language ('' = from the browser). */
   language: string;
   hints: boolean;
@@ -98,6 +100,7 @@ export const DEFAULT_SETTINGS: Settings = {
   uiScale: 1,           // accessibility: UI size factor, UI_SCALE.min to UI_SCALE.max
   highContrast: false,  // accessibility: solid panels, brighter secondary text, stronger outlines
   language: '',         // '' = follow the browser (detectLang), else 'en' | 'nl' | 'de'
+  lastMutators: [],     // [OS3] mutators picked in the menu last time
   tutorialDone: false,
   hints: true,          // one-time tips (src/ui/hints.ts) in the coach card
   // the tutorial was finished or skipped (hides the menu banner)

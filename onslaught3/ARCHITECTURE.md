@@ -38,6 +38,11 @@ The constructor's default `seed` is a fixed constant, so callers that want a dif
 (`src/main.ts` does). `Game.deserialize(d)` validates its input and throws `Error('Invalid save: ...')` on a malformed save
 (version, arrays, entity caps, unknown turret kind); it ignores `__proto__`, `constructor` and `prototype` keys.
 
+[OS3] Optional `opts.mutators: string[]` (SPEC.md 11.4): ids from `src/data/mutators.ts`, cleaned by `cleanMutators`
+(unknown dropped, each once, table order) into `game.opts.mutators`. `game.mut` is their combined effect
+(`mutatorEffect`: score, hp, speed, bounty, startCash multipliers and `noSell`). They are saved with `opts`, so Continue,
+replays and `deserialize` keep them. With No selling on, `sell` fails with `'Selling is off (No selling mutator)'`.
+
 ### 1.1 `game.state` (read-only for render/ui; plain objects and arrays)
 
 ```js
@@ -197,6 +202,8 @@ pooled meshes for attackers/projectiles).
 `createGame(opts) -> Game`, `restoreGame(save) -> Game` (`Game.deserialize`) and `renderer` is the Renderer instance. The App owns screens and input:
 
 - **Main menu**: map picker (18 maps in a 6 x 3 grid, each with a mini path preview drawn on a 2D canvas; maps with `extra: true` are labelled E1 to E8), difficulty, mode (Normal/Sandbox),
+  [OS3] mutator toggles (setting `lastMutators`; `startGame(sel)` takes optional `sel.mutators`, Restart reuses the
+  running game's `opts.mutators`, exposed on `AppGame` as optional `opts`; the daily challenge brings its own `Daily.mutators`),
   Continue (if a mid-game save exists), high scores, settings, how-to-play.
 - **In-game HUD** (DOM overlay over the canvas): cash, lives, wave, kills, score, next-wave countdown,
   speed buttons 1/2/4/8, pause, send-wave; build rack with the 16 turrets (locked ones greyed with unlock hint);

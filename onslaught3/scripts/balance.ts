@@ -6,6 +6,7 @@
 //   node scripts/balance.ts difficulty   greedy bot on maps 1, 4, 9 at every difficulty (wave reached)
 //   node scripts/balance.ts unlock       wave at which a medium game reaches each unlock threshold
 //   node scripts/balance.ts late         combo bot (Green+Red+Blue clusters, strongest bot) per difficulty: late-game wall
+//   node scripts/balance.ts mutators     [OS3] greedy bot on Medium with each mutator alone (wave reached)
 //   node scripts/balance.ts all
 //
 // Method notes (kept in the code so results are reproducible):
@@ -406,8 +407,8 @@ function makePlayer(game: Game, spots: Pos[], kinds: string[] = ['blue', 'green'
   };
 }
 
-function playGame(mapId: string, difficulty: string, seed: number, maxWave: number = 400) {
-  const g = new Game({ mapId, difficulty, seed });
+function playGame(mapId: string, difficulty: string, seed: number, maxWave: number = 400, mutators: string[] = []) {
+  const g = new Game({ mapId, difficulty, seed, mutators });
   const act = makePlayer(g, bestSpots(mapId, 40));
   let frames = 0;
   while (!g.state.over && g.state.wave < maxWave && frames < 400000) {
@@ -435,6 +436,16 @@ function difficultyReport(maps: string[] = ['map1', 'map4', 'map9'], seeds: numb
   }
   console.log(pad('mean', 8) + diffs.map((d) => rpad((tot[d] / maps.length).toFixed(1), 10)).join('')
     + rpad((tot.extreme / tot.medium).toFixed(2), 9) + rpad((tot.hard / tot.medium).toFixed(2), 9) + rpad((tot.easy / tot.medium).toFixed(2), 9));
+}
+
+/** [OS3] Greedy bot on Medium with each mutator alone: waves reached and score against no mutator. */
+function mutatorReport(maps: string[] = ['map1', 'map4', 'map9'], seeds: number[] = [11, 12, 13]): void {
+  console.log('\n=== Mutators on Medium, greedy bot (mean of maps ' + maps.join(',') + ', seeds ' + seeds.join(',') + ')');
+  for (const set of [[], ['fast'], ['tough'], ['noSell'], ['poor']]) {
+    let w = 0;
+    for (const m of maps) for (const sd of seeds) w += playGame(m, 'medium', sd, 400, set).wave;
+    console.log(pad(set.join('+') || 'none', 10) + rpad((w / maps.length / seeds.length).toFixed(1), 8));
+  }
 }
 
 // ------------------------------------------------------------------ unlock thresholds
@@ -548,4 +559,5 @@ if (isMain) {
   if (mode === 'difficulty' || mode === 'all') difficultyReport();
   if (mode === 'unlock' || mode === 'all') unlockReport();
   if (mode === 'late' || mode === 'all') lateReport();
+  if (mode === 'mutators' || mode === 'all') mutatorReport();
 }

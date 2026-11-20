@@ -40,7 +40,7 @@ const GAME_EVENTS: GameEventName[] = ['shot', 'kill', 'leak', 'wave', 'blast', '
 const BLAST_SOUND: Record<string, string> = { small: 'small', medium: 'medium', large: 'large', huge: 'huge', bfg: 'large', poison: 'medium' };
 /** Failure reasons the simulation (src/game) can return, kept as translation keys; showError translates them with t(reason). */
 export const GAME_REASONS: readonly string[] = [
-  tx('Not possible'), tx('Not enough cash'), tx('Too close to the road'), tx('Too close to the base'), tx('Outside the field'),
+  tx('Not possible'), tx('Selling is off (No selling mutator)'), tx('Not enough cash'), tx('Too close to the road'), tx('Too close to the base'), tx('Outside the field'),
   tx('Overlaps another turret'), tx('Invalid position'), tx('Fully upgraded'), tx('Game is paused'), tx('Game over'),
   tx('No such turret'), tx('No such weapon'), tx('No such attacker'), tx('Unknown turret'), tx('Unknown stat'),
   tx('Unknown target mode'), tx('Unknown cone'), tx('Unknown colour'), tx('Locked'), tx('Nothing to undo'),
@@ -391,11 +391,12 @@ export class App {
   }
 
   // =================================================================== game lifecycle
-  startGame(sel: { mapId: string; difficulty: string; mode: string }, extra: { seed?: number; daily?: string } = {}): void {
+  startGame(sel: { mapId: string; difficulty: string; mode: string; mutators?: string[] }, extra: { seed?: number; daily?: string } = {}): void {
     this.closeAllModals();
     const opts: GameOptions = { mapId: sel.mapId, difficulty: sel.difficulty, mode: sel.mode, unlockAll: !!this.settings.unlockAll };
     if (this.settings.waveInterval > 0) opts.waveInterval = this.settings.waveInterval * 1000;
     if (extra.seed != null) opts.seed = extra.seed;
+    if (sel.mutators && sel.mutators.length) opts.mutators = [...sel.mutators];
     if (extra.daily) { opts.unlockAll = false; delete opts.waveInterval; } // the same rules for everyone on that day
     const tut = sel.mapId === 'tutorial'; // the How to Play map always runs the coach
     if (tut) opts.waveInterval = TUTORIAL_WAVE_MS;
@@ -446,7 +447,7 @@ export class App {
   /** Start today's daily challenge (UTC day): fixed map, difficulty and seed, no unlock-all, default wave interval. */
   startDaily(): void {
     const d = dailyFor(new Date());
-    this.startGame({ mapId: d.mapId, difficulty: d.difficulty, mode: 'normal' }, { seed: d.seed, daily: d.key });
+    this.startGame({ mapId: d.mapId, difficulty: d.difficulty, mode: 'normal', mutators: d.mutators }, { seed: d.seed, daily: d.key });
   }
 
   /** Start the interactive tutorial on the How to Play map (Easy, Normal mode). */
@@ -531,7 +532,7 @@ export class App {
   restart(): void {
     if (!this.game) return;
     const s = this.game.state;
-    this.startGame({ mapId: s.mapId, difficulty: s.difficulty, mode: s.mode });
+    this.startGame({ mapId: s.mapId, difficulty: s.difficulty, mode: s.mode, mutators: [...(this.game.opts?.mutators ?? [])] });
   }
 
   attachGame(game: AppGame): void {

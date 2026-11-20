@@ -25,7 +25,7 @@ Use the `balance-pass` skill. Always record before/after numbers and update `SPE
 
 ## Latest balance pass
 
-Rerun everything with `node scripts/balance.ts [dps|combos|difficulty|unlock|late|all]` (about 1 minute, headless, fixed seeds). Informational only; `sim-test` and `combo-test` stay the pass/fail gates.
+Rerun everything with `node scripts/balance.ts [dps|combos|difficulty|unlock|late|mutators|all]` (about 1 minute, headless, fixed seeds). Informational only; `sim-test` and `combo-test` stay the pass/fail gates.
 
 - **Weapons** (single turret at equal spend, versus the best original, no freak-out): Sniper 0.72 to 0.75 on a near target and 1.0 to 1.2 when range 320+ is required; Fusion 1.05 to 1.09 on a sustained single target (about 0.3 on a moving stream); Railgun 1.09 on a head-on straight stretch (about 0.2 beside the road). Blue and Yellow average about 3.4x higher with freak-out (about 12% uptime), which is an original mechanic and not counted.
 - **Ladders** were cut from about 115k to 64k (Sniper), 95k to 64k (Fusion) and 126k to 79k (Railgun) for a maxed turret. Lifetime cash is only about 10 x wave x (wave + 1) / 2 (72k by wave 120), so old ladders were out of reach.

@@ -23,17 +23,17 @@ export function waveBounty(n: number): number {
 /** Builds a new attacker object for the given wave (hp from the wave curve unless hpOverride); does not add it to the game. */
 export function createAttacker(game: Game, wave: number, hpOverride?: number | null, kind: EnemyKind = 'normal'): Attacker {
   const def = ENEMIES[kind] || ENEMIES.normal;
-  const hp = hpOverride != null ? hpOverride : waveHp(wave, game.hpGrowth) * def.hp;
+  const hp = hpOverride != null ? hpOverride : waveHp(wave, game.hpGrowth) * def.hp * game.mut.hp;
   const a: Attacker = {
     id: game.nextId++,
     type: (wave - 1) % WAVES.types,
     x: 0, y: 0, angle: 0,
     hp, maxHp: hp,
-    speed: WAVES.baseSpeed * def.speed, baseSpeed: WAVES.baseSpeed * def.speed,
+    speed: WAVES.baseSpeed * def.speed * game.mut.speed, baseSpeed: WAVES.baseSpeed * def.speed * game.mut.speed,
     poisoned: false, blackholed: false,
     progress: 0,
     // additions
-    wave, bounty: Math.max(1, Math.round(waveBounty(wave) * def.bounty)), dead: false, _seg: 0,
+    wave, bounty: Math.max(1, Math.round(waveBounty(wave) * def.bounty * game.mut.bounty)), dead: false, _seg: 0,
   };
   if (kind !== 'normal') a.kind = kind;
   if (def.shield) a.shield = hp * def.shield;

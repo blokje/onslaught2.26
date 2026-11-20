@@ -11,6 +11,8 @@ export type CommandResult = Result<{ id?: number; refund?: number; levels?: numb
 
 export interface AppGame {
   readonly state: GameState;
+  /** [OS3] options the game runs with (Restart keeps its mutators, also after Continue). */
+  readonly opts?: { readonly mutators?: readonly string[] };
   on<K extends GameEventName>(name: K, fn: (payload: GameEvents[K]) => void): unknown;
   off<K extends GameEventName>(name: K, fn: (payload: GameEvents[K]) => void): void;
   update(dtMs: number): void;

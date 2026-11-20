@@ -8,6 +8,9 @@ import type { App } from './App.ts';
 import { STAR_WAVES, starsForWave, bestWave } from './achievements.ts';
 import { dailyFor } from './daily.ts';
 import type { MapDef } from '../types.ts';
+import { MUTATORS, MUTATOR_IDS, cleanMutators, mutatorEffect } from '../data/mutators.ts';
+import { MUTATOR_TEXT } from './mutators.ts';
+import type { MutatorId } from '../types.ts';
 import { t } from './i18n.ts';
 
 /** Columns of the map grid (6 x 3, see .os-maps in ui.css). */
@@ -62,6 +65,8 @@ export class Menu {
   app: App;
   el: HTMLElement;
   tutBanner!: HTMLElement;
+  muts!: HTMLElement;
+  mutBtns = new Map<MutatorId, HTMLButtonElement>();
   dailyBox!: HTMLElement;
   dailyTxt!: HTMLElement;
   /** Star row per map (stars for the selected difficulty). */
@@ -69,7 +74,7 @@ export class Menu {
   mapBtns: Map<string, HTMLButtonElement>;
   diffBtns: Map<string, HTMLButtonElement>;
   modeBtns: Map<string, HTMLButtonElement>;
-  sel!: { mapId: string; difficulty: string; mode: string }; // assigned in build(), called by the constructor
+  sel!: { mapId: string; difficulty: string; mode: string; mutators: MutatorId[] }; // assigned in build(), called by the constructor
   note!: HTMLElement;
   startBtn!: HTMLButtonElement;
   contBtn!: HTMLButtonElement;
@@ -90,6 +95,7 @@ export class Menu {
       mapId: MAPS.some((m) => m.id === s.lastMap) ? s.lastMap : MAPS[0].id,
       difficulty: DIFFICULTIES[s.lastDifficulty] ? s.lastDifficulty : 'medium',
       mode: MODES[s.lastMode] ? s.lastMode : 'normal',
+      mutators: cleanMutators(s.lastMutators),
     };
 
     const logo = h('div', { class: 'os-logo' },
@@ -136,6 +142,21 @@ export class Menu {
       this.modeBtns.set(id, b);
       mode.append(b);
     }
+    // [OS3] mutators: stackable rules with a score multiplier
+    const muts = h('div', { class: 'os-muts' });
+    for (const id of MUTATOR_IDS) {
+      const b = h('button', { class: 'os-btn small', type: 'button', 'aria-pressed': 'false', title: t(MUTATOR_TEXT[id].desc) + ' ' + t('Score x{m}', { m: MUTATORS[id].score }) },
+        t(MUTATOR_TEXT[id].name));
+      b.addEventListener('click', () => {
+        const on = this.sel.mutators.includes(id);
+        this.sel.mutators = cleanMutators(on ? this.sel.mutators.filter((x) => x !== id) : [...this.sel.mutators, id]);
+        this.app.updateSettings({ lastMutators: this.sel.mutators });
+        this.refresh();
+      });
+      this.mutBtns.set(id, b);
+      muts.append(b);
+    }
+    this.muts = muts;
     this.note = h('div', { class: 'os-menu-note' });
     this.dailyTxt = h('span', null, '');
     this.dailyBox = h('div', { class: 'os-daily' }, this.dailyTxt,
@@ -148,6 +169,7 @@ export class Menu {
     const side = h('div', { class: 'os-menu-side' },
       h('div', null, h('h4', null, t('Difficulty')), diff),
       h('div', null, h('h4', null, t('Mode')), mode),
+      h('div', null, h('h4', null, t('Mutators')), this.muts),
       this.tutBanner,
       this.note,
       this.startBtn,
@@ -219,12 +241,15 @@ export class Menu {
       el.title = t('{diff}: best wave {best}. Stars at waves {waves}.', { diff: diffName, best, waves: STAR_WAVES.join(', ') });
       el.setAttribute('aria-label', t('{n} of 3 stars on {diff}', { n, diff: diffName }));
     }
+    for (const [id, b] of this.mutBtns) { const on = this.sel.mutators.includes(id); b.classList.toggle('is-on', on); b.setAttribute('aria-pressed', String(on)); }
+    const mx = mutatorEffect(this.sel.mutators).score;
+    if (mx !== 1) this.note.textContent += ' ' + t('Mutators: score x{m}.', { m: Math.round(mx * 100) / 100 });
     // today's daily challenge (UTC day) and the best score on it so far
     const dl = dailyFor(new Date());
     const dmap = MAPS.find((x) => x.id === dl.mapId);
     const best = storage.getDailyScores(dl.key)[0];
     this.dailyTxt.replaceChildren(h('b', null, t('Daily {date}', { date: dl.key })), h('br'),
-      `${dmap ? dmap.name : dl.mapId}, ${DIFFICULTIES[dl.difficulty]?.name || dl.difficulty}` + ', ' + (best ? t('best {score} (wave {wave})', { score: best.score.toLocaleString('en-US'), wave: best.wave }) : t('not played yet')));
+      `${dmap ? dmap.name : dl.mapId}, ${DIFFICULTIES[dl.difficulty]?.name || dl.difficulty}` + dl.mutators.map((m) => ', ' + t(MUTATOR_TEXT[m].name)).join('') + ', ' + (best ? t('best {score} (wave {wave})', { score: best.score.toLocaleString('en-US'), wave: best.wave }) : t('not played yet')));
     // first-time players: offer the tutorial until it is done or skipped, and only before any high score exists
     this.tutBanner.style.display = !app.settings.tutorialDone && !Object.keys(storage.getAllScores()).length ? '' : 'none';
     const save = storage.loadGame();

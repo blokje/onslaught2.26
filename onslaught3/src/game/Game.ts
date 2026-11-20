@@ -56,12 +56,13 @@ import { emptyMods, addMod, computeStats, nextUpgradeCost, modRangeAt, STATS } f
 import type { ModSum } from './modifiers.ts';
 import { createAttacker, moveAttackers, applyPoison, waveHp, waveBounty, laneOffset } from './Attacker.ts';
 import { ENEMIES } from '../data/enemies.ts';
+import { cleanMutators, mutatorEffect } from '../data/mutators.ts';
 import { startWave, updateSpawners, HISTORY_MAX, waveKinds } from './Waves.ts';
 import { stepTurret, chainBonus, releaseOrbiter } from './weapons.ts';
 import { updateProjectiles } from './projectiles.ts';
 import type {
   Attacker, Beam, BeamKind, BlastSize, ComboPreview, DifficultyId, DirectionalMode, Effect, EffectKind, Fail, GameEventName, GameEvents,
-  GameOptions, GameState, KeyColor, ModeId, Projectile, ProjectileKind, Result, Stat, StatValues, TargetMode, TurretState, UpgradePreview, WavePreview, WaveRecord, EnemyKind,
+  GameOptions, GameState, KeyColor, ModeId, Projectile, ProjectileKind, Result, Stat, StatValues, TargetMode, TurretState, UpgradePreview, WavePreview, WaveRecord, EnemyKind, MutatorId,
 } from '../types.ts';
 import type { Spawner } from './Waves.ts';
 import { Combos } from './combos.ts';
@@ -84,6 +85,8 @@ const COMBO_COLORS: KeyColor[] = ['red', 'green', 'blue', 'yellow'];
 export interface GameOpts {
   mapId: string; difficulty: string; mode: string; unlockAll: boolean;
   seed: number; waveInterval: number | null;
+  /** [OS3] active mutators (validated) */
+  mutators: MutatorId[];
 }
 
 /** What game.undo() would take back: an English label, the refund, and the parts for a translated label. */
@@ -159,6 +162,8 @@ export class Game {
   combos: Combos;
   /** Successful player commands with their step (saved), see REPLAY_COMMANDS. */
   commandLog: CommandEntry[] = [];
+  /** [OS3] combined mutator effect (from opts.mutators). */
+  mut: ReturnType<typeof mutatorEffect>;
   /** The options this game started with (replays); `opts` can change later (setWaveInterval). */
   startOpts: GameOpts;
   /** update() never steps past this stepCount (replay playback stops at the replay's end). Not saved. */
@@ -182,7 +187,9 @@ export class Game {
     this.opts = {
       mapId: o.mapId, difficulty: o.difficulty, mode: o.mode, unlockAll: !!o.unlockAll,
       seed: o.seed, waveInterval: o.waveInterval ?? null,
+      mutators: cleanMutators(o.mutators),
     };
+    this.mut = mutatorEffect(this.opts.mutators);
     this.startOpts = { ...this.opts }; // replays start from these (setWaveInterval later changes opts)
 
     this.rng = new RNG(o.seed);
@@ -210,7 +217,7 @@ export class Game {
     this.state = {
       time: 0, speed: 1, paused: false, over: false,
       difficulty: o.difficulty as DifficultyId, mode: o.mode as ModeId, mapId: o.mapId, // validated against DIFFICULTIES / MODES above
-      cash: mode.startCash ?? diff.startCash, lives: diff.lives, kills: 0, spent: 0, wave: 0,
+      cash: mode.startCash ?? Math.max(1, Math.round(diff.startCash * this.mut.startCash)), lives: diff.lives, kills: 0, spent: 0, wave: 0,
       nextWaveIn: this.waveInterval, score: 0,
       unlocked,
       map: {
@@ -544,7 +551,7 @@ export class Game {
   // ------------------------------------------------------------------ economy and unlocks
   _refreshScore(): void {
     const s = this.state;
-    s.score = s.kills * s.spent;
+    s.score = Math.round(s.kills * s.spent * this.mut.score); // [OS3] mutators multiply the score
   }
 
   _computeNextUnlock(): number {
@@ -728,6 +735,7 @@ export class Game {
     const t = this.turretMap.get(id);
     if (this.state.over) return this._fail('Game over');
     if (!t) return this._fail('No such turret');
+    if (this.mut.noSell) return this._fail('Selling is off (No selling mutator)');
     const s = this.state;
     // circling rockets dive at the weakest attacker within 720
     for (const p of s.projectiles) {

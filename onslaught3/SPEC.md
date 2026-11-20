@@ -342,3 +342,19 @@ second special kind from the same rotation, two steps ahead. Every 10th wave a B
 
 Medium and Hard match 2.26. Easy got easier (map 4: 177, an outlier) and Extreme harder (with one life a Boss that gets
 through ends the game). To do: a balance pass on Easy (probably Boss and Regenerator bounty) and on Extreme.
+
+### 11.4 Mutators (`src/data/mutators.ts`)
+
+Picked in the menu before a game starts, any combination. The score (kills x spent) is multiplied by the product of the
+active mutators' score factors. Saved with the game; Restart keeps them. Half of the daily challenges add one mutator.
+
+| Mutator | Effect | Score | Greedy bot on Medium (none: 74.6) |
+|---|---|---|---|
+| Fast | attackers x1.5 speed | x1.1 | 72.1 |
+| Tough | attackers x1.6 HP | x1.3 | 66.9 |
+| No selling | `sell` is refused | x1.1 | 74.6 (the bot never sells; it limits moving a defence) |
+| Poor | start cash x0.5, bounty x0.85 | x1.15 | 70.8 |
+
+Measured with `node onslaught3/scripts/balance.ts mutators` (maps 1, 4, 9, seeds 11 to 13). Speed matters little to the
+bot (x1.8 still reached 71.4), hence Fast's small factor. A first version that paid more bounty for Tough and Poor made
+Poor easier (79.9) and Tough neutral; those bonuses were removed.

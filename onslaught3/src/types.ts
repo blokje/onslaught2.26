@@ -14,6 +14,8 @@ export type DifficultyId = 'easy' | 'medium' | 'hard' | 'extreme';
 export type ModeId = 'normal' | 'sandbox';
 /** OnSlaught 3 enemy kinds (src/data/enemies.ts). */
 export type EnemyKind = 'normal' | 'armored' | 'shielded' | 'swarm' | 'splitter' | 'regen' | 'boss';
+/** OnSlaught 3 mutators (src/data/mutators.ts). */
+export type MutatorId = 'fast' | 'tough' | 'noSell' | 'poor';
 export type BlastSize = 'small' | 'medium' | 'large' | 'huge' | 'bfg' | 'poison';
 
 // ------------------------------------------------------------------ data (src/data)
@@ -240,6 +242,8 @@ export interface GameOptions {
   unlockAll?: boolean;
   seed?: number;
   waveInterval?: number | null;
+  /** [OS3] mutators for this game (unknown ids ignored). */
+  mutators?: string[];
 }
 
 // ------------------------------------------------------------------ commands (ARCHITECTURE.md 1.2)

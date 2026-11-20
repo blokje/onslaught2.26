@@ -4,6 +4,19 @@ import type { LangPack } from '../i18n.ts';
 
 export const CONTENT_TEXT: LangPack = {
   nl: {
+    // [OS3] mutators (src/ui/mutators.ts, menu, error reason)
+    "Fast": "Snel",
+    "Attackers move 50% faster.": "Aanvallers bewegen 50% sneller.",
+    "Tough": "Taai",
+    "Attackers have 60% more HP.": "Aanvallers hebben 60% meer HP.",
+    "No selling": "Niet verkopen",
+    "Turrets cannot be sold.": "Torens kunnen niet verkocht worden.",
+    "Poor": "Arm",
+    "Half the starting cash, 15% less bounty.": "Half startgeld, 15% minder beloning.",
+    "Score x{m}": "Score x{m}",
+    "Mutators": "Mutators",
+    "Mutators: score x{m}.": "Mutators: score x{m}.",
+    "Selling is off (No selling mutator)": "Verkopen staat uit (mutator Niet verkopen)",
     // [OS3] enemy kinds (src/ui/enemies.ts)
     "Runner": "Loper",
     "The standard attacker.": "De gewone aanvaller.",
@@ -158,6 +171,19 @@ export const CONTENT_TEXT: LangPack = {
     "Never fires. Counts as a fully upgraded turret of the colour you pick (X) in combos.": "Vuurt nooit. Telt in combo's als een volledig geüpgradede toren van de kleur die je kiest (X).",
   },
   de: {
+    // [OS3] mutators (src/ui/mutators.ts, menu, error reason)
+    "Fast": "Schnell",
+    "Attackers move 50% faster.": "Angreifer sind 50% schneller.",
+    "Tough": "Zäh",
+    "Attackers have 60% more HP.": "Angreifer haben 60% mehr HP.",
+    "No selling": "Kein Verkauf",
+    "Turrets cannot be sold.": "Türme können nicht verkauft werden.",
+    "Poor": "Arm",
+    "Half the starting cash, 15% less bounty.": "Halbes Startgeld, 15% weniger Belohnung.",
+    "Score x{m}": "Punkte x{m}",
+    "Mutators": "Mutatoren",
+    "Mutators: score x{m}.": "Mutatoren: Punkte x{m}.",
+    "Selling is off (No selling mutator)": "Verkaufen ist aus (Mutator Kein Verkauf)",
     // [OS3] enemy kinds (src/ui/enemies.ts)
     "Runner": "Läufer",
     "The standard attacker.": "Der normale Angreifer.",

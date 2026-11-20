@@ -5,6 +5,12 @@ Every task adds a line under **Unreleased**. OnSlaught2.26 keeps its own changel
 ## Unreleased
 
 ### Added
+- Mutators (SPEC.md 11.4): Fast, Tough, No selling and Poor, stackable toggles in the menu, each multiplying the score
+  (x1.1 to x1.3). Saved with the game, kept by Continue and Restart, and half of the daily challenges add one. New
+  `src/data/mutators.ts`, `src/ui/mutators.ts`, `GameOptions.mutators`, `game.mut`, setting `lastMutators`,
+  `balance.ts mutators` (numbers tuned with it: bounty bonuses removed). New sim-test checks (os3) and NL/DE texts.
+  Checked in Chromium (toggles, choice kept after reload, Poor starts with $15 on Medium, no console errors).
+  Docs: `SPEC.md` §11.4, `ARCHITECTURE.md`, `docs/claude/ui.md`, `docs/claude/testing.md`, `docs/claude/data-and-balance.md`.
 - Enemy kinds with strengths and weaknesses (SPEC.md 11.1): Armored (weak to big hits), Shielded (weak to Tazer and
   lasers), Swarmer (pairs), Splitter (splits into Swarmers), Regenerator (stopped by poison) and a Boss every 10 waves;
   mixed waves from wave 5 (11.2). Each kind has a visual cue that also works without colour, and the top bar names the
@@ -18,3 +24,6 @@ Every task adds a line under **Unreleased**. OnSlaught2.26 keeps its own changel
   `CLAUDE.md` (no frozen numbers), `SPEC.md` (section 11 for OnSlaught 3 rules), README, storage prefix `os3.`, service
   worker cache `os3-v1`, daily seeds `os3-daily-`, name "OnSlaught 3", dev port 5326 and the root npm scripts `dev:os3`,
   `typecheck:os3`, `build:os3`, `build:os3:single`, `test:os3`. No rule changes yet.
+
+### Fixed
+- An active toggle button (`.os-btn.is-on`) under the mouse pointer no longer turns dark with dark text.

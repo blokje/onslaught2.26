@@ -17,7 +17,8 @@ DOM overlay over the canvas, input, persistence and audio. Contract: `ARCHITECTU
 | `hints.ts` | One-time tips: `HINTS` (event- or state-triggered) and the `Hints` queue (pure, tested in sim-test). |
 | `music.ts` | Adaptive synthesized music: `musicStep(step, intensity)` and `musicTempo` (pure, tested), `musicIntensity(state)`, `MusicPlayer` (look-ahead scheduler on the music bus). |
 | `achievements.ts` | `ACHIEVEMENTS` (22 pure checks on an `AchCtx`), `newlyEarned`, `cleanEarned` (tested in sim-test). |
-| `daily.ts` | `dailyFor(date)`: key, seed, map and difficulty of a UTC day from `hash32` (pure, tested). |
+| `daily.ts` | `dailyFor(date)`: key, seed, map, difficulty and [OS3] 0 or 1 mutator of a UTC day from `hash32` (pure, tested). |
+| `mutators.ts` | [OS3] `MUTATOR_TEXT`: translated name and description per mutator (numbers in `src/data/mutators.ts`). |
 | `replayCode.ts` | `encodeReplay`/`decodeReplay`: replay JSON as a text code (`OS1.` gzip via CompressionStream + base64url, `OS0.` plain), plain JSON also accepted (tested). |
 | `gamepad.ts` | `GamepadReader` (edge detection, stick dead zone and curve; pure, tested), `PAD_BUTTONS`, `PAD_HELP`. |
 | `codex.ts` | Combo Codex: `describeCombo(recipe)` builds the effect line from the recipe's `fx` data (pure, tested in sim-test), `partnerList`, `buildCodex(fired)` the dialog body. |
@@ -150,6 +151,14 @@ The menu card shows today's map and difficulty and your best score today. `App.s
 day's seed and `daily` key (no unlock-all, default wave interval). `App.daily` holds the key; the autosave meta stores
 it so Continue keeps it. At game over a daily score goes to `storage.addDailyScore`, the stat `dailies` grows and the
 dialog names the rank of the day; `checkAchievements()` runs again right after, so the daily goal counts at once.
+[OS3] Half of the days add one mutator (seed bits 19+); the card names it and `startDaily` passes it on.
+
+## Mutators [OS3]
+
+The menu has a Mutators row of toggle buttons (`aria-pressed`, tooltip with description and score factor). The choice
+is kept in the setting `lastMutators` and the menu note shows the combined score factor. `startGame` passes
+`sel.mutators` into the game options; Restart takes them from the running game (`game.opts.mutators`), so Continue
+and Restart keep them.
 
 ## Map stars
 
