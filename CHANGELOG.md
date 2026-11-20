@@ -5,6 +5,13 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
 
 ## Unreleased
 
+### Added (2026 roadmap, phase 7: platform)
+- Installable app and offline play (PWA): web manifest, a service worker (pages network-first, other files cache-first)
+  registered only in the production build over http(s), and original app icons (`public/icons/icon.svg` plus PNGs from
+  the new `scripts/make-icons.ts`; adding these files was approved). Checked with `vite preview` in Chromium: the worker
+  activates, the manifest is valid, the menu and a game load offline, no console errors.
+  Docs: `CLAUDE.md` rule 4, `README.md`, `docs/claude/testing.md`, `docs/claude/gotchas.md`.
+
 ### Added (2026 roadmap, phase 5: motivation)
 - Replays: the game logs every player command with its step (`commandLog`, saved with the game, plus `startOpts`), and a
   replay plays the same commands at the same steps, so it ends in exactly the same state. Save replay (file) and Copy

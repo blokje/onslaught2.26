@@ -55,3 +55,9 @@ if (renderer) {
   };
   requestAnimationFrame(frame);
 }
+
+// Offline play and installing as an app (PWA): only for the real build served over http(s); never in the dev server,
+// where cached modules would hide changes, and not for the single-file build opened from disk.
+if (import.meta.env.PROD && 'serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js').catch((e) => console.warn('Service worker not registered:', e)); });
+}

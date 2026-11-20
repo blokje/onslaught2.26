@@ -10,7 +10,7 @@ Vite + TypeScript (strict, ES modules, no framework) + three.js 0.160.0. Node 22
    `src/game` never touches DOM, `window` or three.js and must run in Node. `src/render` never mutates game state.
 2. **Contract:** `ARCHITECTURE.md` defines the state, commands, events and renderer API. Adding optional fields is fine (document them there in the same change). Renaming or removing anything needs the user's OK.
 3. **Original numbers are frozen:** everything marked [ORIG] in `SPEC.md` (basic turrets, modifiers, 16 original combos, waves, economy, Medium, maps). Only [NEW] content may be rebalanced. Rule changes update `SPEC.md` in the same change.
-4. **Originality:** all code, art and sound are original. Never add the original SWF, decompiled code, or copied or imitated sprites, logos or sounds. Art is procedural, sound is synthesized. No asset files without asking.
+4. **Originality:** all code, art and sound are original. Never add the original SWF, decompiled code, or copied or imitated sprites, logos or sounds. Art is procedural, sound is synthesized. No asset files without asking (approved: the app icons in `public/icons/`, an original SVG and PNGs generated from it by `scripts/make-icons.ts`).
 5. **Determinism:** simulation randomness only through `game.rng`; `serialize()` then `Game.deserialize()` must continue identically.
 6. **No em dash characters** anywhere: code, comments, UI text, docs.
 7. **Storage** only through `src/ui/storage.ts` (prefix `os226.`, try/catch).

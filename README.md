@@ -30,6 +30,8 @@ npm install
 npm run dev          # open http://localhost:5226
 ```
 
+The online version can be installed as an app (browser menu: Install) and then also works offline.
+
 Or build one self-contained file you can double-click:
 
 ```bash

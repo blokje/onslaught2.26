@@ -11,6 +11,7 @@
 - **Colours for new weapons:** Sniper counts as blue, Fusion green, Railgun red in combos.
 - **`comboPartners`** excludes modifiers and Targeters.
 - **`spent` never decreases, except through undo.** Sell refunds do not lower the score; the move cost is added to `spent` but not to the turret's `cashValue`. The optional `game.undo()` takes the undone cost back out of `spent`.
+- **Service worker cache.** Pages are network-first, other files cache-first (hashed names). When you change `public/sw.js` or its `CORE` list, raise `CACHE` (`os226-v1`) so old caches are dropped. It never runs in `npm run dev`.
 - **A new player command must join `REPLAY_COMMANDS`** (`src/game/Game.ts`), or replays will miss it and drift. Anything that changes the game outside a logged command (a cheat, a test helper) breaks replay matching on purpose.
 - **Tutorial and tips only watch.** They read events and state and never send game commands; the player does everything. A long wave interval would make Send pay a huge early bonus, which is why the tutorial restores the normal interval before the first Send.
 - **In-game HUD buttons stay `tabindex: -1`.** Otherwise Space or Enter would press the last clicked button instead of sending a wave or building. Menus and dialogs keep normal tab order; a new dialog must go through `App.openModal` to get the dialog role, focus trap and focus return.
