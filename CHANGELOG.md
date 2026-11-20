@@ -6,6 +6,15 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
 ## Unreleased
 
 ### Added (2026 roadmap, phase 5: motivation)
+- Replays: the game logs every player command with its step (`commandLog`, saved with the game, plus `startOpts`), and a
+  replay plays the same commands at the same steps, so it ends in exactly the same state. Save replay (file) and Copy
+  replay code (gzip + base64url) at game over; Menu > Replays to watch one, with speed and pause only. New
+  `src/game/replay.ts`, `src/ui/replayCode.ts`, `game.stepHook`, `game.stepLimit`, optional `AppOptions.replays`.
+  The replay test found that `cycleTargetMode` was logged twice (it calls `setTargetMode`); only the outermost command is
+  logged now. New sim-test checks (rep). Checked in Chromium: a played game, its code copied, watched from the menu,
+  building refused while watching, "exactly as recorded" at the end, no console errors.
+  Docs: `ARCHITECTURE.md`, `README.md`, `docs/claude/simulation.md`, `docs/claude/ui.md`, `docs/claude/gotchas.md`,
+  `docs/claude/testing.md`.
 - Daily challenge: one map, difficulty and seed per UTC day (from a hash of the date), started from a card in the menu,
   with its own top 10 per day (`os226.daily`, last 30 days) and the rank shown at game over. Continue keeps it a daily.
   New `src/ui/daily.ts`, optional `meta.daily` in the autosave. New sim-test checks (mot). Checked in Chromium (card,

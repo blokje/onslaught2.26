@@ -73,6 +73,8 @@ const DEFAULT_SEED = 0x2261;
 const SAVE_VERSION = 1;
 const SAVE_LIMITS = { turrets: 2000, attackers: 5000, projectiles: 20000, beams: 5000, effects: 5000, spawners: 1000 };
 const isObj = (v: unknown): v is Record<string, any> => v !== null && typeof v === 'object' && !Array.isArray(v);
+/** A well-formed command log entry (untrusted saves and replay files). */
+export const isCommandEntry = (e: unknown): e is CommandEntry => isObj(e) && Number.isInteger(e.s) && e.s >= 0 && typeof e.c === 'string' && (REPLAY_COMMANDS as readonly string[]).includes(e.c) && Array.isArray(e.a) && e.a.length <= 4;
 const MAX_BEAMS = 400;
 const MAX_EFFECTS = 300;
 const DIRECTIONAL_ORDER = Object.keys(DIRECTIONAL) as DirectionalMode[]; // D cycle order
@@ -113,7 +115,22 @@ export interface SaveData {
   beams: Beam[];
   effects: Effect[];
   combos: unknown;
+  /** Optional (since replays): every successful player command with its step, for replays. */
+  commandLog?: CommandEntry[];
+  /** Optional (since replays): the options at game start. */
+  startOpts?: GameOpts;
 }
+
+/** Player commands that change the game; replays log and re-run exactly these (src/game/replay.ts). */
+export const REPLAY_COMMANDS = [
+  'build', 'upgrade', 'sell', 'move', 'setTargetMode', 'cycleTargetMode', 'toggleLock', 'focusFire',
+  'setDirectional', 'cycleDirectional', 'join', 'setComboColor', 'sendWave', 'setWaveInterval', 'undo',
+] as const;
+export type ReplayCommand = typeof REPLAY_COMMANDS[number];
+/** One logged command: the step it ran before (stepCount at that moment), its name and its arguments. */
+export interface CommandEntry { s: number; c: ReplayCommand; a: unknown[] }
+/** Most commands a save keeps for its replay (a long game uses a few thousand). */
+export const COMMAND_LOG_MAX = 50000;
 
 export class Game {
   opts: GameOpts;
@@ -136,6 +153,16 @@ export class Game {
   state: GameState;
   _nextUnlock: number;
   combos: Combos;
+  /** Successful player commands with their step (saved), see REPLAY_COMMANDS. */
+  commandLog: CommandEntry[] = [];
+  /** The options this game started with (replays); `opts` can change later (setWaveInterval). */
+  startOpts: GameOpts;
+  /** update() never steps past this stepCount (replay playback stops at the replay's end). Not saved. */
+  stepLimit = Infinity;
+  /** Nesting depth of running replay commands (only depth 0 is logged). */
+  _cmdDepth = 0;
+  /** Called at the start of every step with stepCount (replay playback), or null. Not saved. */
+  stepHook: ((step: number) => void) | null = null;
   /** Last build/upgrade that undo() can take back (not saved: a restored game starts without one). */
   _undo: UndoRecord | null = null;
 
@@ -152,6 +179,7 @@ export class Game {
       mapId: o.mapId, difficulty: o.difficulty, mode: o.mode, unlockAll: !!o.unlockAll,
       seed: o.seed, waveInterval: o.waveInterval ?? null,
     };
+    this.startOpts = { ...this.opts }; // replays start from these (setWaveInterval later changes opts)
 
     this.rng = new RNG(o.seed);
     this.events = new Emitter();
@@ -195,6 +223,26 @@ export class Game {
     // undo ends once the turret fires (normal shots and combos; chain and holding call markFired directly)
     this.on('shot', (p) => this.markFired(p.turretId));
     this.on('combo', (p) => { this.markFired(p.turretId); for (const id of p.partnerIds) this.markFired(id); });
+    this._wrapCommands();
+  }
+
+  /**
+   * Log every successful replay command with the current stepCount (commandLog). Wrapping the instance methods keeps
+   * the commands themselves untouched; a command run by a replay is logged the same way, so logs compare equal.
+   */
+  _wrapCommands(): void {
+    const self = this as unknown as Record<string, (...a: unknown[]) => unknown>; // method table, looked up by name
+    for (const name of REPLAY_COMMANDS) {
+      const orig = self[name];
+      self[name] = (...args: unknown[]): unknown => {
+        // only the outermost command is logged (cycleTargetMode calls setTargetMode; replaying both would cycle twice)
+        this._cmdDepth++;
+        let r: { ok?: boolean } | null;
+        try { r = orig.apply(this, args) as { ok?: boolean } | null; } finally { this._cmdDepth--; }
+        if (this._cmdDepth === 0 && r && r.ok && this.commandLog.length < COMMAND_LOG_MAX) this.commandLog.push({ s: this.stepCount, c: name, a: JSON.parse(JSON.stringify(args)) });
+        return r;
+      };
+    }
   }
 
   /** Focus-fire target; mirrored to state.focusId for the renderer. */
@@ -219,7 +267,7 @@ export class Game {
     this.acc += realDtMs * s.speed;
     const maxSteps = 8 * s.speed;
     let n = 0;
-    while (this.acc >= STEP_MS && n < maxSteps && !s.over) {
+    while (this.acc >= STEP_MS && n < maxSteps && !s.over && this.stepCount < this.stepLimit) {
       this.step(STEP_MS);
       this.acc -= STEP_MS;
       n++;
@@ -233,6 +281,7 @@ export class Game {
   }
 
   step(dt: number): void {
+    if (this.stepHook) this.stepHook(this.stepCount); // replays run the commands logged for this step first
     const s = this.state;
     s.time += dt;
     this.stepCount++;
@@ -850,6 +899,7 @@ export class Game {
     return JSON.parse(JSON.stringify({
       version: SAVE_VERSION,
       opts: this.opts,
+      startOpts: this.startOpts,
       rng: this.rng.s,
       nextId: this.nextId,
       acc: this.acc,
@@ -866,6 +916,7 @@ export class Game {
       turrets: s.turrets, attackers: s.attackers, projectiles: s.projectiles,
       beams: s.beams, effects: s.effects,
       combos: this.combos.serialize ? this.combos.serialize() : null,
+      commandLog: this.commandLog,
     }));
   }
 
@@ -896,6 +947,8 @@ export class Game {
       for (const o of d[key]) if (!isObj(o)) throw bad(`${key} holds a non-object`);
     }
     const g = new Game(d.opts);
+    g.startOpts = { ...g.opts };
+    if (isObj(d.startOpts)) { try { g.startOpts = { ...new Game(d.startOpts).opts }; } catch (e) { /* unknown map etc.: keep opts */ } } // validated by the constructor
     g.rng.s = d.rng;
     g.nextId = d.nextId;
     g.acc = d.acc;
@@ -920,6 +973,8 @@ export class Game {
     s.effects.push(...d.effects);
     g._nextUnlock = g._computeNextUnlock();
     if (g.combos.deserialize && d.combos != null) g.combos.deserialize(d.combos);
+    // optional since replays: an old save simply has no log (its replay starts empty); a broken one is dropped
+    g.commandLog = Array.isArray(d.commandLog) && d.commandLog.length <= COMMAND_LOG_MAX && d.commandLog.every(isCommandEntry) ? d.commandLog : [];
     return g;
   }
 }

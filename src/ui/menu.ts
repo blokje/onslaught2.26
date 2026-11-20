@@ -157,7 +157,8 @@ export class Menu {
         h('button', { class: 'os-btn', type: 'button', onclick: () => app.openHelp() }, 'How to play'),
         h('button', { class: 'os-btn', type: 'button', onclick: () => app.openCodex() }, 'Combo Codex'),
         h('button', { class: 'os-btn', type: 'button', onclick: () => app.startTutorial() }, 'Tutorial'),
-        h('button', { class: 'os-btn', type: 'button', onclick: () => app.openAchievements() }, 'Achievements')));
+        h('button', { class: 'os-btn', type: 'button', onclick: () => app.openAchievements() }, 'Achievements'),
+        app.replays ? h('button', { class: 'os-btn', type: 'button', onclick: () => app.openReplays() }, 'Replays') : null));
 
     this.el.append(h('div', { class: 'os-panel os-menu-card' }, logo, h('div', { class: 'os-menu-main' }, maps, side)));
     this.refresh();

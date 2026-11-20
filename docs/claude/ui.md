@@ -18,6 +18,7 @@ DOM overlay over the canvas, input, persistence and audio. Contract: `ARCHITECTU
 | `music.ts` | Adaptive synthesized music: `musicStep(step, intensity)` and `musicTempo` (pure, tested), `musicIntensity(state)`, `MusicPlayer` (look-ahead scheduler on the music bus). |
 | `achievements.ts` | `ACHIEVEMENTS` (22 pure checks on an `AchCtx`), `newlyEarned`, `cleanEarned` (tested in sim-test). |
 | `daily.ts` | `dailyFor(date)`: key, seed, map and difficulty of a UTC day from `hash32` (pure, tested). |
+| `replayCode.ts` | `encodeReplay`/`decodeReplay`: replay JSON as a text code (`OS1.` gzip via CompressionStream + base64url, `OS0.` plain), plain JSON also accepted (tested). |
 | `codex.ts` | Combo Codex: `describeCombo(recipe)` builds the effect line from the recipe's `fx` data (pure, tested in sim-test), `partnerList`, `buildCodex(fired)` the dialog body. |
 | `colors.ts` | Combo colours with shapes: `COMBO_HEX`, `COLOR_SYMBOL`, `colorName`, `colorDot` (shared by the HUD and the Codex). |
 | `format.ts` | Big numbers: 1,234 then 12.3K, 4.56M, 7.89B, 1.23T, then 1.23e15. |
@@ -112,6 +113,15 @@ dailies) and earns everything new: toast, log line, unlock sound, saved in `os22
 Sandbox games never count for wave, score or cash goals (`real()` in `achievements.ts`). The menu button "Achievements"
 lists all of them with the date earned. Reset progress clears them and the stats. To add one: append to `ACHIEVEMENTS`
 and extend the sim-test (mot).
+
+## Replays
+
+- Game over (real game only): Save replay (a `.json` download) and Copy replay code (clipboard). The data comes from
+  `app.replays.make(game)`.
+- Menu > Replays: paste a code or open a file, then Watch. `startReplay` attaches the playback game; `replayView` holds it.
+  While watching, `App.run` refuses everything except view commands (`run(fn, true)`: speed, pause), so the recorded game
+  cannot change; autosave, scores, achievements, tips and auto-send are off. A red "REPLAY n%" badge shows progress.
+  At the end (`pb.done()`, or game over) `replayEnded()` pauses and says whether the result matches the recorded one.
 
 ## Daily challenge
 

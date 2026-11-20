@@ -54,10 +54,24 @@ export interface AppRenderer {
   setOptions?(o: Partial<RenderOptions>): void;
 }
 
+/** A replay being shown: the live game plus its progress and end check. */
+export interface ReplayPlayback { game: AppGame; progress(): number; done(): boolean; matches(): boolean }
+/** Replay support from the game layer (src/main.ts wires src/game/replay.ts); the UI never imports Game itself. */
+export interface ReplaySupport {
+  /** Replay data of a running game, or null when the game cannot make one (the mock). */
+  make(game: AppGame): unknown | null;
+  /** Check untrusted data (a file or pasted code); throws Error('Invalid replay: ...'). */
+  validate(raw: unknown): unknown;
+  play(data: unknown): ReplayPlayback;
+  info(data: unknown): { mapId: string; difficulty: string; wave: number; score: number };
+}
+
 export interface AppOptions {
   createGame: (opts: GameOptions) => AppGame;
   /** `save` is the `data` field of the autosave wrapper (the result of serialize()). */
   // any: the serialized shape is private to each game implementation (real Game or mock), so it is passed through untouched
   restoreGame: (save: any) => AppGame;
   renderer: AppRenderer;
+  /** Optional: replays (the UI demo has none). */
+  replays?: ReplaySupport;
 }

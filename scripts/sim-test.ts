@@ -13,6 +13,8 @@ import { Hints, HINTS, cleanHintIds } from '../src/ui/hints.ts';
 import { musicStep, musicTempo, musicIntensity } from '../src/ui/music.ts';
 import { ACHIEVEMENTS, newlyEarned, cleanEarned, starsForWave, bestWave } from '../src/ui/achievements.ts';
 import { dailyFor } from '../src/ui/daily.ts';
+import { makeReplay, runReplay, validateReplay, replayMatches, startPlayback } from '../src/game/replay.ts';
+import { encodeReplay, decodeReplay } from '../src/ui/replayCode.ts';
 import { COMBOS } from '../src/data/combos.ts';
 import { formatNum } from '../src/ui/format.ts';
 import { AudioEngine, UI_SOUNDS, busOf } from '../src/ui/audio.ts';
@@ -758,6 +760,55 @@ function makePlayer(game: Game, spots: Spot[]): () => void {
     && new Set(days.map((d) => d.mapId)).size >= 8 && new Set(days.map((d) => d.difficulty)).size === 3);
   const play = () => { const g = new Game({ mapId: d1.mapId, difficulty: d1.difficulty, seed: d1.seed }); g.sendWave(); g.advance(60 * 20); return JSON.stringify(g.serialize()); };
   check('(mot) daily: the same seed plays out the same game', play() === play());
+}
+
+// ------------------------------------------------------------------ (rep) replays (src/game/replay.ts)
+{
+  const core = (g: Game): string => { const d = JSON.parse(JSON.stringify(g.serialize())); delete d.acc; delete d.state.speed; delete d.state.paused; delete d.opts; delete d.startOpts; return JSON.stringify(d); };
+  const spots = bestSpots('map1', 4);
+  let g = new Game({ mapId: 'map1', difficulty: 'medium', seed: 77 });
+  g.setSpeed(4);
+  const a = must(g.build('blue', spots[0].x, spots[0].y)).id;
+  for (let i = 0; i < 40; i++) g.update(1000 / 60);
+  must(g.sendWave());
+  for (let i = 0; i < 300; i++) {
+    g.update(1000 / 60);
+    if (i === 30) g.upgrade(a, 'damage');
+    if (i === 80) g.build('red', spots[1].x, spots[1].y);
+    if (i === 120) g.cycleTargetMode(a);
+    if (i === 150) g.setWaveInterval(9000);
+    if (i === 200) { const b = must(g.build('green', spots[2].x, spots[2].y)).id; g.undo(); void b; }
+  }
+  // save and restore halfway: the log travels with the save
+  g = Game.deserialize(JSON.parse(JSON.stringify(g.serialize())));
+  for (let i = 0; i < 400; i++) { g.update(1000 / 60); if (i === 100) g.sendWave(); if (i === 250) g.upgrade(a, 'rate', true); }
+  const r = makeReplay(g);
+  check('(rep) the game logged its commands (build, upgrade, target, interval, undo, waves)', r.log.length >= 8 && r.log.some((e) => e.c === 'undo') && r.log.some((e) => e.c === 'setWaveInterval'), String(r.log.length));
+  check('(rep) the replay keeps the start options, not the changed wave interval', r.opts.waveInterval === null && g.opts.waveInterval === 9000);
+  const p = runReplay(validateReplay(JSON.parse(JSON.stringify(r))));
+  check('(rep) playing the replay back gives the identical game (state, entities, rng, log)', core(p) === core(g) && replayMatches(p, r), `steps ${r.end}, wave ${g.state.wave}, kills ${g.state.kills}`);
+  const t1 = JSON.parse(JSON.stringify(r)); t1.log[2].s = -1;
+  const t2 = JSON.parse(JSON.stringify(r)); t2.log.push({ s: 5, c: 'cheat', a: [] });
+  const t3 = JSON.parse(JSON.stringify(r)); t3.opts.mapId = 'nope';
+  let refused = 0;
+  for (const t of [t1, t2, t3, null, 'x', { v: 2 }]) { try { validateReplay(t); } catch (e) { refused++; } }
+  check('(rep) broken or tampered replays are refused', refused === 6);
+  const t4 = JSON.parse(JSON.stringify(r)); t4.log[0].a[1] += 200; // build the first turret somewhere else
+  check('(rep) a changed command gives a different result, so the recorded result exposes it', !replayMatches(runReplay(validateReplay(t4)), r) || core(runReplay(validateReplay(t4))) !== core(g));
+  const code = await encodeReplay(r);
+  const back = validateReplay(await decodeReplay(code));
+  check('(rep) a replay survives the text code (gzip + base64url) and plain JSON', code.startsWith('OS1.') && JSON.stringify(back) === JSON.stringify(r)
+    && JSON.stringify(validateReplay(await decodeReplay(JSON.stringify(r)))) === JSON.stringify(r), `${code.length} chars for ${r.log.length} commands`);
+  let badCode = 0;
+  for (const c of ['OS1.!!!', 'hello', 'OS0.' + btoa('{"v":1}')]) { try { validateReplay(await decodeReplay(c)); } catch (e) { badCode++; } }
+  check('(rep) broken codes are refused', badCode === 3);
+  const pb = startPlayback(r);
+  pb.game.setSpeed(8);
+  for (let i = 0; i < 2000 && !pb.done(); i++) pb.game.update(1000 / 60);
+  check('(rep) live playback with update() at 8x stops exactly at the end and matches', pb.done() && pb.game.stepCount === r.end && pb.matches(), `${pb.game.stepCount} / ${r.end}`);
+  const old = JSON.parse(JSON.stringify(g.serialize())); delete old.commandLog; delete old.startOpts;
+  const og = Game.deserialize(old);
+  check('(rep) an older save without a log loads with an empty log and its opts as start options', og.commandLog.length === 0 && og.startOpts.mapId === 'map1');
 }
 
 // ------------------------------------------------------------------ (q) waveActive (auto-send)

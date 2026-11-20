@@ -24,7 +24,8 @@ import { codeLookup, keyLabel, resolveBindings } from './keymap.ts';
 import { clampScale } from './storage.ts';
 import type { KeyAction } from './keymap.ts';
 import { formatCash, formatNum } from './format.ts';
-import type { AppGame, AppRenderer, AppOptions, CommandResult } from './appTypes.ts';
+import type { AppGame, AppRenderer, AppOptions, CommandResult, ReplayPlayback, ReplaySupport } from './appTypes.ts';
+import { encodeReplay, decodeReplay } from './replayCode.ts';
 import type { GameEventName, GameEvents, GameOptions, GameState, Overlay, Stat, TurretState, Attacker, KeyColor, DirectionalMode, WaveRecord } from '../types.ts';
 
 const GRID = 22;
@@ -126,6 +127,9 @@ export class App {
   /** Earned achievements (id -> date), loaded once and saved on change. */
   earned: Record<string, string> = storage.getEarned();
   _achTick = 0;
+  /** Replay support (null in the UI demo) and the replay being watched, if any. */
+  replays: ReplaySupport | null = null;
+  replayView: { pb: ReplayPlayback; data: unknown; ended: boolean } | null = null;
   /** Key of the daily challenge being played ("YYYY-MM-DD"), or null. */
   daily: string | null = null;
   tipTimer: ReturnType<typeof setTimeout> | null = null;
@@ -160,8 +164,9 @@ export class App {
   hud: Hud;
   _saveTimer: ReturnType<typeof setInterval>;
 
-  constructor(rootEl: HTMLElement, { createGame, restoreGame, renderer }: AppOptions) {
+  constructor(rootEl: HTMLElement, { createGame, restoreGame, renderer, replays }: AppOptions) {
     this.rootEl = rootEl;
+    this.replays = replays || null;
     this.createGame = createGame;
     this.restoreGame = restoreGame;
     this.renderer = renderer;
@@ -381,6 +386,7 @@ export class App {
 
   /** Earn any new achievements for the current state (and the event that triggered the check, if any). */
   checkAchievements(event?: { name: string; payload: Record<string, unknown> }): void {
+    if (this.replayView) return;
     const g = this.game;
     const st = storage.getStats();
     const ctx = {
@@ -447,7 +453,7 @@ export class App {
 
   /** Tips (setting hints): queue state-based ones, show the next when none is on screen. Never during the tutorial. */
   tipTick(): void {
-    if (!this.settings.hints || !this.game) return;
+    if (!this.settings.hints || !this.game || this.replayView) return;
     const before = this.hints.seen.size;
     this.hints.onState(this.game.state);
     if (this.hints.seen.size !== before) storage.saveHints(this.hints.seen);
@@ -534,6 +540,7 @@ export class App {
     this.game = null;
     this.tutorial = null;
     this.daily = null;
+    this.replayView = null;
     this.renderCoach();
     this.resetInput();
     // the menu must not keep drawing the old game, selection rings or build ghost
@@ -558,7 +565,7 @@ export class App {
 
   autosave(): void {
     const g = this.game;
-    if (!g || g.state.over) return;
+    if (!g || g.state.over || this.replayView) return;
     try {
       const s = g.state;
       const data = g.serialize();
@@ -574,7 +581,7 @@ export class App {
     const a = this.audio;
     if (this.tutorial) this.tutorial.observe(name, typeof p.kind === 'string' ? p.kind : undefined);
     if (name === 'combo' || name === 'gameover' || (name === 'kill' && !this.earned.firstKill)) this.checkAchievements({ name, payload: p as Record<string, unknown> });
-    else if (this.settings.hints) this.hints.onEvent(name, p as Record<string, unknown>);
+    else if (this.settings.hints && !this.replayView) this.hints.onEvent(name, p as Record<string, unknown>);
     switch (name) {
       case 'shot': {
         let kind: string | null | undefined = p.kind;
@@ -615,9 +622,12 @@ export class App {
     const g = this.game;
     if (!g || this._overShown) return;
     this._overShown = true;
+    if (this.replayView) { this.replayEnded(); return; }
     const s = g.state;
     const info: GameOverInfo = { rank: 0, score: p.score != null ? p.score : s.score, kills: p.kills != null ? p.kills : s.kills, wave: p.wave != null ? p.wave : s.wave, mapId: s.mapId, difficulty: s.difficulty, mode: s.mode };
     info.report = buildReportData(s);
+    let replay: unknown = null;
+    try { replay = this.replays ? this.replays.make(g) : null; } catch (e) { console.error(e); }
     if (this.daily && info.score > 0) {
       const dr = storage.addDailyScore(this.daily, { score: info.score, kills: info.kills, wave: info.wave, date: new Date().toISOString(), ...(s.undoUsed ? { undo: true } : {}) });
       const st = storage.getStats(); st.dailies++; storage.saveStats(st);
@@ -633,12 +643,74 @@ export class App {
     const m = this.openModal('Game over', buildGameOver(info), {
       cls: '', dismissable: false,
       buttons: [
+        ...(replay ? [{ label: 'Save replay', onClick: () => this.downloadReplay(replay) }, { label: 'Copy replay code', onClick: (_h: unknown, el: HTMLButtonElement) => { void this.copyReplay(replay, el); } }] : []),
         { label: 'High scores', onClick: () => this.openScores({ mapId: info.mapId, difficulty: info.difficulty, mode: info.mode, rank: info.rank }) },
         { label: 'Menu', onClick: (hd) => { hd.close(); this.toMenu(); } },
         { label: 'Restart', cls: 'primary', onClick: (hd) => { hd.close(); this.restart(); } },
       ],
     });
     m.kind = 'gameover';
+  }
+
+  // =================================================================== replays
+  /** Save a replay as a JSON file. */
+  downloadReplay(data: unknown): void {
+    const info = this.replays ? this.replays.info(data) : null;
+    const name = `onslaught-${info ? info.mapId : 'replay'}-${new Date().toISOString().slice(0, 10)}.json`;
+    const url = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: 'application/json' }));
+    const a = h('a', { href: url, download: name });
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }
+
+  /** Copy a replay code to the clipboard (the button shows the outcome). */
+  async copyReplay(data: unknown, el: HTMLButtonElement): Promise<void> {
+    try {
+      const code = await encodeReplay(data);
+      await navigator.clipboard.writeText(code);
+      el.textContent = 'Code copied';
+    } catch (e) { console.error(e); el.textContent = 'Copy failed'; }
+  }
+
+  /** Replays dialog: paste a code or open a file, then watch it. */
+  openReplays(): void {
+    if (!this.replays) return;
+    const area = h('textarea', { class: 'os-replay-code', rows: 4, placeholder: 'Paste a replay code here', 'aria-label': 'Replay code' });
+    const file = h('input', { type: 'file', accept: '.json,application/json', 'aria-label': 'Replay file' });
+    const msg = h('p', { class: 'os-hint' }, 'Replays come from the game-over screen: Save replay or Copy replay code.');
+    const load = async (text: string): Promise<void> => {
+      try {
+        const data = this.replays!.validate(await decodeReplay(text));
+        this.closeAllModals();
+        this.startReplay(data);
+      } catch (e) { msg.textContent = e instanceof Error ? e.message : 'Could not read that replay.'; }
+    };
+    file.addEventListener('change', () => { const f = file.files && file.files[0]; if (f) f.text().then(load, () => { msg.textContent = 'Could not read the file.'; }); });
+    this.openModal('Replays', h('div', { class: 'os-help' }, msg, area, h('div', { style: 'margin-top:.5em' }, file)), {
+      cls: '', buttons: [{ label: 'Close', onClick: (hd) => hd.close() }, { label: 'Watch', cls: 'primary', onClick: () => { void load(area.value); } }],
+    });
+  }
+
+  /** Watch a validated replay: a fresh game plays the recorded commands; the player can only change speed and pause. */
+  startReplay(data: unknown): void {
+    if (!this.replays) return;
+    const pb = this.replays.play(data);
+    this.attachGame(pb.game);
+    this.replayView = { pb, data, ended: false };
+    this.hud.toast('Watching a replay. Speed and pause work; Esc menu to leave.');
+  }
+
+  /** The replay reached its end: pause and say whether it reproduced the recorded result. */
+  replayEnded(): void {
+    const v = this.replayView;
+    if (!v || v.ended) return;
+    v.ended = true;
+    const ok = v.pb.matches();
+    try { this.game?.setPaused(true); } catch (e) { /* ignore */ }
+    const info = this.replays ? this.replays.info(v.data) : null;
+    const text = ok ? `Replay finished: wave ${info?.wave}, score ${formatNum(info?.score ?? 0)}, exactly as recorded.` : 'Replay finished, but the result differs from the recorded one (the file may have been edited or made by another version).';
+    this.hud.addLog(text);
+    this.openModal('Replay finished', h('p', null, text), { cls: 'narrow', buttons: [{ label: 'Menu', cls: 'primary', onClick: (hd) => { hd.close(); this.toMenu(); } }] });
   }
 
   // =================================================================== per frame
@@ -678,6 +750,7 @@ export class App {
   /** Auto-send (setting autoSend): once the player has started wave 1, send the next wave when the field is clear. */
   autoSendCheck(game: AppGame): void {
     const s = game.state;
+    if (this.replayView) return;
     if (!this.settings.autoSend || s.wave < 1 || s.over || s.paused || this.modalOpen()) return;
     if (game.waveActive()) return;
     this.sendWave();
@@ -700,6 +773,7 @@ export class App {
     if (this.mode === 'build' || this.mode === 'move') this.cursorDirty = true;   // validity depends on cash, camera may move
     this.hud.update();
     this.coachTick();
+    if (this.replayView && !this.replayView.ended && this.replayView.pb.done()) this.replayEnded();
     if (++this._achTick % 10 === 0) this.checkAchievements(); // about once a second
   }
 
@@ -881,7 +955,9 @@ export class App {
   }
 
   // =================================================================== command helpers
-  run(fn: () => CommandResult | void): CommandResult | void | null {
+  run(fn: () => CommandResult | void, view = false): CommandResult | void | null {
+    // watching a replay: only view commands (speed, pause) may run, everything else would change the recorded game
+    if (this.replayView && !view) { this.hud.toast('Watching a replay: you cannot change this game.'); return null; }
     const seq = this.errSeq;
     let res: CommandResult | void | null = null;
     try { res = fn(); } catch (e) { console.error(e); return null; }
@@ -1147,8 +1223,8 @@ export class App {
     const ms = this.settings.waveInterval > 0 ? this.settings.waveInterval * 1000 : (DIFFICULTIES[g.state.difficulty]?.waveInterval || 20000);
     try { g.setWaveInterval(ms); } catch (e) { console.error(e); }
   }
-  setSpeed(s: number): void { const g = this.game; if (g) { this.run(() => g.setSpeed(s)); this.audio.setSpeed(s); } }
-  togglePause(): void { this._autoPaused = false; const g = this.game; if (g) this.run(() => g.togglePause()); }
+  setSpeed(s: number): void { const g = this.game; if (g) { this.run(() => g.setSpeed(s), true); this.audio.setSpeed(s); } }
+  togglePause(): void { this._autoPaused = false; const g = this.game; if (g) this.run(() => g.togglePause(), true); }
 
   toggleRanges(): void { this.showRanges = this.showRanges === 'all' ? 'selected' : 'all'; this.overlayDirty = true; }
   toggleCombo(): void { this.showCombo = !this.showCombo; this.overlayDirty = true; }

@@ -49,6 +49,11 @@ payloads are typed locally in `combos.ts` (`ComboProjData`).
   turret, so overkill is not counted and the sum over all turrets equals the HP the attackers lost. Combo damage counts
   for the lead (the `src` combos pass). Black-hole kills (`killAttacker`) add nothing. Missing or non-finite in a save -> 0.
   The UI derives DPS from it (`src/ui/dps.ts`); the simulation keeps no DPS state.
+- Replays: `_wrapCommands()` (constructor) wraps each method named in `REPLAY_COMMANDS` and logs it when it returns
+  `ok`, with `stepCount` at that moment, but only at nesting depth 0 (`cycleTargetMode` calls `setTargetMode`; logging both
+  would replay the cycle twice; found by the replay test). Playback sets `stepHook` to run the log entries whose `s` is the
+  current `stepCount` before that step, which is exactly when they ran originally, whatever the speed was. Commands after
+  the last step run in `flush()`. `startOpts` matters because `setWaveInterval` rewrites `opts.waveInterval`.
 - `state.damageTotal` adds the same effective damage for the whole game (sold turrets keep counting).
   `state.history` gets one `WaveRecord` per started wave in `startWave` (`Waves.ts`), after `wave` is raised and before
   the spawner exists: the economy as the wave starts. Capped at `HISTORY_MAX` (5000). Both are saved inside `state`;

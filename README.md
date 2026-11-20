@@ -53,6 +53,7 @@ npm run build:single # writes dist-single/index.html
 - **4 difficulties** (Easy, Medium, Hard, Extreme), plus a **Sandbox** mode with unlimited cash.
 - **Score** = total kills × total cash spent.
 - Accessibility: every combo colour also has a shape (on the map and in the panels).
+- **Replays:** save or copy a replay at game over and watch it again from the menu; it plays out exactly the same.
 - **Daily challenge:** one map, difficulty and seed per day for everyone, with its own score list.
 - **Map stars:** 1 to 3 stars per map and difficulty for reaching wave 25, 50 and 100.
 - **Achievements:** 22 goals, from the first kill to all 20 combos and wave 100 on Hard.

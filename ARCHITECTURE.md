@@ -130,6 +130,14 @@ game.addAttacker(a)                  // push a ready-made attacker (tests); game
 game.turretAt(x, y)                  // -> id | null (within TURRET_SIZE/2)
 ```
 
+Replays (`src/game/replay.ts`): every successful command in `REPLAY_COMMANDS` (build, upgrade, sell, move, the targeting
+commands, join, setComboColor, sendWave, setWaveInterval, undo) is logged in `game.commandLog` as `{ s: stepCount, c, a }`
+(outermost command only; saved). `game.startOpts` keeps the start options (saved). `game.stepHook(step)` runs at the start
+of every step and `game.stepLimit` stops `update()` (both not saved). `makeReplay(game)` -> `{ v, opts, log, end, result }`,
+`validateReplay(raw)` throws `Error('Invalid replay: ...')`, `runReplay(r)` plays headless, `startPlayback(r)` gives a live
+game for the UI, `replayMatches(game, r)`. The App gets them through the optional `AppOptions.replays` (`ReplaySupport`,
+wired in `src/main.ts`), so `src/ui` still never imports `Game`.
+
 ### 1.3 Events (`game.on(name, fn)`; payload object)
 
 `shot {kind, turretId}`, `hit {attackerId}`, `kill {attackerId, x, y, bounty}`, `leak {lives}`,
