@@ -9,6 +9,7 @@ import type { App, GameOverInfo, RunReport, ScoreHighlight } from './App.ts';
 import { iconSvg } from './icons.ts';
 import { KEY_ACTIONS, FIXED_KEYS, RESERVED_CODES, keyLabel, rebind, resolveBindings } from './keymap.ts';
 import type { KeyAction } from './keymap.ts';
+import { PAD_HELP } from './gamepad.ts';
 
 const kbd = (t: string): HTMLElement => h('span', { class: 'os-kbd' }, t);
 
@@ -114,7 +115,8 @@ export function buildKeys(app: App): HTMLElement {
     reset.addEventListener('click', () => { waiting = null; note = 'Keys reset to the defaults.'; capture(); app.updateSettings({ keys: {} }); render(); });
     const kids: HTMLElement[] = [h('p', { class: 'os-hint' }, 'Click a key to change it, then press the new key (Esc cancels). Taking a key that is already used swaps the two.')];
     for (const [name, g] of groups) kids.push(h('h3', null, name), g);
-    kids.push(h('h3', null, 'Fixed'), fixed, h('div', { class: 'os-keys-foot' }, reset, h('span', { class: 'os-hint' }, note)));
+    const pad = h('div', { class: 'os-keys' }, ...PAD_HELP.flatMap(([k, t]) => [kbd(k), h('span', null, t)]));
+    kids.push(h('h3', null, 'Fixed'), fixed, h('h3', null, 'Gamepad'), pad, h('div', { class: 'os-keys-foot' }, reset, h('span', { class: 'os-hint' }, note)));
     root.replaceChildren(...kids);
   };
   /** Route the next keydown here while a row waits for its new key. */

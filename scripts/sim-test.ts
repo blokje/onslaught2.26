@@ -14,6 +14,7 @@ import { musicStep, musicTempo, musicIntensity } from '../src/ui/music.ts';
 import { ACHIEVEMENTS, newlyEarned, cleanEarned, starsForWave, bestWave } from '../src/ui/achievements.ts';
 import { dailyFor } from '../src/ui/daily.ts';
 import { makeReplay, runReplay, validateReplay, replayMatches, startPlayback } from '../src/game/replay.ts';
+import { GamepadReader, PAD_BUTTONS } from '../src/ui/gamepad.ts';
 import { encodeReplay, decodeReplay } from '../src/ui/replayCode.ts';
 import { COMBOS } from '../src/data/combos.ts';
 import { formatNum } from '../src/ui/format.ts';
@@ -809,6 +810,18 @@ function makePlayer(game: Game, spots: Spot[]): () => void {
   const old = JSON.parse(JSON.stringify(g.serialize())); delete old.commandLog; delete old.startOpts;
   const og = Game.deserialize(old);
   check('(rep) an older save without a log loads with an empty log and its opts as start options', og.commandLog.length === 0 && og.startOpts.mapId === 'map1');
+}
+
+// ------------------------------------------------------------------ (plat) gamepad reader (src/ui/gamepad.ts, pure)
+{
+  const pad = (pressed: number[], axes: number[] = [0, 0]) => ({ buttons: Array.from({ length: 17 }, (_, i) => ({ pressed: pressed.includes(i) })), axes });
+  const rd = new GamepadReader();
+  const r1 = rd.poll(pad([0, 3]), 16), r2 = rd.poll(pad([0, 3]), 16), r3 = rd.poll(pad([]), 16), r4 = rd.poll(pad([0]), 16);
+  check('(plat) gamepad: an action fires once per press (edge), again after release', r1.actions.join() === 'click,upDamage' && r2.actions.length === 0 && r3.actions.length === 0 && r4.actions.join() === 'click');
+  const still = rd.poll(pad([], [0.1, -0.15]), 16), full = rd.poll(pad([], [1, 0]), 100), slow = rd.poll(pad([], [0.5, 0]), 100);
+  check('(plat) gamepad: dead zone, full tilt moves 90 px per 100 ms, half tilt much less (fine control)', still.dx === 0 && still.dy === 0 && near(full.dx, 90) && slow.dx > 0 && slow.dx < 30);
+  check('(plat) gamepad: triggers count by value, every standard button 0..15 has an action', rd.poll({ buttons: [{ pressed: false }, { pressed: false }, { pressed: false }, { pressed: false }, { pressed: false }, { pressed: false }, { pressed: false, value: 0.9 }], axes: [0, 0] }, 16).actions.join() === 'upRange'
+    && Array.from({ length: 16 }, (_, i) => PAD_BUTTONS[i]).every(Boolean));
 }
 
 // ------------------------------------------------------------------ (q) waveActive (auto-send)

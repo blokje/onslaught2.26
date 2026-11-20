@@ -30,6 +30,11 @@ Optional demo builds (not part of the checks): `npx vite build --config scripts/
 CI: `.github/workflows/pages.yml` runs `npm test` (`sim-test`, `combo-test`) and `npm run build` (typecheck included) on every push to `main`
 (and on manual dispatch), then deploys `dist/` to GitHub Pages. A failing test or type error blocks the deploy. PRs are not built.
 
+## Gamepad
+
+Replace `navigator.getGamepads` in an init script with a fake standard pad (`window.__pad`, buttons and axes) and press
+buttons by toggling `pressed` for about 120 ms. Real pads were not tested.
+
 ## Phones
 
 Emulate `devices['iPhone 13']` and `devices['iPhone 13 landscape']` in Playwright: no horizontal overflow, tap a rack

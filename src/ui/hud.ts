@@ -115,6 +115,8 @@ export class Hud {
   /** Coach card (tutorial steps and tips), top centre below the top bar. */
   coach!: HTMLElement;
   replayBadge!: HTMLElement;
+  /** Gamepad cursor (crosshair), shown while a pad is used in a game. */
+  padCursor: HTMLElement = h('div', { class: 'os-padcursor', 'aria-hidden': 'true' });
   coachKey = '';
   paused!: HTMLElement;
   collapseBtn: HTMLButtonElement | null = null;
@@ -225,9 +227,15 @@ export class Hud {
       h('div', { class: 'os-paused-hint' }, 'Press ', this.hk('pause'), ' or click Resume. No waves are sent while paused.'));
     // the pause tint goes first so the top bar, side panel and rack stay above it and clickable
     this.coach = h('div', { class: 'os-panel os-coach', role: 'region', 'aria-label': 'Tutorial and tips' });
-    this.el.append(this.replayBadge, this.paused, this.leak, this.top, this.log, this.toasts, this.focusBadge, this.modeHint, this.side, this.rack, this.coach);
+    this.el.append(this.padCursor, this.replayBadge, this.paused, this.leak, this.top, this.log, this.toasts, this.focusBadge, this.modeHint, this.side, this.rack, this.coach);
     // the error bubble sits outside of the clipped root so it can sit anywhere
     this.el.append(this.err, this.live);
+  }
+
+  /** Show the gamepad crosshair at a screen point, or hide it with null. */
+  showPadCursor(p: { cx: number; cy: number } | null): void {
+    this.padCursor.style.display = p ? 'block' : 'none';
+    if (p) this.padCursor.style.transform = `translate(${p.cx}px, ${p.cy}px)`;
   }
 
   // ------------------------------------------------------------ coach card (tutorial and tips)

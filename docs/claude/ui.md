@@ -19,6 +19,7 @@ DOM overlay over the canvas, input, persistence and audio. Contract: `ARCHITECTU
 | `achievements.ts` | `ACHIEVEMENTS` (22 pure checks on an `AchCtx`), `newlyEarned`, `cleanEarned` (tested in sim-test). |
 | `daily.ts` | `dailyFor(date)`: key, seed, map and difficulty of a UTC day from `hash32` (pure, tested). |
 | `replayCode.ts` | `encodeReplay`/`decodeReplay`: replay JSON as a text code (`OS1.` gzip via CompressionStream + base64url, `OS0.` plain), plain JSON also accepted (tested). |
+| `gamepad.ts` | `GamepadReader` (edge detection, stick dead zone and curve; pure, tested), `PAD_BUTTONS`, `PAD_HELP`. |
 | `codex.ts` | Combo Codex: `describeCombo(recipe)` builds the effect line from the recipe's `fx` data (pure, tested in sim-test), `partnerList`, `buildCodex(fired)` the dialog body. |
 | `colors.ts` | Combo colours with shapes: `COMBO_HEX`, `COLOR_SYMBOL`, `colorName`, `colorDot` (shared by the HUD and the Codex). |
 | `format.ts` | Big numbers: 1,234 then 12.3K, 4.56M, 7.89B, 1.23T, then 1.23e15. |
@@ -179,6 +180,14 @@ The panel is docked top right by CSS, which can cover the road on some maps, so 
 - `Hud.placePanel` clamps the position: the whole width stays on screen and the header stays between the top bar and the build rack (the rack is drawn above the panel, so a header under it could not be grabbed again). A moved panel gets an inline `max-height` down to the rack so its body scrolls instead of running off screen. `applyPanelPos` clamps again when the panel opens and on window resize.
 - Saved in settings as `panelPos` (`{ x, y }` in CSS px from the HUD's top-left, `null` = the default dock), written once when the drag ends.
 - A second press on the header within 350 ms (double-click or double-tap) puts the panel back in the default dock. This is detected in `pointerdown`, because pointer capture retargets a `dblclick` event to the panel itself.
+
+## Gamepad
+
+`App.padTick()` (every frame) reads the first connected pad from `navigator.getGamepads()`. The left stick moves the
+shared cursor (`App.cursor`, the same one the mouse sets), so ghosts, hover and build-at-cursor work as with a mouse; a
+crosshair (`.os-padcursor`) shows it in a game. Buttons map through `PAD_BUTTONS` to `padAction`: in a game they run the
+App commands (A = `onLeftClick` at the cursor); in the menu or a dialog A presses the focused button and B goes back.
+The Controls overlay lists the pad layout (`PAD_HELP`).
 
 ## Phones and touch
 

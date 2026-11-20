@@ -79,6 +79,7 @@ npm run build:single # writes dist-single/index.html
 | P, G, I, Esc | Pause, settings, info panel, cancel |
 | ? | All controls; click a key there to change it |
 | Mouse wheel, right-drag | Zoom, pan (two fingers on touch) |
+| Gamepad | Left stick cursor, A click, B back, X build, Y/LT/RT upgrade, LB/RB rack, View wave, Menu pause |
 
 ## Project docs
 

@@ -6,6 +6,11 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
 ## Unreleased
 
 ### Added (2026 roadmap, phase 7: platform)
+- Gamepad support (standard mapping): the left stick moves a cursor with a crosshair, A clicks, B goes back, X builds
+  the highlighted turret, Y/LT/RT upgrade, LB/RB and the D-pad walk the rack or change speed, View sends a wave, Menu
+  pauses; listed in the Controls overlay. New `src/ui/gamepad.ts`. New sim-test checks (plat). Checked in Chromium with
+  a fake pad (crosshair moves, X builds, A selects, Y upgrades, Start pauses, no console errors); not with a real pad.
+  Docs: `SPEC.md` §8, `README.md`, `docs/claude/ui.md`, `docs/claude/testing.md`.
 - Phones: a compact layout below 760 px wide (one-column menu, scrolling build rack, the turret panel as a bottom sheet,
   or a narrow right column on short landscape screens), larger touch targets, portrait support instead of the "rotate"
   notice, and a long press on a rack slot to see a turret's info. Checked in Chromium with iPhone 13 emulation in

@@ -2,7 +2,7 @@
 import './ui.css';
 import { h } from './dom.ts';
 import { TURRETS, BUILD_ORDER, MOVE_COST } from '../data/turrets.ts';
-import { DIFFICULTIES, MODES, TARGET_MODES } from '../data/rules.ts';
+import { DIFFICULTIES, MODES, SPEEDS, TARGET_MODES } from '../data/rules.ts';
 import * as storage from './storage.ts';
 import { AudioEngine } from './audio.ts';
 import { Menu } from './menu.ts';
@@ -14,6 +14,8 @@ import { Hints } from './hints.ts';
 import { musicIntensity } from './music.ts';
 import { ACHIEVEMENTS, newlyEarned } from './achievements.ts';
 import { dailyFor } from './daily.ts';
+import { GamepadReader } from './gamepad.ts';
+import type { PadAction } from './gamepad.ts';
 import type { Hint } from './hints.ts';
 
 /** Wave interval on the tutorial map while the coach runs: long, so no wave comes before the player sends one. */
@@ -127,6 +129,9 @@ export class App {
   /** Earned achievements (id -> date), loaded once and saved on change. */
   earned: Record<string, string> = storage.getEarned();
   _achTick = 0;
+  /** Gamepad: edge detection per pad, and whether a pad was used (shows the cursor). */
+  pad = new GamepadReader();
+  padActive = false;
   /** Replay support (null in the UI demo) and the replay being watched, if any. */
   replays: ReplaySupport | null = null;
   replayView: { pb: ReplayPlayback; data: unknown; ended: boolean } | null = null;
@@ -726,6 +731,7 @@ export class App {
       this.fpsAcc = 0; this.fpsN = 0;
     }
     this.musicTick();
+    this.padTick(dtMs);
     const game = this.game;
     if (!game) return;
     if (this.cursorDirty) { this.cursorDirty = false; this.updateCursorWorld(); }
@@ -734,6 +740,50 @@ export class App {
     if (this.overlayDirty) this.pushOverlay();
     this.autoSendCheck(game);
     if (game.state.over && !this._overShown) this.onGameOver({});
+  }
+
+  /** Poll the first connected gamepad: the left stick moves a cursor, buttons map to actions (PAD_BUTTONS). */
+  padTick(dtMs: number): void {
+    let pad: Gamepad | null = null;
+    try { pad = (navigator.getGamepads ? [...navigator.getGamepads()] : []).find((p): p is Gamepad => !!p && p.connected) || null; } catch (e) { pad = null; }
+    if (!pad) { if (this.padActive) { this.padActive = false; this.hud.showPadCursor(null); } return; }
+    const r = this.pad.poll(pad, dtMs);
+    if (!r.dx && !r.dy && !r.actions.length) { if (this.padActive && this.game) this.hud.showPadCursor(this.cursor); return; }
+    if (!this.padActive) { this.padActive = true; if (!this.cursor.known) { this.cursor.cx = window.innerWidth / 2; this.cursor.cy = window.innerHeight / 2; } }
+    const c = this.cursor;
+    c.cx = Math.max(0, Math.min(window.innerWidth - 1, c.cx + r.dx));
+    c.cy = Math.max(0, Math.min(window.innerHeight - 1, c.cy + r.dy));
+    c.known = true; c.over = true;
+    this.cursorDirty = true;
+    this.hud.showPadCursor(this.game ? c : null);
+    for (const a of r.actions) this.padAction(a);
+  }
+
+  padAction(a: PadAction): void {
+    if (a === 'cancel') { this.escapeAction(); return; }
+    if (a === 'pause' && !this.game) return;
+    // in menus and dialogs A presses the focused button, the stick does not move focus (use Tab / D-pad there)
+    if (!this.game || this.modalOpen()) { if (a === 'click' && document.activeElement instanceof HTMLElement) document.activeElement.click(); return; }
+    const g = this.game;
+    switch (a) {
+      case 'click': this.onLeftClick({ clientX: this.cursor.cx, clientY: this.cursor.cy, shiftKey: false }); break;
+      case 'buildHere': this.buildAtCursor(); break;
+      case 'upDamage': this.upgrade('damage', false); break;
+      case 'upRange': this.upgrade('range', false); break;
+      case 'upRate': this.upgrade('rate', false); break;
+      case 'rackPrev': this.rackStep(-1); break;
+      case 'rackNext': this.rackStep(1); break;
+      case 'sendWave': this.sendWave(); break;
+      case 'pause': this.togglePause(); break;
+      case 'target': this.cycleTarget(); break;
+      case 'ranges': this.toggleRanges(); break;
+      case 'speedUp': case 'speedDown': {
+        const i = SPEEDS.indexOf(g.state.speed);
+        this.setSpeed(SPEEDS[Math.max(0, Math.min(SPEEDS.length - 1, i + (a === 'speedUp' ? 1 : -1)))]);
+        break;
+      }
+    }
+    this.hudDirty = true;
   }
 
   /** Music: calm in the menu, follows the pressure in a game, silent while paused, after game over or at volume 0. */
@@ -936,7 +986,7 @@ export class App {
     this.onLeftClick(e);
   }
 
-  onLeftClick(e: PointerEvent): void {
+  onLeftClick(e: { clientX: number; clientY: number; shiftKey: boolean }): void {
     const game = this.game!;
     const w = this.worldAt(e.clientX, e.clientY);
     switch (this.mode) {
