@@ -83,6 +83,11 @@ npm run build:single # writes dist-single/index.html
 | Mouse wheel, right-drag | Zoom, pan (two fingers on touch) |
 | Gamepad | Left stick cursor, A click, B back, X build, Y/LT/RT upgrade, LB/RB rack, View wave, Menu pause |
 
+## OnSlaught 3
+
+[`onslaught3/`](onslaught3/README.md) holds OnSlaught 3, the free successor: the same engine and improvements, but the
+original numbers are no longer frozen there (new enemies, mutators, new balance). `npm run dev:os3` runs it.
+
 ## Project docs
 
 | Doc | For |

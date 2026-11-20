@@ -3,6 +3,9 @@
 Browser tower-defense game remaking the *mechanics* of a classic 2007 Flash TD game.
 Vite + TypeScript (strict, ES modules, no framework) + three.js 0.160.0. Node 22.18+ runs the `.ts` tests directly (type stripping).
 
+**OnSlaught 3**, the free successor without frozen numbers, lives in `onslaught3/` with its own `CLAUDE.md`. Work on one
+game never changes the other; the rules below are for OnSlaught2.26 (the repository root).
+
 ## Hard rules
 
 0. **Docs first, docs after.** Before coding, update the doc that describes the change (intent). After coding, correct it to match what was built and add a `CHANGELOG.md` entry. **A task without doc changes is not done.** Which doc to touch: `docs/claude/documentation.md`.

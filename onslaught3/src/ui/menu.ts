@@ -1,0 +1,250 @@
+// Main menu screen.
+import { h } from './dom.ts';
+import { MAPS } from '../data/maps.ts';
+import { DIFFICULTIES, MODES } from '../data/rules.ts';
+import { LOCK_SVG } from './icons.ts';
+import * as storage from './storage.ts';
+import type { App } from './App.ts';
+import { STAR_WAVES, starsForWave, bestWave } from './achievements.ts';
+import { dailyFor } from './daily.ts';
+import type { MapDef } from '../types.ts';
+import { t } from './i18n.ts';
+
+/** Columns of the map grid (6 x 3, see .os-maps in ui.css). */
+const MAP_COLS = 6;
+
+const FIELD_W = 720;
+const FIELD_H = 450;
+
+export function drawMapPreview(canvas: HTMLCanvasElement, map: MapDef): void {
+  const W = 192;
+  const H = 120;
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  const g = canvas.getContext('2d')!;
+  g.scale(dpr * (W / FIELD_W), dpr * (H / FIELD_H));
+  g.fillStyle = '#c9ad78';
+  g.fillRect(0, 0, FIELD_W, FIELD_H);
+  // faint grid like circuit lines
+  g.strokeStyle = 'rgba(90, 66, 30, 0.18)';
+  g.lineWidth = 1;
+  for (let x = 0; x <= FIELD_W; x += 45) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, FIELD_H); g.stroke(); }
+  for (let y = 0; y <= FIELD_H; y += 45) { g.beginPath(); g.moveTo(0, y); g.lineTo(FIELD_W, y); g.stroke(); }
+  const p = map.path;
+  g.lineCap = 'round';
+  g.lineJoin = 'round';
+  const trace = () => {
+    g.beginPath();
+    g.moveTo(p[0][0], p[0][1]);
+    for (let i = 1; i < p.length; i++) g.lineTo(p[i][0], p[i][1]);
+  };
+  g.strokeStyle = '#4a3320';
+  g.lineWidth = 36;
+  trace(); g.stroke();
+  g.strokeStyle = '#7b583a';
+  g.lineWidth = 28;
+  trace(); g.stroke();
+  // base (map.base is the top-left corner of a 126 x 82 footprint)
+  const [bx, by] = map.base;
+  g.fillStyle = '#3a2a1c';
+  g.fillRect(bx - 4, by - 4, 134, 90);
+  g.fillStyle = '#f2a93b';
+  g.fillRect(bx, by, 126, 82);
+  g.fillStyle = '#7a4a10';
+  g.fillRect(bx + 30, by + 22, 66, 38);
+  // entry marker
+  g.fillStyle = '#ff6a4d';
+  g.beginPath(); g.arc(p[0][0], p[0][1], 16, 0, Math.PI * 2); g.fill();
+}
+
+export class Menu {
+  app: App;
+  el: HTMLElement;
+  tutBanner!: HTMLElement;
+  dailyBox!: HTMLElement;
+  dailyTxt!: HTMLElement;
+  /** Star row per map (stars for the selected difficulty). */
+  starEls = new Map<string, HTMLElement>();
+  mapBtns: Map<string, HTMLButtonElement>;
+  diffBtns: Map<string, HTMLButtonElement>;
+  modeBtns: Map<string, HTMLButtonElement>;
+  sel!: { mapId: string; difficulty: string; mode: string }; // assigned in build(), called by the constructor
+  note!: HTMLElement;
+  startBtn!: HTMLButtonElement;
+  contBtn!: HTMLButtonElement;
+
+  constructor(app: App) {
+    this.app = app;
+    this.el = h('div', { class: 'os-menu' });
+    this.mapBtns = new Map();
+    this.diffBtns = new Map();
+    this.modeBtns = new Map();
+    this.build();
+  }
+
+  build(): void {
+    const app = this.app;
+    const s = app.settings;
+    this.sel = {
+      mapId: MAPS.some((m) => m.id === s.lastMap) ? s.lastMap : MAPS[0].id,
+      difficulty: DIFFICULTIES[s.lastDifficulty] ? s.lastDifficulty : 'medium',
+      mode: MODES[s.lastMode] ? s.lastMode : 'normal',
+    };
+
+    const logo = h('div', { class: 'os-logo' },
+      h('div', { html: LOGO_SVG }),
+      h('div', null,
+        h('h1', { 'aria-label': 'OnSlaught 3' }, h('span', { class: 't1' }, 'OnSlaught'), h('span', { class: 't2' }, '3')),
+        h('p', null, t('Hold the line. Upgrade. Combine. Survive.'))));
+
+    const maps = h('div', { class: 'os-maps' });
+    let extraNo = 0;
+    MAPS.forEach((m, i) => {
+      const label = m.extra ? `E${++extraNo}. ${m.name}` : `${i + 1}. ${m.name}`;
+      const cv = h('canvas');
+      drawMapPreview(cv, m);
+      const stars = h('i', { class: 'os-stars' });
+      const b = h('button', { class: 'os-map', type: 'button', onclick: () => this.pickMap(m.id) }, cv, h('span', null, label), stars);
+      this.mapBtns.set(m.id, b);
+      this.starEls.set(m.id, stars);
+      maps.append(b);
+    });
+    // arrow keys move between maps (the grid has MAP_COLS columns); Enter or Space picks one
+    maps.addEventListener('keydown', (e) => {
+      const cols = getComputedStyle(maps).gridTemplateColumns.split(' ').length || MAP_COLS; // 3 on a phone
+      const step = ({ ArrowLeft: -1, ArrowRight: 1, ArrowUp: -cols, ArrowDown: cols } as Record<string, number>)[e.key];
+      if (!step) return;
+      const list = [...this.mapBtns.values()];
+      const i = list.indexOf(document.activeElement as HTMLButtonElement);
+      if (i < 0) return;
+      e.preventDefault();
+      list[Math.max(0, Math.min(list.length - 1, i + step))].focus();
+    });
+
+    const diff = h('div', { class: 'os-seg' });
+    for (const [id, d] of Object.entries(DIFFICULTIES)) {
+      const b = h('button', { class: 'os-btn', type: 'button', onclick: () => this.pickDiff(id) },
+        h('span', { class: 'os-lockic', html: LOCK_SVG }), d.name);
+      this.diffBtns.set(id, b);
+      diff.append(b);
+    }
+    const mode = h('div', { class: 'os-seg' });
+    for (const [id, m] of Object.entries(MODES)) {
+      const b = h('button', { class: 'os-btn', type: 'button', onclick: () => this.pickMode(id) },
+        h('span', { class: 'os-lockic', html: LOCK_SVG }), m.name);
+      this.modeBtns.set(id, b);
+      mode.append(b);
+    }
+    this.note = h('div', { class: 'os-menu-note' });
+    this.dailyTxt = h('span', null, '');
+    this.dailyBox = h('div', { class: 'os-daily' }, this.dailyTxt,
+      h('button', { class: 'os-btn small', type: 'button', onclick: () => app.startDaily() }, t('Play daily')));
+    this.tutBanner = h('div', { class: 'os-tut-banner' }, h('span', null, t('New here?')),
+      h('button', { class: 'os-btn primary small', type: 'button', onclick: () => app.startTutorial() }, t('Play the tutorial')));
+    this.startBtn = h('button', { class: 'os-btn primary big', type: 'button', onclick: () => this.start() }, t('Start'));
+    this.contBtn = h('button', { class: 'os-btn big', type: 'button', onclick: () => app.continueGame() }, t('Continue'));
+
+    const side = h('div', { class: 'os-menu-side' },
+      h('div', null, h('h4', null, t('Difficulty')), diff),
+      h('div', null, h('h4', null, t('Mode')), mode),
+      this.tutBanner,
+      this.note,
+      this.startBtn,
+      this.dailyBox,
+      this.contBtn,
+      h('div', { class: 'os-menu-btns' },
+        h('button', { class: 'os-btn', type: 'button', onclick: () => app.openScores() }, t('High scores')),
+        h('button', { class: 'os-btn', type: 'button', onclick: () => app.openSettings() }, t('Settings')),
+        h('button', { class: 'os-btn', type: 'button', onclick: () => app.openHelp() }, t('How to play')),
+        h('button', { class: 'os-btn', type: 'button', onclick: () => app.openCodex() }, t('Combo Codex')),
+        h('button', { class: 'os-btn', type: 'button', onclick: () => app.startTutorial() }, t('Tutorial')),
+        h('button', { class: 'os-btn', type: 'button', onclick: () => app.openAchievements() }, t('Achievements')),
+        app.replays ? h('button', { class: 'os-btn', type: 'button', onclick: () => app.openReplays() }, t('Replays')) : null,
+        h('button', { class: 'os-btn', type: 'button', onclick: () => app.openSaves() }, t('Saves'))));
+
+    this.el.append(h('div', { class: 'os-panel os-menu-card' }, logo, h('div', { class: 'os-menu-main' }, maps, side)));
+    this.refresh();
+  }
+
+  pickMap(id: string): void { this.sel.mapId = id; this.app.updateSettings({ lastMap: id }); this.refresh(); }
+
+  pickDiff(id: string): void {
+    if (!this.app.isDifficultyUnlocked(id)) { this.flash(t('Extreme unlocks after you reach wave 100 on Medium.')); return; }
+    this.sel.difficulty = id;
+    this.app.updateSettings({ lastDifficulty: id });
+    this.refresh();
+  }
+
+  pickMode(id: string): void {
+    if (!this.app.isModeUnlocked(id)) { this.flash(t('Sandbox unlocks after you reach wave 50 on any difficulty.')); return; }
+    this.sel.mode = id;
+    this.app.updateSettings({ lastMode: id });
+    this.refresh();
+  }
+
+  flash(text: string): void { this.note.textContent = text; this.app.audio.play('error'); }
+
+  start(): void {
+    this.app.startGame({ ...this.sel });
+  }
+
+  refresh(): void {
+    const app = this.app;
+    if (!app.isDifficultyUnlocked(this.sel.difficulty)) this.sel.difficulty = 'medium';
+    if (!app.isModeUnlocked(this.sel.mode)) this.sel.mode = 'normal';
+    for (const [id, b] of this.mapBtns) { b.classList.toggle('sel', id === this.sel.mapId); b.setAttribute('aria-pressed', String(id === this.sel.mapId)); }
+    for (const [id, b] of this.diffBtns) {
+      b.classList.toggle('is-on', id === this.sel.difficulty);
+      b.classList.toggle('locked', !app.isDifficultyUnlocked(id));
+      b.title = DIFFICULTIES[id].unlock ? t('Reach wave 100 on Medium to unlock') : '';
+    }
+    for (const [id, b] of this.modeBtns) {
+      b.classList.toggle('is-on', id === this.sel.mode);
+      b.classList.toggle('locked', !app.isModeUnlocked(id));
+      b.title = MODES[id].unlock ? t('Reach wave 50 on any difficulty to unlock') : '';
+    }
+    const d = DIFFICULTIES[this.sel.difficulty];
+    const secs = app.settings.waveInterval > 0 ? app.settings.waveInterval : d.waveInterval / 1000;
+    this.note.textContent = this.sel.mode === 'sandbox'
+      ? t('Sandbox: huge starting cash, everything unlocked.')
+      : d.lives === 1 ? t('{name}: {cash} start, {lives} life, new wave every {secs}s.', { name: d.name, cash: '$' + d.startCash, lives: d.lives, secs })
+        : t('{name}: {cash} start, {lives} lives, new wave every {secs}s.', { name: d.name, cash: '$' + d.startCash, lives: d.lives, secs });
+    // map stars for the selected difficulty: best wave in Normal mode reaching 25 / 50 / 100
+    const diffName = DIFFICULTIES[this.sel.difficulty]?.name || this.sel.difficulty;
+    for (const [id, el] of this.starEls) {
+      const best = bestWave(storage.getScores(id, this.sel.difficulty, 'normal'));
+      const n = starsForWave(best);
+      el.textContent = '\u2605'.repeat(n) + '\u2606'.repeat(STAR_WAVES.length - n);
+      el.title = t('{diff}: best wave {best}. Stars at waves {waves}.', { diff: diffName, best, waves: STAR_WAVES.join(', ') });
+      el.setAttribute('aria-label', t('{n} of 3 stars on {diff}', { n, diff: diffName }));
+    }
+    // today's daily challenge (UTC day) and the best score on it so far
+    const dl = dailyFor(new Date());
+    const dmap = MAPS.find((x) => x.id === dl.mapId);
+    const best = storage.getDailyScores(dl.key)[0];
+    this.dailyTxt.replaceChildren(h('b', null, t('Daily {date}', { date: dl.key })), h('br'),
+      `${dmap ? dmap.name : dl.mapId}, ${DIFFICULTIES[dl.difficulty]?.name || dl.difficulty}` + ', ' + (best ? t('best {score} (wave {wave})', { score: best.score.toLocaleString('en-US'), wave: best.wave }) : t('not played yet')));
+    // first-time players: offer the tutorial until it is done or skipped, and only before any high score exists
+    this.tutBanner.style.display = !app.settings.tutorialDone && !Object.keys(storage.getAllScores()).length ? '' : 'none';
+    const save = storage.loadGame();
+    this.contBtn.style.display = save ? '' : 'none';
+    if (save) {
+      const m = save.meta || {};
+      const map = MAPS.find((x) => x.id === m.mapId);
+      this.contBtn.replaceChildren(t('Continue'), h('span', { class: 'os-sub' },
+        `${map ? map.name : t('Saved game')}${m.difficulty ? ', ' + (DIFFICULTIES[m.difficulty]?.name || m.difficulty) : ''}${m.wave != null ? ', ' + t('wave {n}', { n: m.wave }) : ''}`));
+    }
+  }
+
+  show(): void { this.refresh(); this.el.classList.add('on'); }
+  hide(): void { this.el.classList.remove('on'); }
+}
+
+const LOGO_SVG = `<svg viewBox="0 0 64 64" width="100%" height="100%" aria-hidden="true">
+<circle cx="32" cy="32" r="29" fill="#2b251f" stroke="#f2a93b" stroke-width="3"/>
+<circle cx="32" cy="32" r="21" fill="none" stroke="#7d6c52" stroke-width="2" stroke-dasharray="4 3"/>
+<g transform="rotate(-38 32 32)"><rect x="27.5" y="5" width="9" height="30" rx="3" fill="#f2a93b" stroke="#fff0c8" stroke-width="2"/><circle cx="32" cy="35" r="11" fill="#c27a14" stroke="#fff0c8" stroke-width="2.4"/></g>
+<circle cx="32" cy="35" r="4" fill="#fff0c8"/>
+<path d="M9 52l9-9M55 52l-9-9" stroke="#ff6a4d" stroke-width="3.5" stroke-linecap="round"/>
+</svg>`;

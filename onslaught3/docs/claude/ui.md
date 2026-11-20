@@ -1,0 +1,263 @@
+# UI (`src/ui/`)
+
+DOM overlay over the canvas, input, persistence and audio. Contract: `ARCHITECTURE.md` section 3. The UI talks to the game only through the commands and events in section 1.
+
+## Modules
+
+| File | Role |
+|---|---|
+| `App.ts` | Orchestrator: screens, input modes (build, move, join, focus), game events, autosave, unlock checks. `main.ts` reads `app.game` every frame. |
+| `menu.ts` | Main menu with a 2D path preview per map (6 x 3 grid of all 18 maps, extra maps labelled E1 to E8; the grid scrolls if the window is too short), difficulty, mode, Continue. |
+| `hud.ts` | Top bar, build rack, selected-turret panel, message log, toasts, leak flash, error bubble. Values update through cached setters at about 10 Hz. The selected-turret panel is tabbed (see below). |
+| `dialogs.ts` | Settings, how to play, high scores, game over, in-game menu. |
+| `storage.ts` | All persistence, prefix `os226.`, try/catch with an in-memory fallback. `getSettings()` sanitises: stored values whose type does not match `DEFAULT_SETTINGS` are dropped. Autosave format `{ v, at, meta, data: game.serialize() }` under `os226.save`. Exports the types `Settings`, `Unlocks`, `ScoreEntry`, `SaveWrapper`: a new setting goes into both `Settings` and `DEFAULT_SETTINGS`. |
+| `audio.ts` | Web Audio synthesized SFX, created on the first user gesture, rate limited, master gain plus compressor. Two buses feed the compressor: `sfx` (game effects) and `ui` (`UI_SOUNDS`: click, hover, error, build, sell, upgrade, unlock); `busOf(name)` routes, `setBusVolume(bus, v)` sets each. A new interface sound goes into `UI_SOUNDS`. |
+| `dps.ts` | `DpsTracker`: per-turret DPS from `damageDealt` samples in game time (no DOM, tested in `sim-test`). Resets when the game object changes or time goes back. |
+| `tutorial.ts` | Interactive tutorial: `TUTORIAL_STEPS` and the `Tutorial` step machine (pure, tested in sim-test). |
+| `hints.ts` | One-time tips: `HINTS` (event- or state-triggered) and the `Hints` queue (pure, tested in sim-test). |
+| `music.ts` | Adaptive synthesized music: `musicStep(step, intensity)` and `musicTempo` (pure, tested), `musicIntensity(state)`, `MusicPlayer` (look-ahead scheduler on the music bus). |
+| `achievements.ts` | `ACHIEVEMENTS` (22 pure checks on an `AchCtx`), `newlyEarned`, `cleanEarned` (tested in sim-test). |
+| `daily.ts` | `dailyFor(date)`: key, seed, map and difficulty of a UTC day from `hash32` (pure, tested). |
+| `replayCode.ts` | `encodeReplay`/`decodeReplay`: replay JSON as a text code (`OS1.` gzip via CompressionStream + base64url, `OS0.` plain), plain JSON also accepted (tested). |
+| `gamepad.ts` | `GamepadReader` (edge detection, stick dead zone and curve; pure, tested), `PAD_BUTTONS`, `PAD_HELP`. |
+| `codex.ts` | Combo Codex: `describeCombo(recipe)` builds the effect line from the recipe's `fx` data (pure, tested in sim-test), `partnerList`, `buildCodex(fired)` the dialog body. |
+| `colors.ts` | Combo colours with shapes: `COMBO_HEX`, `COLOR_SYMBOL`, `colorName`, `colorDot` (shared by the HUD and the Codex). |
+| `format.ts` | Big numbers: 1,234 then 12.3K, 4.56M, 7.89B, 1.23T, then 1.23e15. |
+| `icons.ts`, `dom.ts`, `ui.css` | SVG icons, tiny DOM helpers, styles. `h(tag, attrs, ...kids)` returns the matching element type; the `setText`/`setClass`/`setProp`/`show` caches live in a `WeakMap`. |
+| `mock.ts` | Fake Game and 2D MockRenderer for `/ui-demo.html` (via `ui-demo.ts`); its objects satisfy the real state types. |
+| `appTypes.ts` | Types only: `AppGame`, `AppRenderer`, `AppOptions`, `CommandResult`. `App` depends on these, not on `Game` or `Renderer`, so the real objects and the mocks must both satisfy them; a new command that `App` calls goes here too. |
+
+## Top bar
+
+- Stats: Cash, Lives, Wave, Kills, Score. Wave box: Next wave countdown, the **Incoming** preview, Send wave and **Auto**.
+- Auto (key A, setting `autoSend`, default off, also in Settings): `App.autoSendCheck` runs every frame and calls
+  `sendWave()` (same as Space, early bonus included) when `game.waveActive()` is false. Never before wave 1, and not while
+  paused, over or with a modal open. The button shows `is-on` while the setting is on.
+- Undo (key U, setting `undo` "Relaxed: undo", default off): the Undo button sits left of Pause and is only shown with the
+  setting on; it is disabled while `game.undoInfo()` is null and its tooltip names what would be undone. `App.undo()`
+  with the setting off only shows a toast. A game with `state.undoUsed` stores its high score with `undo: true`
+  (`ScoreEntry`), shown as a dimmed U after the score in the high-score table.
+- Incoming preview: label "Wave N" (the next wave), value "1.2K HP $12" (HP and bounty of each attacker), from
+  `game.wavePreview()`. Its tooltip lists the next 5 waves. Rebuilt only when the wave number or the game object
+  changes (`Hud.updateIncoming`), not every tick.
+
+## Accessibility
+
+- Colours are never the only cue: `src/ui/colors.ts` holds `COMBO_HEX`, `COLOR_SYMBOL` (shape per colour) and
+  `colorName()` ("red (triangle)"). The colour dots in the Combos tab are shaped with CSS (`.os-cdot.sym-*`, `clip-path`)
+  and carry `role="img"` and an `aria-label`; the Combo-only colour button names the shape. Always on.
+- Settings section "Accessibility" (`buildSettings`): Colour shapes on the map (`colorSymbols`, default on, sent to the
+  renderer as `overlay.colorSymbols`).
+- Interface size (`uiScale`, 0.8 to 1.6 in steps of 0.1, `UI_SCALE` and `clampScale` in `storage.ts`): `App.applyLook()`
+  sets `--ui-scale` on `.os-root`, and `--u` (the size everything is built on) is multiplied by it.
+- High contrast (`highContrast`): class `os-hc` on `.os-root` (near-solid panels, brighter `--ink-dim`, 2 px borders,
+  white outline on active buttons and tabs).
+- Separate volumes: Game effects (`sfxVolume`) and Interface (`uiVolume`), 0 to 1 on top of the master volume, sliders in
+  Settings; releasing a slider plays a sample of that bus. A bus at 0 skips synthesis entirely.
+- Music (`musicVolume`, default 0.6, the third audio bus): `App.musicTick()` every frame starts the player once the audio
+  context exists, plays the calm pad layer in the menu, follows `musicIntensity` in a game (attackers on the field and
+  lives lost) and stops while paused, after game over, when muted or at volume 0. Layers: pad, kick and bass from 0.15 and
+  0.25, arpeggio from 0.45, hats from 0.65; tempo 96 to 132 bpm. A 4-bar A minor loop (Am F C G).
+- Transitions: the menu and the HUD fade in, dialogs fade and pop in (`os-in`, `os-pop` in `ui.css`); none under `.os-rm`.
+  No closing animation, so `close()` stays instant and focus handling is unchanged.
+- Tilted view (`tiltedView`, default off), sent as the renderer option `tilted`.
+- Screen shake (`screenShake`, default on), sent with `renderer.setOptions`; reduce motion always wins.
+- Reduce motion and flashes (`reduceMotion`): on the first start (no stored value) `getSettings()` follows
+  `prefers-reduced-motion`. `App.applyLook()` toggles `os-rm` on `.os-root` and calls `renderer.setOptions` (optional on
+  `AppRenderer`, the mock has none). CSS under `.os-rm`: no infinite pulses or the rotate spin, the leak cue is a thin red
+  frame instead of the big red glow, toasts and error bubbles only fade.
+- Keyboard and screen readers. Menus and dialogs work with Tab, Shift+Tab, Enter and Space; in-game HUD buttons keep
+  `tabindex: -1` so Space and Enter stay game keys. `App.openModal` makes the box a `role="dialog"` with `aria-modal` and
+  `aria-labelledby` (its title), focuses the box itself (not a button, so a stray Space or Enter does nothing, which
+  matters for the game-over dialog), keeps Tab inside it (`trapTab`) and gives focus back to the control that opened it.
+  The map grid moves with the arrow keys (`MAP_COLS` 6 in `menu.ts`) and marks the chosen map with `aria-pressed`.
+  Turret panel tabs are `role="tab"` with `aria-controls` to `role="tabpanel"` panes; icon-only buttons have an
+  `aria-label`. `:focus-visible` draws an amber ring.
+- Live region: `Hud.announce(text)` writes to a visually hidden `role="status"` `aria-live="polite"` element (`.os-sr`),
+  at most once per second (the newest message wins). `addLog` and `toast` announce, and so do wave starts and leaks.
+- The docked turret panel starts below the top bar's measured height (`--top-h` on the HUD, kept current by a
+  ResizeObserver), because the top bar wraps to two or three rows at a large scale or in a narrow window.
+
+## Languages (English, Dutch, German)
+
+- `i18n.ts`: English is the source and the key: `t('Send wave')`, `t('Wave {n} started', { n })`. Translations live in
+  `src/ui/lang/hud.ts` (HUD, menu, keymap, gamepad), `dialogs.ts` (dialogs, App texts, game error reasons) and
+  `content.ts` (tutorial, tips, achievements, Codex, turret blurbs); a missing one falls back to English.
+- Never call `t()` at module level or in table constants (modules load before the language is set). Mark table text with
+  `tx('...')` (returns it unchanged) and translate where it is shown: `t(entry.label)`. Never build a key with `${}` or
+  `+`: put the variable parts in `{placeholders}`. Turret blurbs (in `src/data`) are shown with `t(def.blurb)`.
+- Game error reasons from `src/game` are listed once with `tx()` in `GAME_REASONS` (`App.ts`) and translated in
+  `showError`. Game `message` events with numbers in them stay English.
+- Proper names stay English: turrets, combos, maps, difficulties, modes, the game name, key names.
+- The language is set in the `App` constructor (setting `language`, or `detectLang(navigator.languages)`) before any
+  text is built, and `<html lang>` follows it. Changing it in Settings reloads the page.
+- sim-test (i18n) scans `src/ui/*.ts` for every `t('...')`/`tx('...')` key (plus the turret blurbs) and fails on a missing
+  Dutch or German text, different `{placeholders}`, a non-literal `t()` key, an unused translation or an em dash.
+
+## Tutorial
+
+- Starts on the How to Play map (`startGame` with `mapId: 'tutorial'`, from the map grid, the menu button "Tutorial",
+  the first-start banner "New here? Play the tutorial" or Settings > Replay tutorial). The banner shows while
+  `settings.tutorialDone` is false and no high score exists.
+- `TUTORIAL_STEPS` (`tutorial.ts`): 8 steps (welcome, build a Cannon, send a wave, upgrade, targeting, a second turret,
+  combos, done). A step with `done(ctx)` finishes by itself; a step without it shows Next (Finish on the last). Every
+  step has Back, all but the last have Skip tutorial. Texts take keys from `app.keyFor`, so rebinding shows up.
+- `App` feeds game events to `tutorial.observe` and calls `coachTick()` from `tick()` (about 10 Hz): it advances the
+  step and keeps the highlight (`os-coach-target`, a pulsing outline, steady with reduce motion) on the step's `target`
+  selector, because panels rebuild. `Hud.showCoach(view)` draws the coach card (top centre below the top bar) and
+  announces it.
+- Waves: the game starts with a 600 s interval (`TUTORIAL_WAVE_MS`); the first Send calls `restoreWaveInterval()` before
+  `sendWave()` so the early bonus stays normal (it would otherwise pay about $590). Finish or Skip also restore it
+  (`AppGame.setWaveInterval` is optional; the mock has none). The top bar shows "you start" until wave 1.
+- To add a step: append to `TUTORIAL_STEPS` (id, title, text, optional target and done) and extend the sim-test (onb).
+
+## Tips
+
+- `HINTS` (`hints.ts`): a leak, few lives left, the first modifier unlock, a late weapon unlock, freak-out, a turret ready
+  for combos, the first combo, and wave 10 without any upgrade. Each has an `event` (with an optional `match` on the
+  payload) or a `when(state)` check.
+- `App.onGameEvent` feeds events to `hints.onEvent`, `App.tipTick()` (from `coachTick`, about 10 Hz) checks the state
+  ones and shows the next queued tip in the coach card (green border, "Tip"), one at a time, never during the tutorial or
+  while a dialog is open. It closes with Got it or after 12 s (`TIP_MS`).
+- Each tip comes once: ids go into `Hints.seen` as soon as they are queued and are stored in `os226.hints`
+  (`storage.getHints/saveHints`, unknown ids dropped). Settings: Tips on/off (`hints`) and Reset tips.
+- To add a tip: append to `HINTS` and extend the sim-test (onb).
+
+## Achievements
+
+`App.checkAchievements(event?)` builds an `AchCtx` (game state, Combo Codex ids, maps started, tutorial done, start lives,
+dailies) and earns everything new: toast, log line, unlock sound, saved in `os226.achievements`. It runs on `combo`,
+`gameover` and the first `kill` event, about once a second from `tick()`, on game start and when the tutorial ends.
+Sandbox games never count for wave, score or cash goals (`real()` in `achievements.ts`). The menu button "Achievements"
+lists all of them with the date earned. Reset progress clears them and the stats. To add one: append to `ACHIEVEMENTS`
+and extend the sim-test (mot).
+
+## Replays
+
+- Game over (real game only): Save replay (a `.json` download) and Copy replay code (clipboard). The data comes from
+  `app.replays.make(game)`.
+- Menu > Replays: paste a code or open a file, then Watch. `startReplay` attaches the playback game; `replayView` holds it.
+  While watching, `App.run` refuses everything except view commands (`run(fn, true)`: speed, pause), so the recorded game
+  cannot change; autosave, scores, achievements, tips and auto-send are off. A red "REPLAY n%" badge shows progress.
+  At the end (`pb.done()`, or game over) `replayEnded()` pauses and says whether the result matches the recorded one.
+
+## Daily challenge
+
+The menu card shows today's map and difficulty and your best score today. `App.startDaily()` calls `startGame` with the
+day's seed and `daily` key (no unlock-all, default wave interval). `App.daily` holds the key; the autosave meta stores
+it so Continue keeps it. At game over a daily score goes to `storage.addDailyScore`, the stat `dailies` grows and the
+dialog names the rank of the day; `checkAchievements()` runs again right after, so the daily goal counts at once.
+
+## Map stars
+
+Every map in the grid shows 0 to 3 stars for the selected difficulty: the best wave of its Normal-mode high scores
+(`bestWave`) against `STAR_WAVES` 25, 50, 100 (`starsForWave`, both in `achievements.ts`). `Menu.refresh()` redraws them,
+so they follow the difficulty buttons. The tooltip names the best wave.
+
+## Combo Codex
+
+All 20 recipes per lead colour (in the order they are tried), the lead plus partners as shape dots, recharge, the effect
+from `describeCombo` (damage before modifiers, so numbers always match `src/data/combos.ts`), a "new" badge for [NEW]
+recipes, and "not yet" or a tick with the number of times fired. Nothing is hidden: players need the recipes to plan.
+Counts come from `storage.getCodex()` (`os226.codex`, `{ id: count }`, unknown ids and bad counts dropped), raised by
+`storage.recordCombo(id)` on every `combo` event in `App.onGameEvent`; "Reset progress" clears it. Opened from the main
+menu, the in-game menu, the "All combos" link in the Combos tab and the K key (`codex` in `keymap.ts`).
+
+## Game-over report
+
+`App.onGameOver` builds a `RunReport` with `buildReportData(state)` and passes it to `buildGameOver` (`dialogs.ts`),
+shown in a normal-width modal:
+
+- Chips: damage dealt (`state.damageTotal`), combos fired (sum of `combosFired` of the turrets still standing), game time.
+- Three sparklines from `state.history` (only with 2+ waves): cash at wave start, lives, damage per wave (difference of
+  `damage` between records; the last wave runs to `damageTotal`). Inline SVG built from numbers only, no library.
+- Top 5 standing turrets by `damageDealt` with icon, share of the total and kills; the first is marked MVP.
+
+## Selected-turret panel tabs
+
+A horizontal tab strip under the header; only the active pane is shown, so the panel stays short. Tabs a kind does not need are left out.
+
+| Tab | Shown for | Contents |
+|---|---|---|
+| General | all | Blurb, Damage/Range/Rate values, status chips (holding, combo, links, kills, damage, lock), Sell, Move, targeting, lock, cone, join, colour, range hint. The damage chip (weapons only) reads "Damage: 4.5M, DPS: 120K": `turret.damageDealt` and the DPS over the last 10 s of game time from `DpsTracker` (`src/ui/dps.ts`, one sample per turret per game second, `...` until one second is measured) |
+| Upgrades | kinds with stat rows | Stat rows with pips, `+ cost` and Max buttons (modifiers: Influence). Hovering a row shows "now → after one more level" in lime (`game.upgradePreview`) and, for range, a dashed ring on the map (`App.setPreviewRange` -> `overlay.previewRange`). The hover sits on the row because a disabled button gets no pointer events |
+| Combos | weapons and Combo-only | Fired / Assisted counts; partners in range ("Combo with", dimmed while recharging); "Next combo" with `in 2.4s`, `ready` or `n/a` plus the recipe name; the recipes of its colour with colour dots for the partners they need and `needs 1 blue` / a countdown (next one highlighted; a Combo-only lists the recipes of leads in range that need its colour); the last 5 combos (fired/assisted, time ago) |
+| Freakout | kinds with `freakout` in their data | Status chip: upgrade progress toward the requirement ("Freak-out at 4 dmg + 4 rate (2/4, 1/4)") until eligible, then ready, incoming and active, plus a one-line explanation |
+
+- The tab strip only appears when a kind has two or more tabs. The active tab is kept on the `Hud` (`tabPref`) across selections and falls back to General when the selected kind lacks it. Not saved.
+- Panes are hidden with the `off` class (`.os-pane.off`), so collapsing the panel still hides everything.
+- Only the active pane is refreshed. The Combos pane reads `game.comboPreview(id)` and rebuilds its lists only when they change.
+- Hotkeys (upgrades, sell, move, ...) are app-level and work whatever tab is open.
+
+## Moving the turret panel
+
+The panel is docked top right by CSS, which can cover the road on some maps, so the player can move it.
+
+- Drag the header (icon and title, not its buttons) with mouse or touch (`Hud.initPanelDrag`). Pointer capture keeps the drag going outside the panel; `touch-action: none` on the header stops the browser from scrolling or zooming.
+- `Hud.placePanel` clamps the position: the whole width stays on screen and the header stays between the top bar and the build rack (the rack is drawn above the panel, so a header under it could not be grabbed again). A moved panel gets an inline `max-height` down to the rack so its body scrolls instead of running off screen. `applyPanelPos` clamps again when the panel opens and on window resize.
+- Saved in settings as `panelPos` (`{ x, y }` in CSS px from the HUD's top-left, `null` = the default dock), written once when the drag ends.
+- A second press on the header within 350 ms (double-click or double-tap) puts the panel back in the default dock. This is detected in `pointerdown`, because pointer capture retargets a `dblclick` event to the panel itself.
+
+## Saves
+
+Menu > Saves (also in the in-game menu): the autosave and three slots, each with Load, Export (a `.json` file of the
+save wrapper) and, for slots, Delete and "Save here" while a game runs (`App.saveWrapper()`, the same wrapper the
+autosave writes). Import loads a file exported here or on another device: `storage.cleanSaveWrapper` checks its shape,
+`restoreGame` (`Game.deserialize`) validates the game itself; errors are shown in the dialog. `App.loadWrapper` attaches
+the loaded game and keeps a daily key. Reset progress clears the slots too.
+
+## Gamepad
+
+`App.padTick()` (every frame) reads the first connected pad from `navigator.getGamepads()`. The left stick moves the
+shared cursor (`App.cursor`, the same one the mouse sets), so ghosts, hover and build-at-cursor work as with a mouse; a
+crosshair (`.os-padcursor`) shows it in a game. Buttons map through `PAD_BUTTONS` to `padAction`: in a game they run the
+App commands (A = `onLeftClick` at the cursor); in the menu or a dialog A presses the focused button and B goes back.
+The Controls overlay lists the pad layout (`PAD_HELP`).
+
+## Phones and touch
+
+- Below 760 px wide (`NARROW_PX` in `hud.ts`, the `max-width: 760px` query in `ui.css`): the menu is one column with 3 maps
+  per row (the arrow keys read the real column count), the top bar centres and wraps, the build rack scrolls sideways,
+  the turret panel is a bottom sheet above the rack (a dragged `panelPos` is ignored there) and the coach card spans the
+  width. On short screens (`max-height: 500px`, a phone in landscape) the panel is a narrow column on the right instead,
+  so the field stays free.
+- `pointer: coarse`: buttons, icon buttons and tabs get larger minimum sizes.
+- Long press (450 ms) on a rack slot shows the turret's name, cost, unlock and blurb as a toast instead of arming it,
+  because touch has no hover tooltip.
+- Portrait is supported; the "rotate to landscape" notice is no longer shown.
+
+## Input
+
+- Left button and single touch: handled by `App` on the canvas (build, select, move, join, focus fire). Right/middle/two-finger: renderer (pan, zoom). Right click also cancels the current mode.
+- Keyboard shortcuts: `SPEC.md` section 8. Ignore keys while an input has focus.
+- **Keymap** (`keymap.ts`): `KEY_ACTIONS` is the one table of rebindable actions (id, default `KeyboardEvent.code`, label,
+  group). `App.onKey` looks the code up in `App.keyMap` (built by `applyKeys()` from `settings.keys` over the defaults) and
+  calls `runAction`. Fixed keys stay in the handler: digits (Shift+digit), Left/Right, Escape, Enter (alias of build) and
+  `?` (alias of the controls overlay, whatever the layout). `RESERVED_CODES` cannot be bound. A new action: add it to
+  `KeyAction` and `KEY_ACTIONS`, and a case in `runAction`.
+- **Controls overlay** (`?` or `/`, Settings > Keys...; `buildKeys` in `dialogs.ts`): lists every action with its key and the
+  fixed keys. Clicking a key sets `App.keyCapture`, which takes the next keydown before the game: Escape cancels, a reserved
+  key is refused, anything else is stored with `rebind()` (a key already in use swaps the two). Only overrides that differ
+  from the default are saved (`settings.keys`, cleaned by `cleanKeyOverrides` in `getSettings`). "Reset all keys" clears them.
+- Key hints follow the bindings: top-bar buttons, pause overlay and focus badge use `Hud.hk(action)` (refreshed every
+  tick), the turret panel and How to play read `app.keyFor(action)` when they are built.
+- `#ui` has `pointer-events: none`; interactive panels opt back in.
+
+## Unlocks and saves
+
+- Extreme: reach wave 100 on Medium. Sandbox: reach wave 50 on any difficulty. Both only from Normal mode. "Unlock all" in settings opens everything.
+- Autosave every 10 s and on page hide; cleared on game over. When the pause comes from the Esc menu the save stores `paused: false` (the menu pause is temporary), so Continue never starts paused for no reason.
+- Quitting to the menu clears the renderer (`renderer.setGame(null)`).
+- Audio resumes from any non-running context state (not only `suspended`), which fixes silence after an iOS interruption.
+
+## Pause
+
+- Manual pause: P, the Pause/Resume button, or the in-game menu (Esc). A manual pause never resumes by itself.
+- Auto-pause: setting "Pause when tab is hidden" (`settings.autoPause`, default on). When the tab is hidden a running game is paused and flagged `App._autoPaused`; when the tab is visible again it resumes, but only if it is still paused and the flag is still set. Any manual pause action (P, button, menu, leaving the game) clears the flag, so the game then stays paused.
+- With auto-pause off the game is not marked paused, but browsers stop `requestAnimationFrame` in hidden tabs, so it still does not advance while hidden (one frame is capped at 100 ms in `main.ts`).
+- No wave can start while paused: `game.sendWave()` refuses (`'Game is paused'`, no bonus) and the Send wave button is disabled.
+- Pause overlay (`.os-paused`): full-screen dark tint with "PAUSED" and a hint, `pointer-events: none` and placed below the top bar, side panel and rack so Resume stays clickable. Hidden while a modal is open (the modal layer has its own tint).
+
+## Demo
+
+`/ui-demo.html` boots the App with mocks. In the console, `app.game.cheat(1e6, 2000)` adds cash and kills.

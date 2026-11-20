@@ -1,0 +1,59 @@
+# Testing
+
+## Headless (must pass before you report done)
+
+| Script | Covers |
+|---|---|
+| `node scripts/sim-test.ts` | Leaks and game over, a scripted 15+ wave game at 8x, laser chain math, piercing laser (energy carry-over, line width, beam end, save/restore), modifier numbers, placement, unlocks, all target modes, directional cones (every width and the D cycle order), focus fire, holding pattern, freak-out timing, new weapons, late-game wave curve (HP and bounty after wave 100), road weave (all maps: within 8 units, both sides, no corner jumps), extra maps (edge-to-base path, road clear of the base, a 5-turret combo cluster near the road, a greedy player holds 10 waves on Medium), save/restore determinism, player information (`(q)`: `wavePreview` matches the wave formulas and the spawned attacker, draws no rng; `upgradePreview` equals the stats after the real upgrade inside modifier auras, changes no state, null when maxed, modifier influence 80 to 130; `DpsTracker` reads 100 DPS from 100 damage per second; `waveActive` false before wave 1 and once cleared, true while spawning; keymap defaults match SPEC §8, rebind swaps and drops defaults, stored overrides are cleaned; `history` one record per wave with the start economy, `damageTotal` keeps sold turrets, both survive save/restore and continue identically, old or broken saves load `[]` and 0), accessibility (`(acc)`: one shape per colour, UI and renderer tables equal, interface size clamp, accessibility defaults, audio bus routing and clamp), translations (`(i18n)`: every key in Dutch and German, same placeholders, literal keys only, no unused or em dash), onboarding (`(onb)`: Codex has 20 recipes, every description carries its main number, partner lists, Codex storage counts known ids only; tutorial steps on a real Game: build, no auto wave, wave, upgrade, target, second turret, Back, Next to the end, Skip, texts use the bound keys; tips queue once per id from events and state, stored ids are cleaned), music (`(feel)`: layers by intensity, tempo range, sane notes, intensity bounds), achievements, map stars and the daily challenge (`(mot)`: same day same challenge, valid maps and difficulties, same seed same game; events, wave goals, clean run, sandbox excluded, codex/maps/tutorial/daily, cleaning), replays (`(rep)`: log contents, start options, identical playback after a save/restore halfway, tampered and broken data refused, text codes round trip, live playback at 8x stops at the end and matches, old saves), undo (`(u)`: full refund of a build, spent and score back, only the last action, upgrade undo restores levels, stats, freak state and combo capability, refused once the turret fired or after a sell, `undoUsed` saved, not restored after a reload), performance benchmark. |
+| `node scripts/combo-test.ts` | All 20 recipes (right combo, recharge, effects), priority order, `exact` rule, Combo-only as partner, combo counters and `comboLog` (cap, save/restore, `partnerIds`), `damageDealt` (Nuke counts for the lead, the sum over turrets equals the HP lost, save/restore, old saves load 0), `comboPreview` (missing partners, waits, `exactBlocked`, Combo-only, no rng), black hole $0 bounty, `takes` (Sparky Landmine without Red, Rocket BFG takes 1 of 2 Red), mines (no limit, no lifetime, jitter, 150 ms trigger check, 400 mines perf and save/restore), napalm, shockwave knockback, chain sparks, cluster bomblets, save/restore, performance. |
+| `node scripts/balance.ts [dps|combos|difficulty|unlock|late|all]` | Informational balance report: DPS per investment ($5K to $300K) of every weapon, damage per recharge-second of all 20 combos, greedy-bot wave reached per difficulty on maps 1, 4, 9, the wave at which unlock thresholds are reached, and (`late`, a few minutes) the combo-bot late-game wall per difficulty. Not a pass/fail test. |
+
+Tests drive the real `Game` in Node: `new Game({ mapId, difficulty, mode, seed })`, `build`, `upgrade(id, stat, true)`, `spawnAttacker(wave, hpOverride)`, `advance(steps)`, events. Use a fixed `seed`.
+
+## Type checking
+
+`npm run typecheck` runs `tsc -p .` (`strict`, `noUnusedLocals`, `noUnusedParameters`, no emit) over `src/`, `scripts/` and `vite.config.ts`. It must report 0 errors;
+`npm run build` and `npm run build:single` run it first, so a type error fails the build. Vite itself only strips types.
+The tests run the `.ts` sources directly with Node's type stripping (Node 22.18+), so they need no compile step.
+
+## In the browser
+
+Use the `verify-in-browser` skill. Minimum: the game loads, a game starts, building, a wave, no console errors. For renderer or UI work also check the demo pages.
+For accessibility work also check: keyboard-only menu (Tab to the map grid, arrows, Enter), focus stays inside an open dialog and returns after Esc, `locator.ariaSnapshot()` (this Playwright has no `page.accessibility`), the live region text after a wave, a context with `reducedMotion: 'reduce'` (no infinite `document.getAnimations()`), and Interface size 0.8 and 1.6 at 1024x640 and 1920x1080.
+
+## Builds
+
+`npm run build` (typecheck, then dist/) and `npm run build:single` (dist-single/index.html, about 670 KB). Both must succeed.
+
+Optional demo builds (not part of the checks): `npx vite build --config scripts/vite.demo.config.ts` (UI demo with mocks, `dist-demo/`) and `npx vite build --config scripts/vite.render-demo.config.ts` (renderer demo, `dist-render-demo/`).
+
+CI: `.github/workflows/pages.yml` runs `npm test` (`sim-test`, `combo-test`) and `npm run build` (typecheck included) on every push to `main`
+(and on manual dispatch), then deploys `dist/` to GitHub Pages. A failing test or type error blocks the deploy. PRs are not built.
+
+## Saves
+
+In the browser: save to slot 1 from the in-game menu, quit, load it, export it (`acceptDownloads`, `waitForEvent('download')`),
+clear storage and import the file with `setInputFiles`. In Node `write()` returns false (in-memory fallback), reads still work.
+
+## Gamepad
+
+Replace `navigator.getGamepads` in an init script with a fake standard pad (`window.__pad`, buttons and axes) and press
+buttons by toggling `pressed` for about 120 ms. Real pads were not tested.
+
+## Phones
+
+Emulate `devices['iPhone 13']` and `devices['iPhone 13 landscape']` in Playwright: no horizontal overflow, tap a rack
+slot then the field to build (the field fits the screen with a 3% margin), the panel position, and a long press (CDP
+`Input.dispatchTouchEvent`) on a slot shows its info without arming it.
+
+## Offline and install (PWA)
+
+`public/` holds `manifest.webmanifest`, `sw.js` and `icons/` (copied into `dist/` by Vite). The service worker only
+registers in the production build over http(s) (`import.meta.env.PROD`, `src/main.ts`), never in the dev server or the
+single file. To check: `npm run build`, `npx vite preview --port 4173`, load once, go offline in the browser, reload:
+the menu and a game must work. The icons are `public/icons/icon.svg` (original art) plus PNGs made by
+`node scripts/make-icons.ts` (uses the machine's Playwright Chromium; the PNGs are committed, so builds do not need it).
+
+## Not covered by automation
+
+Real touch devices (iPad), audio quality, GPU frame time on weak hardware. Say explicitly when you could not check these.

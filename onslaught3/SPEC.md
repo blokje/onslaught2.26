@@ -1,0 +1,316 @@
+# OnSlaught 3: game specification
+
+> OnSlaught 3 started as a copy of the OnSlaught2.26 specification. [ORIG] now only marks where a rule came from; any
+> rule may change here. New OnSlaught 3 rules are marked [OS3] and collected in section 11 (they win over older text).
+
+Source of truth: mechanics and numbers recovered by static analysis of the original `onslaught2.swf`
+(internal version string `v.1045-thwack`), checked against the official help pages.
+Only rules and numbers are carried over. All code, art and sound in OnSlaught2.26 is new.
+
+Status per item: **[ORIG]** taken from the original, **[SITE]** from the help pages,
+**[NEW]** designed for this remake (needs your OK), **[CHOICE]** a decision you made in the Q&A.
+
+---
+
+## 1. Playfield and time
+
+| Item | Value |
+|---|---|
+| Logical field | 720 × 450 units (the original stage) [ORIG] |
+| Road width | 28 units, drawn as a polyline through waypoints [ORIG] |
+| Unit speeds | expressed in units per second |
+| Rate stat | shots per minute: fire interval (ms) = 1000 / (rate / 60) [ORIG] |
+| Rendering | three.js, orthographic top-down, fills the window, zoom + pan [CHOICE] |
+
+## 2. Economy, lives, score
+
+| Item | Value |
+|---|---|
+| Starting cash | $30 [ORIG] |
+| Lives | 10; each attacker reaching the base costs 1 life [ORIG] |
+| Kill reward | the attacker's bounty (see waves) [ORIG] |
+| Sell refund | 70% of everything spent on the turret (build + upgrades) [ORIG] [SITE] |
+| Move turret | $500 [SITE] |
+| Score | **total kills × total cash spent**, shown live [ORIG] |
+| Black-holed attackers | count as kills but give **$0** bounty [ORIG] |
+
+## 3. Waves and attackers [ORIG]
+
+- A new wave starts every **20 s** (setting; Space sends the next one early, with a [NEW] bonus of $1 per whole second skipped, see section 9).
+- Each wave sends **10 attackers**, **700 ms** apart.
+- On every new wave: HP × **1.125**, bounty + **$1**. Wave *n*: HP = 10 × 1.125ⁿ, bounty = $n (waves 1 to 100) [ORIG].
+  - Wave 50 ≈ 3,600 HP, wave 100 ≈ 1.3 M.
+  - Note: the growth is exponential from wave 1 (the "linear until wave 120" in the pasted text is not what this build does).
+- **Late game (after wave 100) [NEW, deliberate deviation]:** HP growth per wave becomes 1 + (growth − 1) × **0.4**
+  (Medium ×1.05) and bounty = round(n × **1.03**^(n − 100)). Waves 1 to 100 are exactly original.
+  - Why: with the original curve HP doubles every ~6 waves while income grows ~1% per wave; headless bots hit a wall at
+    wave ~125, and even unlimited money stops at ~143 (damage ladders and field space are capped). With this rule a strong
+    game reaches roughly wave 180 to 200. Measurements in `docs/claude/data-and-balance.md`.
+  - Medium: wave 122 ≈ 3.8 M HP, $234 bounty; wave 150 ≈ 15 M, $658; wave 200 ≈ 171 M, $3,844.
+- Base speed **60 units/s**, for all attackers.
+- **9 attacker types** cycle by wave: type = (wave − 1) mod 9. In this build they differ only in look
+  (types 0, 2 and 6 don't rotate along the path). [NEW] proposal: keep identical stats, give each type an original look.
+- Slow (poison): speed is divided by the poison value (floor 5 units/s); it recovers +2 units/s every second.
+- [NEW] Road spread: attackers do not walk single file on the centreline. Each one weaves gently from side to side,
+  at most **8 units** from the centre (road width 28), following its own pattern (two sines over the distance travelled,
+  wavelengths 250 to 450 units, random phases drawn from `game.rng` at spawn). Matches the look of the original, where
+  attackers were spread over the road; the exact original numbers are not known. Turrets aim at the offset position.
+
+## 4. Turrets
+
+### 4.1 Basic turrets [ORIG]
+
+Build cost, base stats and the upgrade ladders (cost → new value per level).
+
+| | **Blue: Cannon** | **Green: Laser** | **Red: Rocket** | **Yellow: Tazer** |
+|---|---|---|---|---|
+| Build cost | $10 | $15 | $20 | $50 |
+| Damage / Range / Rate | 15 / 130 / 100 | 25 / 100 / 60 | 50 / 200 / 50 | 50 / 70 / 60 |
+| Projectile | fast shell (900/s) | instant beam | homing rocket (250/s) | instant spark + poison |
+| Default targeting | nearest | nearest | nearest | fastest |
+| Damage levels | 9 | 8 | 9 | 7 |
+| Range levels | 5 | 10 | 8 | 5 |
+| Rate levels | 7 | 9 | 9 | 7 |
+| Special | Freak-out | Laser chain | Holding pattern | Poison + Freak-out |
+
+**Upgrade ladders** (cost : value)
+
+- **Blue damage**: 20:30, 50:60, 100:150, 250:400, 600:1200, 1000:3100, 1100:8500, 1200:18400, 1500:46000
+- **Blue range**: 30:140, 100:150, 200:165, 500:180, 950:220
+- **Blue rate**: 50:110, 150:125, 300:140, 450:160, 950:180, 1000:200, 1450:240
+- **Green damage**: 20:50, 50:120, 125:400, 300:1500, 700:3900, 850:9300, 950:19500, 1000:35000
+- **Green range**: 15:110, 25:125, 40:140, 65:160, 105:180, 170:205, 275:230, 445:255, 720:285, 1100:320
+- **Green rate**: 30:65, 75:70, 180:80, 300:90, 450:105, 600:120, 800:135, 900:160, 1000:190
+- **Red damage**: 50:120, 100:350, 200:800, 350:1950, 650:6050, 1200:11500, 1300:27000, 1500:48900, 1500:65000
+- **Red range**: 35:210, 80:220, 160:230, 400:250, 900:275, 1100:300, 1300:325, 1500:350
+- **Red rate**: 30:60, 60:70, 115:85, 200:100, 340:115, 600:135, 900:155, 1050:180, 1150:210
+- **Yellow damage**: 40:75, 80:125, 190:200, 300:800, 600:3500, 1000:11000, 1100:30000
+- **Yellow range**: 50:75, 100:85, 300:105, 600:130, 1000:155
+- **Yellow rate**: 50:70, 100:80, 225:90, 390:100, 650:120, 1100:150, 1450:180
+
+**Specials**
+- **Laser chain (Green)**: a Green links to every other Green inside its *effective* range. When it fires,
+  every linked Green that is ready to fire hands its beam over; each link adds its own (recursive) beam damage × **1.25**.
+  No chain length cap. The original needs no line of sight.
+- **Piercing beam (Green) [NEW, deliberate deviation]:** the shot's total (own damage plus chain bonus) is the beam's
+  *energy*. The beam runs in a straight line from the Green through its target to the end of its range (from a joined
+  Targeter: that range plus the distance to it, like the Railgun) and hits attackers within **4** of the line (half the
+  Railgun's 8), nearest first. An attacker whose HP is at most the remaining energy dies and the energy drops by that
+  HP; the first attacker with more HP takes the remaining energy as damage and stops the beam. With a single attacker
+  this is the original shot; the original wasted any overkill.
+- **Holding pattern (Red)**: after **3 range + 3 rate** upgrades, the Red keeps up to **4** rockets circling
+  in the air that dive at the next target. Selling the turret sends the circling rockets at the weakest attacker within 720.
+- **Freak-out (Blue, Yellow)**: after **4 damage + 4 rate** upgrades. About every 40 to 80 s (sooner with more rate
+  upgrades) a 3 s warning appears, then for **5 s** the turret gets +300% damage and +400% rate, added to the multiplier
+  bonus sum (so x4 damage and x5 rate without modifiers; `FREAKOUT.damageMult: 3`, `rateMult: 4`).
+- **Poison (Yellow)**: poison strength = 1 + 9 × (damage-upgrade progress); see the slow rule in §3.
+
+> **Decided:** use the original ladders above (5 to 10 levels per stat).
+
+### 4.2 Modifier turrets [ORIG]
+
+A modifier affects every non-modifier turret whose centre lies within its range (**80**, one upgrade to **130** for $1500).
+Effects stack: effective stat = (base + sum of flat bonuses) × max(0.2, 1 + sum of multiplier bonuses).
+
+| Name (original) | Cost | Damage | Range | Rate | Unlocks at |
+|---|---|---|---|---|---|
+| Ranger (Range Up) | $2,000 | | +100 flat | | 300 kills |
+| Boom (Damage Up) | $5,000 | +40% | | | 450 kills |
+| SpeedEx (Rate Exchange) | $1,200 | −40% | −10% | +60 flat | 550 kills |
+| RangerEx (Range Exchange) | $1,000 | | +100 flat | −25% | 700 kills |
+| Speed (Rate Up) | $3,000 | | | +120 flat | 850 kills |
+| BigBang (Big Damage Up) | $8,500 | +100% | | | 1,000 kills |
+| BigBangEx (Big Damage Exchange) | $3,500 | +100% | −30% | −30% | 1,100 kills |
+
+The 4 basic turrets are available from the start. An "unlock all" switch in settings opens everything [CHOICE].
+
+### 4.3 Turrets that are not in this build
+
+The website lists Targeter, Sniper, Fusion, Railgun and Combo-only (the "Ranger" on the site is the Range modifier above).
+The SWF has none of them. You chose "all 16", so these 5 need original designs [NEW]; proposal in §9.
+
+## 5. Targeting
+
+- Original: **nearest**, **weakest** (lowest HP), **fastest**. A turret keeps its target while it is alive and in range [ORIG].
+- Your choice adds strongest, furthest (along the path), slowest, oldest (spawned first), newest (spawned last),
+  target lock (L), focus fire (F) and
+  directional cones (D / Shift+D) [CHOICE]: D cycles all around, 180, 90, 60, 45 and 30 degrees; Shift+D aims the cone
+  at the cursor (a turret without a cone gets the 90 degree one).
+
+## 6. Combos [ORIG]
+
+**Requirements**
+- Every participating turret must have **damage fully upgraded**.
+- Partners must be within **70 units** (centre to centre) of the lead turret.
+- The **lead** is whichever eligible turret fires first; its colour picks the combo family.
+  Partners must be off cooldown, and they inherit the lead's recharge time as their cooldown.
+  During the recharge the lead and its partners fire no normal shots. Rate changes (upgrades, modifiers) do not
+  shorten or lengthen a running recharge [NEW: the remake used to rescale it like a normal shot interval].
+- If no recipe matches, the lead fires a normal shot.
+
+**Recipes, checked top to bottom** (partners = turrets besides the lead). Damage values are base values,
+then scaled by the lead's damage modifiers. Laser terms add the partner Green's chain damage.
+
+| Lead | Combo | Partners | Recharge | Effect |
+|---|---|---|---|---|
+| Red | **Nuke** | 2 Blue | 7.4 s | rocket, 9 M hit + 60 M huge blast |
+| Red | Poison Gas Rocket | 1 Green + 1 Blue | 5 s | rocket, poison cloud (slow ÷2) |
+| Red | Laser Rocket | 1 Green | 3 s | rocket that lasers nearby attackers (2 M + chain), 6 × 1 M laser burst on impact |
+| Green | Rocket BFG | 2 Red + 1 Blue in range (only 1 Red + 1 Blue are used and recharged) | 9 s | slow plasma ball: 6.5 M hit, 7.5 M blast, lasers (4.5 M) and rockets (2 M) on the way |
+| Green | BFG | 1 Red + 1 Blue | 9 s | slow plasma ball: 5.8 M hit, 7.5 M blast, laser arcs 4.2 M (range 250) |
+| Blue | Big Laser Cluster Landmine | 2 Red + 1 Green + 1 Blue | 10.8 s | mine on the road: 10 laser clusters |
+| Blue | Big Cluster Landmine | 2 Red + 1 Blue | 8 s | mine: 15 M large blast + 10 × 4.5 M clusters |
+| Blue | Big Laser Cluster Bomb | 2 Red + 1 Green | 11.4 s | bomb: 8 laser clusters, 6 M large blast |
+| Blue | Big Cluster Bomb | 2 Red | 6.2 s | bomb: 10 × 4.5 M clusters, 8 M large blast |
+| Blue | Sparky Landmine | 1 Blue + 1 Yellow (plus 1 Red if one is ready; Red is not required) | 7 s | mine: 15 M blast + 8 spark clusters (poison) |
+| Blue | Sparky Cluster Bomb | 1 Red + 1 Yellow | 5 s | bomb: 8 spark clusters, 7 M blast |
+| Blue | Laser Cluster Bomb | 1 Red + 1 Green | 10 s | bomb: 5 laser clusters, 4 M blast |
+| Blue | Big Landmine | 1 Red + 1 Blue | 7 s | mine: 15 M large blast |
+| Blue | Cluster Bomb | 1 Red | 5 s | bomb: 6 × 3.3 M clusters, 7 M small blast |
+| Blue | Landmine | 1 Blue | 7 s | mine on the road within max range: 10 M + 9 M blast |
+| Yellow | **Black Hole** | 2 Yellow + exactly 1 Green | 18 s | opens on the road within 90 units; for 3 s it swallows every attacker within 120 (pulled in at 800 units/s, no bounty) |
+
+Mines are placed on points sampled every 4 units along the road, within the lead's maximum range, offset by a random
+whole number from -5 to +4 units on x and y. There is **no limit** on the number of mines and they never expire: a mine
+stays on the road until an attacker comes within 20 units (checked every 150 ms), so the field fills up with mines
+over a long game [ORIG]. The two partner quirks above (Sparky Landmine, Rocket BFG) are the original's [ORIG].
+Blast radii, measured from the original blast shapes: small 40, medium 60, large 80, huge (nuke) 87.5, BFG 87.5,
+poison cloud 110 units [ORIG]. Sizes for placement: turret footprint ≈ 44 × 44, attackers ≈ 17 to 24, base 126 × 82 [ORIG].
+
+**Combos on the website that are not in this build:** Tazer Rockets (Red + Yellow), Napalm Rocket (Red + Red + Blue + Yellow),
+Tazer BFG (Yellow + Red + Blue), Shockwave (Yellow + Yellow + Blue + Green). Proposal in §9.
+
+## 7. Maps [ORIG]
+
+Nine maps plus a tutorial layout. Coordinates are waypoint polylines in the 720 × 450 field; the base sits at the given point.
+
+| # | Name | Shape |
+|---|---|---|
+| 1 | Classic | left entry, the X crossing and top loop (your screenshot) |
+| 2 | Incoming | inward square spiral |
+| 3 | Ells | interlocking L-shapes |
+| 4 | Looping | long curvy figure with a loop |
+| 5 | Sinus | flat line with one big spike |
+| 6 | Puzzle | path that crosses itself several times |
+| 7 | Squarely | nested rectangles |
+| 8 | Inspired | symmetric double loop around the centre |
+| 9 | Lyne | a single diagonal line (the famous "Lyne" map) |
+| T | How to Play | simple U-shape |
+
+The exact waypoint lists have been recovered and are in `src/data/maps.ts` (plain coordinates).
+
+### 7a. Extra maps [NEW]
+
+Eight extra maps (`map10` to `map17`, `extra: true` in the data) sit after the tutorial and show as E1 to E8 in the
+menu (one 6 x 3 grid of all 18 maps). Each is built around one placement idea. They may be retuned freely.
+
+| # | Name | Shape and idea |
+|---|---|---|
+| E1 | Switchback | long horizontal lanes stacked top to bottom, wide enough between lanes for a combo that hits two lanes |
+| E2 | Comb | spine along the top with three narrow, deep fingers; one turret column inside a finger hits both legs, the wide gaps hold the big combos |
+| E3 | Junction | horizontal, vertical and diagonal passes all cross one central hub |
+| E4 | Perimeter | road along the field edge, then one spoke into a base in the middle; free interior, but each turret reaches only one side |
+| E5 | Staircase | short diagonal of steps; the inner step corners cover two segments (short and hard, like Lyne) |
+| E6 | Lightning | sharp zigzag of long diagonals; the pocket inside each apex covers two legs |
+| E7 | Maelstrom | straight spoke to the centre, then a square spiral outward that crosses the spoke |
+| E8 | Doorstep | enters right beside the base, loops the field and returns across its own entry lane |
+
+Every extra map keeps a legal 5-turret combo cluster within reach of the road (checked in `scripts/sim-test.ts`).
+
+## 8. Controls [ORIG + SITE]
+
+A standard gamepad works too [NEW]: left stick cursor, A click, B back, X build the highlighted turret, Y/LT/RT
+upgrades, LB/RB rack, View send wave, Menu pause, D-pad speed and rack (`PAD_BUTTONS` in `src/ui/gamepad.ts`).
+Menus and dialogs also work with the keyboard alone (Tab, Shift+Tab, Enter, Space, arrows in the map grid) [NEW].
+Default keys. [NEW] Every letter and Space below can be rebound in the Controls overlay (`?` key, or Settings); digits,
+arrows, Esc and Enter are fixed. Keys are physical positions (QWERTY names).
+
+| Key | Action |
+|---|---|
+| ? or / | controls overview and key rebinding [NEW] |
+| K | Combo Codex: all combos with partners, recharge and effect [NEW] |
+| 1-8, Shift+1-8 | pick turret to build |
+| Q / W / E | upgrade damage / range / rate (Shift = as far as affordable) |
+| S | sell (70%) |
+| U | undo the last build or upgrade, only with the Relaxed: undo setting [NEW] |
+| M | move ($500) |
+| R | toggle range rings |
+| C | toggle combo-in-range display |
+| T, L, F, D | targeting mode, lock, focus fire, directional cone [CHOICE] |
+| J | join mode for a selected Targeter (click the turret to join, the Targeter itself to unjoin) [CHOICE] |
+| X | cycle the colour of a selected Combo-only (red, green, blue, yellow) [CHOICE] |
+| B / Enter | build the armed (or rack-highlighted) turret at the cursor, stays armed [CHOICE] |
+| Left / Right arrows | step the build rack to the previous / next unlocked turret [CHOICE] |
+| Space | send the next wave now |
+| A | auto-send on/off: send the next wave as soon as the field is clear [NEW] |
+| P | pause |
+| I | info panel |
+| Drag panel header | move the info panel, double-click to dock it again [CHOICE] |
+| G | settings |
+| Esc | cancel build/move/join/focus mode, else clear focus fire, else deselect, else open the game menu (auto-repeat ignored) |
+| Mouse wheel / drag | zoom / pan [CHOICE] |
+
+## 9. Things the original does not have (proposals) [NEW]
+
+**Difficulty** (the original has a single mode):
+
+| | Easy | Medium (= original) | Hard | Extreme (unlockable) |
+|---|---|---|---|---|
+| HP growth per wave | ×1.10 | ×1.125 | ×1.165 | ×1.25 |
+| HP growth after wave 100 | ×1.04 | ×1.05 | ×1.066 | ×1.10 |
+| Start cash | $60 | $30 | $30 | $20 |
+| Lives | 20 | 10 | 5 | 1 |
+| Wave interval | 25 s | 20 s | 17 s | 15 s |
+
+**Early-wave bonus** [NEW]: sending the next wave early with Space pays $1 (`WAVES.earlyBonusPerSec`) per whole second left on the countdown. Refused while paused.
+
+**Auto-send** [NEW, UI convenience, no rule change]: with the setting on (A key or the Auto button), the UI sends the next
+wave exactly like Space as soon as no wave is spawning and no attacker is alive, so the early-wave bonus is paid as usual.
+It never starts wave 1 (the player does) and waits while paused, while a dialog is open and after game over.
+
+**Tutorial** [NEW, UI only]: the How to Play map always runs the interactive tutorial (Easy, Normal mode). Until the
+player sends wave 1 the game holds the first wave (wave interval 600 s); the first Send restores the normal interval
+first, so the early-wave bonus is the usual one, and later waves come by themselves. Skipping or finishing also restores
+the interval. Nothing else changes.
+
+**Daily challenge** [NEW]: each UTC day has one challenge for everyone: map (never the tutorial), difficulty (Easy,
+Medium or Hard) and random seed come from a hash of the date (`src/ui/daily.ts`). Normal mode, no unlock-all, the
+difficulty's own wave interval. The game is deterministic, so the same moves give the same game. Scores are kept per day
+(top 10, last 30 days) next to the normal high scores.
+
+**Relaxed: undo** [NEW, optional, off by default]: with the setting on, U (or the Undo button) takes back the last build
+or upgrade with a full refund; `spent` and the score go back too. Only the newest build or upgrade counts, and only until
+that turret fires (a normal shot, a laser-chain contribution, a holding-pattern rocket or a combo); a later build,
+upgrade, sell or move also ends the chance. A game that used undo is flagged (`undoUsed`) and its high score shows a U
+mark, so the original rules (70% back on a sell) stay the default and scores stay comparable.
+
+**Sandbox** (unlockable): $10,000,000 start cash, everything unlocked (the original's own debug mode does exactly this).
+
+**5 extra weapons** (unlock at 1,200 to 1,600 kills, that is roughly waves 121 to 161 on Medium; kills come at most 10 per wave):
+- **Targeter** ($3,000, unlock 1,200 kills; range ladder $400 to $3,200 for 175 to 300): cheap support. "Join" it to a turret (J) and that turret uses the Targeter's position and range for target acquisition.
+- **Sniper** ($6,000, unlock 1,300): very long range (420 to 550), very slow (12 to 22 shots/min), huge single hit (280k to 2.2M), prefers the strongest target.
+- **Fusion** ($7,500, unlock 1,400): short-range beam (110 to 160) whose damage ramps up (+0.15x per tick, linear, max x6) while it stays on the same target; base 4,100 damage, 300 shots/min, ladder to 25,000.
+- **Railgun** ($9,000, unlock 1,500): piercing line shot that damages every attacker along the line; 67k to 370k per hit, 20 to 35 shots/min, range 300 to 380.
+- **Combo-only** ($3,000, unlock 1,600; cheaper than the cheapest damage-maxed partner, Yellow at $3,360): never fires on its own; it only takes part in combos as a wildcard colour you pick.
+
+**4 missing combos**: Tazer Rockets (rocket with chain-stun), Napalm Rocket (burning ground strip on the road),
+Tazer BFG (BFG that also poisons), Shockwave (expanding ring that knocks attackers back along the path).
+They get recharge and damage values in the same range as the original combos:
+Napalm Rocket 8 s, hit 8 M, burn 11 M/s for 4 s; Tazer Rockets 4 s, hit 5 M, 6 chain sparks of 2 M; Shockwave 10 s, 6.5 M to everything within 200;
+Tazer BFG 9 s, hit 4 M, 5.5 M blast, 6 sparks of 1.5 M.
+
+**Unlocks** (Extreme, Sandbox, extra weapons) are stored locally. A settings switch unlocks everything [CHOICE].
+
+## 10. Decisions (settled)
+
+1. Upgrade levels: original per-turret ladders.
+2. The 5 extra weapons in §9: added as proposed.
+3. The 4 missing combos in §9: added as proposed (20 combos in total).
+4. Difficulty table in §9: as proposed; Medium is the original game.
+5. Laser chain: like the original (no cap, no line of sight).
+6. Blast radii: measured from the SWF (see §6).
+
+## 11. OnSlaught 3 rules [OS3]
+
+Nothing yet beyond the copy of OnSlaught2.26. Planned first: enemy types with strengths and weaknesses, mixed waves,
+bosses every 10 waves and mutators.

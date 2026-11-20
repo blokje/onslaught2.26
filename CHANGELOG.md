@@ -5,6 +5,11 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
 
 ## Unreleased
 
+### Added
+- OnSlaught 3 started in `onslaught3/` as a copy of this game (with its own docs, storage prefix `os3.` and the npm
+  scripts `dev:os3`, `typecheck:os3`, `build:os3`, `build:os3:single`, `test:os3`); see `onslaught3/CHANGELOG.md`.
+  OnSlaught2.26 itself is unchanged. Docs: `CLAUDE.md`, `README.md`.
+
 ### Added (2026 roadmap, phase 7: platform)
 - Dutch and German: all UI text (HUD, menu, dialogs, How to play, tutorial, tips, Codex, achievements, controls, error
   bubbles, turret blurbs; 534 texts) through `t()` in the new `src/ui/i18n.ts`, with packs in `src/ui/lang/`. Setting
