@@ -1,5 +1,6 @@
 // Gamepad support (standard mapping). GamepadReader is pure (tested in Node): it turns a pad snapshot into cursor
 // movement and the actions whose button went down this frame. The App polls navigator.getGamepads() every frame.
+import { tx } from './i18n.ts';
 
 export type PadAction =
   | 'click' | 'cancel' | 'buildHere' | 'upDamage' | 'upRange' | 'upRate' | 'rackPrev' | 'rackNext'
@@ -27,14 +28,14 @@ export const PAD_BUTTONS: Record<number, PadAction> = {
 
 /** Labels for the Controls overlay. */
 export const PAD_HELP: readonly [string, string][] = [
-  ['Left stick', 'Move the cursor (press: cycle targeting)'],
-  ['A / B', 'Click (build, select) / cancel or back'],
-  ['X', 'Build the highlighted turret at the cursor'],
-  ['LB, RB, D-pad left/right', 'Walk along the build rack'],
-  ['Y / LT / RT', 'Upgrade damage / range / rate'],
-  ['View / Menu', 'Send the next wave / pause'],
-  ['D-pad up/down', 'Game speed up / down'],
-  ['Right stick press', 'Show all ranges'],
+  [tx('Left stick'), tx('Move the cursor (press: cycle targeting)')],
+  ['A / B', tx('Click (build, select) / cancel or back')],
+  ['X', tx('Build the highlighted turret at the cursor')],
+  [tx('LB, RB, D-pad left/right'), tx('Walk along the build rack')],
+  ['Y / LT / RT', tx('Upgrade damage / range / rate')],
+  ['View / Menu', tx('Send the next wave / pause')],
+  [tx('D-pad up/down'), tx('Game speed up / down')],
+  [tx('Right stick press'), tx('Show all ranges')],
 ];
 
 /** A pad as far as the reader needs it (matches the browser Gamepad). */

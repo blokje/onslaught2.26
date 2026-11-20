@@ -10,13 +10,20 @@ import { iconSvg } from './icons.ts';
 import { KEY_ACTIONS, FIXED_KEYS, RESERVED_CODES, keyLabel, rebind, resolveBindings } from './keymap.ts';
 import type { KeyAction } from './keymap.ts';
 import { PAD_HELP } from './gamepad.ts';
+import { LANGS, t, tx } from './i18n.ts';
 
-const kbd = (t: string): HTMLElement => h('span', { class: 'os-kbd' }, t);
+const kbd = (label: string): HTMLElement => h('span', { class: 'os-kbd' }, label);
+/** Headings of the KEY_ACTIONS groups (keymap.ts), kept as translation keys. */
+const GROUP_NAMES: Record<string, string> = { Turret: tx('Turret'), View: tx('View'), Game: tx('Game') };
 
 // ---------------- Settings ----------------
 export function buildSettings(app: App): HTMLElement {
   const s = app.settings;
-  const vol = h('input', { type: 'range', min: 0, max: 100, step: 1, value: Math.round(s.volume * 100), 'aria-label': 'Master volume' });
+  const langSel = h('select', { 'aria-label': t('Language') },
+    h('option', { value: '' }, t('Automatic (browser)')), ...LANGS.map((l) => h('option', { value: l.id }, l.name)));
+  langSel.value = s.language || '';
+  langSel.addEventListener('change', () => { app.updateSettings({ language: langSel.value }); location.reload(); });
+  const vol = h('input', { type: 'range', min: 0, max: 100, step: 1, value: Math.round(s.volume * 100), 'aria-label': t('Master volume') });
   vol.addEventListener('input', () => app.updateSettings({ volume: Number(vol.value) / 100 }));
   vol.addEventListener('change', () => app.audio.play('click'));
   const busSlider = (key: 'sfxVolume' | 'uiVolume' | 'musicVolume', label: string): HTMLInputElement => {
@@ -42,54 +49,55 @@ export function buildSettings(app: App): HTMLElement {
   };
   const field = (label: string, sub: string | null, control: HTMLElement): HTMLElement => h(control && control.tagName === 'INPUT' && (control as HTMLInputElement).type === 'checkbox' ? 'label' : 'div', { class: 'os-field' }, h('div', { class: 'os-lab' }, label, sub ? h('small', null, sub) : null), control);
 
-  const scale = h('input', { type: 'range', min: storage.UI_SCALE.min, max: storage.UI_SCALE.max, step: storage.UI_SCALE.step, value: s.uiScale, 'aria-label': 'Interface size' });
+  const scale = h('input', { type: 'range', min: storage.UI_SCALE.min, max: storage.UI_SCALE.max, step: storage.UI_SCALE.step, value: s.uiScale, 'aria-label': t('Interface size') });
   const scaleTxt = h('span', { class: 'os-hint' }, Math.round(s.uiScale * 100) + '%');
   scale.addEventListener('input', () => { const v = storage.clampScale(Number(scale.value)); scaleTxt.textContent = Math.round(v * 100) + '%'; app.updateSettings({ uiScale: v }); });
-  const resetTipsBtn = h('button', { class: 'os-btn small', type: 'button' }, 'Reset tips');
-  resetTipsBtn.addEventListener('click', () => { app.resetTips(); resetTipsBtn.textContent = 'Tips reset'; });
-  const tutBtn = h('button', { class: 'os-btn small', type: 'button' }, 'Replay tutorial');
+  const resetTipsBtn = h('button', { class: 'os-btn small', type: 'button' }, t('Reset tips'));
+  resetTipsBtn.addEventListener('click', () => { app.resetTips(); resetTipsBtn.textContent = t('Tips reset'); });
+  const tutBtn = h('button', { class: 'os-btn small', type: 'button' }, t('Replay tutorial'));
   tutBtn.addEventListener('click', () => app.startTutorial());
-  const keysBtn = h('button', { class: 'os-btn small', type: 'button' }, 'Keys...');
+  const keysBtn = h('button', { class: 'os-btn small', type: 'button' }, t('Keys...'));
   keysBtn.addEventListener('click', () => app.openKeys());
 
   let resetStep = 0;
-  const resetBtn = h('button', { class: 'os-btn danger small', type: 'button' }, 'Reset progress');
+  const resetBtn = h('button', { class: 'os-btn danger small', type: 'button' }, t('Reset progress'));
   resetBtn.addEventListener('click', () => {
     if (resetStep === 0) {
       resetStep = 1;
-      resetBtn.textContent = 'Really reset? Click again';
-      setTimeout(() => { resetStep = 0; resetBtn.textContent = 'Reset progress'; }, 4000);
+      resetBtn.textContent = t('Really reset? Click again');
+      setTimeout(() => { resetStep = 0; resetBtn.textContent = t('Reset progress'); }, 4000);
     } else {
       resetStep = 0;
       app.resetProgress();
-      resetBtn.textContent = 'Progress reset';
+      resetBtn.textContent = t('Progress reset');
     }
   });
 
   return h('div', null,
-    field('Master volume', null, h('div', { style: 'display:flex;align-items:center;gap:.6em' }, vol)),
-    field('Game effects volume', 'Shots, explosions, combos, alarms.', busSlider('sfxVolume', 'Game effects volume')),
-    field('Music volume', 'Synthesized music that follows the pressure of the game. 0 turns it off.', busSlider('musicVolume', 'Music volume')),
-    field('Interface volume', 'Clicks, build, upgrade, sell, errors.', busSlider('uiVolume', 'Interface volume')),
-    field('Mute', null, mute),
-    field('Wave interval (seconds)', '0 = difficulty default. Applies to new games.', wave),
-    field('Snap to grid', 'Snaps placement to a 22 unit grid.', check('snap')),
-    field('Unlock all', 'All turrets, difficulties and modes. Applies to new games.', check('unlockAll')),
-    field('Show FPS counter', null, check('showFps')),
-    field('Pause when tab is hidden', 'Resumes automatically when you come back.', check('autoPause')),
-    field('Auto-send waves', 'Sends the next wave (with the early bonus) as soon as the field is clear, from wave 1 on.', check('autoSend')),
-    field('Relaxed: undo', 'U takes back your last build or upgrade with a full refund, until that turret fires. High scores of such games get a U mark.', check('undo')),
-    field('Controls', 'See and change the keyboard keys (also the ? key).', keysBtn),
-    field('Tutorial', 'Play the interactive tutorial again on the How to Play map.', tutBtn),
-    field('Tips', 'Short tips the first time something happens (a leak, your first combo, a new unlock).', check('hints')),
-    field('Seen tips', 'Show every tip again.', resetTipsBtn),
-    h('h3', { class: 'os-set-h' }, 'Accessibility'),
-    field('Interface size', 'Scales all text, panels and buttons.', h('div', { style: 'display:flex;align-items:center;gap:.6em' }, scale, scaleTxt)),
-    field('High contrast', 'Solid panels, brighter text and stronger outlines.', check('highContrast')),
-    field('Screen shake', 'The view shakes a little on big explosions. Always off with Reduce motion.', check('screenShake')),
-    field('Reduce motion and flashes', 'No blinking, pulsing or shaking; dimmer explosions. Starts on when your system asks for less motion.', check('reduceMotion')),
-    field('Colour shapes on the map', 'Each turret shows the shape of its combo colour: red triangle, green circle, blue square, yellow diamond.', check('colorSymbols')),
-    field('Saved progress', 'Unlocks, high scores, the autosave, Combo Codex counts and achievements.', resetBtn));
+    field('Language / Taal / Sprache', t('The page reloads to switch.'), langSel),
+    field(t('Master volume'), null, h('div', { style: 'display:flex;align-items:center;gap:.6em' }, vol)),
+    field(t('Game effects volume'), t('Shots, explosions, combos, alarms.'), busSlider('sfxVolume', t('Game effects volume'))),
+    field(t('Music volume'), t('Synthesized music that follows the pressure of the game. 0 turns it off.'), busSlider('musicVolume', t('Music volume'))),
+    field(t('Interface volume'), t('Clicks, build, upgrade, sell, errors.'), busSlider('uiVolume', t('Interface volume'))),
+    field(t('Mute'), null, mute),
+    field(t('Wave interval (seconds)'), t('0 = difficulty default. Applies to new games.'), wave),
+    field(t('Snap to grid'), t('Snaps placement to a 22 unit grid.'), check('snap')),
+    field(t('Unlock all'), t('All turrets, difficulties and modes. Applies to new games.'), check('unlockAll')),
+    field(t('Show FPS counter'), null, check('showFps')),
+    field(t('Pause when tab is hidden'), t('Resumes automatically when you come back.'), check('autoPause')),
+    field(t('Auto-send waves'), t('Sends the next wave (with the early bonus) as soon as the field is clear, from wave 1 on.'), check('autoSend')),
+    field(t('Relaxed: undo'), t('U takes back your last build or upgrade with a full refund, until that turret fires. High scores of such games get a U mark.'), check('undo')),
+    field(t('Controls'), t('See and change the keyboard keys (also the ? key).'), keysBtn),
+    field(t('Tutorial'), t('Play the interactive tutorial again on the How to Play map.'), tutBtn),
+    field(t('Tips'), t('Short tips the first time something happens (a leak, your first combo, a new unlock).'), check('hints')),
+    field(t('Seen tips'), t('Show every tip again.'), resetTipsBtn),
+    h('h3', { class: 'os-set-h' }, t('Accessibility')),
+    field(t('Interface size'), t('Scales all text, panels and buttons.'), h('div', { style: 'display:flex;align-items:center;gap:.6em' }, scale, scaleTxt)),
+    field(t('High contrast'), t('Solid panels, brighter text and stronger outlines.'), check('highContrast')),
+    field(t('Screen shake'), t('The view shakes a little on big explosions. Always off with Reduce motion.'), check('screenShake')),
+    field(t('Reduce motion and flashes'), t('No blinking, pulsing or shaking; dimmer explosions. Starts on when your system asks for less motion.'), check('reduceMotion')),
+    field(t('Colour shapes on the map'), t('Each turret shows the shape of its combo colour: red triangle, green circle, blue square, yellow diamond.'), check('colorSymbols')),
+    field(t('Saved progress'), t('Unlocks, high scores, the autosave, Combo Codex counts and achievements.'), resetBtn));
 }
 
 // ---------------- Controls (? key): overview and rebinding ----------------
@@ -104,19 +112,19 @@ export function buildKeys(app: App): HTMLElement {
       let g = groups.get(a.group);
       if (!g) { g = h('div', { class: 'os-keys' }); groups.set(a.group, g); }
       const isWaiting = waiting === a.id;
-      const btn = h('button', { class: 'os-btn small os-keybtn' + (isWaiting ? ' is-on' : ''), type: 'button', title: 'Click, then press the new key' },
-        isWaiting ? 'Press a key...' : keyLabel(bind[a.id]));
+      const btn = h('button', { class: 'os-btn small os-keybtn' + (isWaiting ? ' is-on' : ''), type: 'button', title: t('Click, then press the new key') },
+        isWaiting ? t('Press a key...') : keyLabel(bind[a.id]));
       btn.addEventListener('click', () => { waiting = isWaiting ? null : a.id; note = ''; capture(); render(); });
-      g.append(btn, h('span', null, a.label + (a.code !== bind[a.id] ? ' (default ' + keyLabel(a.code) + ')' : '')));
+      g.append(btn, h('span', null, a.code !== bind[a.id] ? t('{label} (default {key})', { label: t(a.label), key: keyLabel(a.code) }) : t(a.label)));
     }
-    const fixed = h('div', { class: 'os-keys' }, ...FIXED_KEYS.flatMap(([k, t]) => [kbd(k), h('span', null, t)]));
-    const reset = h('button', { class: 'os-btn small', type: 'button' }, 'Reset all keys');
+    const fixed = h('div', { class: 'os-keys' }, ...FIXED_KEYS.flatMap(([k, text]) => [kbd(t(k)), h('span', null, t(text))]));
+    const reset = h('button', { class: 'os-btn small', type: 'button' }, t('Reset all keys'));
     reset.disabled = Object.keys(app.settings.keys).length === 0;
-    reset.addEventListener('click', () => { waiting = null; note = 'Keys reset to the defaults.'; capture(); app.updateSettings({ keys: {} }); render(); });
-    const kids: HTMLElement[] = [h('p', { class: 'os-hint' }, 'Click a key to change it, then press the new key (Esc cancels). Taking a key that is already used swaps the two.')];
-    for (const [name, g] of groups) kids.push(h('h3', null, name), g);
-    const pad = h('div', { class: 'os-keys' }, ...PAD_HELP.flatMap(([k, t]) => [kbd(k), h('span', null, t)]));
-    kids.push(h('h3', null, 'Fixed'), fixed, h('h3', null, 'Gamepad'), pad, h('div', { class: 'os-keys-foot' }, reset, h('span', { class: 'os-hint' }, note)));
+    reset.addEventListener('click', () => { waiting = null; note = t('Keys reset to the defaults.'); capture(); app.updateSettings({ keys: {} }); render(); });
+    const kids: HTMLElement[] = [h('p', { class: 'os-hint' }, t('Click a key to change it, then press the new key (Esc cancels). Taking a key that is already used swaps the two.'))];
+    for (const [name, g] of groups) kids.push(h('h3', null, t(GROUP_NAMES[name] ?? name)), g);
+    const pad = h('div', { class: 'os-keys' }, ...PAD_HELP.flatMap(([k, text]) => [kbd(t(k)), h('span', null, t(text))]));
+    kids.push(h('h3', null, t('Fixed')), fixed, h('h3', null, t('Gamepad')), pad, h('div', { class: 'os-keys-foot' }, reset, h('span', { class: 'os-hint' }, note)));
     root.replaceChildren(...kids);
   };
   /** Route the next keydown here while a row waits for its new key. */
@@ -126,10 +134,10 @@ export function buildKeys(app: App): HTMLElement {
       waiting = null;
       app.keyCapture = null;
       if (e.code === 'Escape') note = '';
-      else if (!e.code || RESERVED_CODES.has(e.code)) note = keyLabel(e.code || e.key) + ' is reserved, pick another key.';
+      else if (!e.code || RESERVED_CODES.has(e.code)) note = t('{key} is reserved, pick another key.', { key: keyLabel(e.code || e.key) });
       else {
         app.updateSettings({ keys: rebind(app.settings.keys, action, e.code) });
-        note = KEY_ACTIONS.find((a) => a.id === action)!.label.split(' (')[0] + ': ' + keyLabel(e.code) + '.';
+        note = t(KEY_ACTIONS.find((a) => a.id === action)!.label).split(' (')[0] + ': ' + keyLabel(e.code) + '.';
       }
       render();
     };
@@ -143,29 +151,29 @@ export function buildHelp(app: App): HTMLElement {
   // generated from the keymap, so it always shows the player's current keys
   const bind = resolveBindings(app.settings.keys);
   const keys = h('div', { class: 'os-keys' },
-    ...KEY_ACTIONS.flatMap((a) => [kbd(keyLabel(bind[a.id])), h('span', null, a.label)]),
-    ...FIXED_KEYS.flatMap(([k, t]) => [kbd(k), h('span', null, t)]));
+    ...KEY_ACTIONS.flatMap((a) => [kbd(keyLabel(bind[a.id])), h('span', null, t(a.label))]),
+    ...FIXED_KEYS.flatMap(([k, text]) => [kbd(t(k)), h('span', null, t(text))]));
   return h('div', { class: 'os-help' },
-    h('h3', null, 'Goal'),
-    h('p', null, 'Waves of vehicles drive along the road toward your base. Every one that gets through costs a life. Spend cash on turrets, upgrade them, and stop the waves for as long as you can. Your score is total kills multiplied by total cash spent.'),
-    h('h3', null, 'Turrets'),
+    h('h3', null, t('Goal')),
+    h('p', null, t('Waves of vehicles drive along the road toward your base. Every one that gets through costs a life. Spend cash on turrets, upgrade them, and stop the waves for as long as you can. Your score is total kills multiplied by total cash spent.')),
+    h('h3', null, t('Turrets')),
     h('ul', null,
-      h('li', null, 'Cannon (blue): cheap, fast shells, short reach.'),
-      h('li', null, 'Laser (green): instant beam. If it kills an attacker, the leftover energy goes on through the next attackers in a straight line. Lasers near each other link up and pass beams along, each link adding extra damage.'),
-      h('li', null, 'Rocket (red): homing rockets with the longest reach. Upgraded ones can keep rockets circling overhead.'),
-      h('li', null, 'Tazer (yellow): its sparks slow attackers down. Great for buying other turrets more time.'),
-      h('li', null, 'Cannons and Tazers with ' + TURRETS.blue.freakout!.damage + ' damage and ' + TURRETS.blue.freakout!.rate +
-        ' rate upgrades sometimes freak out: a ' + FREAKOUT.warn / 1000 + ' s warning, then ' + FREAKOUT.length / 1000 + ' s of x' +
-        (1 + FREAKOUT.damageMult) + ' damage and x' + (1 + FREAKOUT.rateMult) + ' fire rate.')),
-    h('h3', null, 'Upgrades and modifiers'),
-    h('p', null, 'Each turret has three upgrade ladders: damage, range and rate. Later steps cost a lot but pay off. Modifier turrets (Ranger, Boom, SpeedEx, RangerEx, Speed, BigBang, BigBangEx) do not shoot. They boost every turret whose centre lies inside their influence circle, and their effects stack. Some trade one stat for another.'),
-    h('h3', null, 'Unlocks'),
-    h('p', null, 'The four basic turrets are ready from the start. Modifiers and the extra weapons (Targeter, Sniper, Fusion, Railgun, Combo-only) unlock as your kill count grows during a game. Extreme difficulty unlocks after wave 100 on Medium, and Sandbox after wave 50 on any difficulty.'),
-    h('h3', null, 'Combos'),
-    h('p', null, 'When turrets with fully upgraded damage stand close together (within 70 units), the one that fires first leads and the others join in. The mix of colours decides the result (each colour also has a shape: red triangle, green circle, blue square, yellow diamond): nukes, cluster bombs, landmines, plasma balls, a black hole and more. Partners go on cooldown, so combos trade steady fire for one big hit. Press ' + keyLabel(bind.combo) + ' to see who is in range of the selected turret.'),
-    h('h3', null, 'Targeting'),
-    h('p', null, 'Turrets pick the nearest attacker by default. Change that per turret (nearest, furthest along the road, weakest, strongest, slowest, fastest), lock onto a target, restrict the firing cone, or order every turret in reach to focus on one attacker. A Targeter lends its position and range to the turret you join to it.'),
-    h('h3', null, 'Controls'),
+      h('li', null, t('Cannon (blue): cheap, fast shells, short reach.')),
+      h('li', null, t('Laser (green): instant beam. If it kills an attacker, the leftover energy goes on through the next attackers in a straight line. Lasers near each other link up and pass beams along, each link adding extra damage.')),
+      h('li', null, t('Rocket (red): homing rockets with the longest reach. Upgraded ones can keep rockets circling overhead.')),
+      h('li', null, t('Tazer (yellow): its sparks slow attackers down. Great for buying other turrets more time.')),
+      h('li', null, t('Cannons and Tazers with {dmg} damage and {rate} rate upgrades sometimes freak out: a {warn} s warning, then {len} s of x{dmgMult} damage and x{rateMult} fire rate.', {
+        dmg: TURRETS.blue.freakout!.damage, rate: TURRETS.blue.freakout!.rate, warn: FREAKOUT.warn / 1000, len: FREAKOUT.length / 1000,
+        dmgMult: 1 + FREAKOUT.damageMult, rateMult: 1 + FREAKOUT.rateMult }))),
+    h('h3', null, t('Upgrades and modifiers')),
+    h('p', null, t('Each turret has three upgrade ladders: damage, range and rate. Later steps cost a lot but pay off. Modifier turrets (Ranger, Boom, SpeedEx, RangerEx, Speed, BigBang, BigBangEx) do not shoot. They boost every turret whose centre lies inside their influence circle, and their effects stack. Some trade one stat for another.')),
+    h('h3', null, t('Unlocks')),
+    h('p', null, t('The four basic turrets are ready from the start. Modifiers and the extra weapons (Targeter, Sniper, Fusion, Railgun, Combo-only) unlock as your kill count grows during a game. Extreme difficulty unlocks after wave 100 on Medium, and Sandbox after wave 50 on any difficulty.')),
+    h('h3', null, t('Combos')),
+    h('p', null, t('When turrets with fully upgraded damage stand close together (within 70 units), the one that fires first leads and the others join in. The mix of colours decides the result (each colour also has a shape: red triangle, green circle, blue square, yellow diamond): nukes, cluster bombs, landmines, plasma balls, a black hole and more. Partners go on cooldown, so combos trade steady fire for one big hit. Press {key} to see who is in range of the selected turret.', { key: keyLabel(bind.combo) })),
+    h('h3', null, t('Targeting')),
+    h('p', null, t('Turrets pick the nearest attacker by default. Change that per turret (nearest, furthest along the road, weakest, strongest, slowest, fastest), lock onto a target, restrict the firing cone, or order every turret in reach to focus on one attacker. A Targeter lends its position and range to the turret you join to it.')),
+    h('h3', null, t('Controls')),
     keys);
 }
 
@@ -177,7 +185,7 @@ export function buildScores(app: App, highlight?: ScoreHighlight): HTMLElement {
     mode: highlight?.mode || app.settings.lastMode || 'normal',
   };
   const mkSelect = (opts: string[][], key: 'mapId' | 'difficulty' | 'mode'): HTMLSelectElement => {
-    const el = h('select', null, ...opts.map(([v, t]) => h('option', { value: v }, t)));
+    const el = h('select', null, ...opts.map(([v, label]) => h('option', { value: v }, label)));
     el.value = sel[key];
     el.addEventListener('change', () => { sel[key] = el.value; render(); });
     return el;
@@ -188,17 +196,17 @@ export function buildScores(app: App, highlight?: ScoreHighlight): HTMLElement {
   const body = h('div');
   function render() {
     const list = storage.getScores(sel.mapId, sel.difficulty, sel.mode);
-    if (!list.length) { body.replaceChildren(h('div', { class: 'os-empty' }, 'No scores yet for this combination.')); return; }
-    const t = h('table', { class: 'os-table' },
-      h('tr', null, ...['#', 'Score', 'Kills', 'Wave', 'Date'].map((x) => h('th', null, x))),
+    if (!list.length) { body.replaceChildren(h('div', { class: 'os-empty' }, t('No scores yet for this combination.'))); return; }
+    const table = h('table', { class: 'os-table' },
+      h('tr', null, ...['#', t('Score'), t('Kills'), t('Wave'), t('Date')].map((x) => h('th', null, x))),
       ...list.map((e, i) => {
         const me = highlight && highlight.rank === i + 1 && highlight.mapId === sel.mapId && highlight.difficulty === sel.difficulty && highlight.mode === sel.mode;
         let date = '';
         try { date = new Date(e.date).toLocaleDateString(); } catch (err) { /* ignore */ }
-        const score = h('td', null, formatNum(e.score), e.undo ? h('span', { class: 'os-undo-mark', title: 'This game used undo (relaxed rule)' }, ' U') : null);
+        const score = h('td', null, formatNum(e.score), e.undo ? h('span', { class: 'os-undo-mark', title: t('This game used undo (relaxed rule)') }, ' U') : null);
         return h('tr', { class: me ? 'me' : '' }, h('td', null, i + 1), score, h('td', null, formatNum(e.kills)), h('td', null, e.wave), h('td', null, date));
       }));
-    body.replaceChildren(t);
+    body.replaceChildren(table);
   }
   render();
   return h('div', null,
@@ -209,16 +217,18 @@ export function buildScores(app: App, highlight?: ScoreHighlight): HTMLElement {
 export function buildGameOver(info: GameOverInfo): HTMLElement {
   const map = MAPS.find((m) => m.id === info.mapId);
   const rankText = info.rank > 0
-    ? `New high score: rank ${info.rank} on ${map ? map.name : info.mapId}, ${DIFFICULTIES[info.difficulty]?.name || info.difficulty}${info.mode === 'sandbox' ? ' (Sandbox)' : ''}.`
-    : (info.score > 0 ? 'Not in the top 10 for this map and difficulty.' : '');
+    ? t('New high score: rank {rank} on {map}, {difficulty}.', { rank: info.rank, map: map ? map.name : info.mapId,
+      difficulty: (DIFFICULTIES[info.difficulty]?.name || info.difficulty) + (info.mode === 'sandbox' ? ' (Sandbox)' : '') })
+    : (info.score > 0 ? t('Not in the top 10 for this map and difficulty.') : '');
   return h('div', null,
     h('div', { class: 'os-big-stats' },
-      h('div', null, h('b', null, formatNum(info.score)), h('span', null, 'Score')),
-      h('div', null, h('b', null, formatNum(info.kills)), h('span', null, 'Kills')),
-      h('div', null, h('b', null, info.wave), h('span', null, 'Wave'))),
+      h('div', null, h('b', null, formatNum(info.score)), h('span', null, t('Score'))),
+      h('div', null, h('b', null, formatNum(info.kills)), h('span', null, t('Kills'))),
+      h('div', null, h('b', null, info.wave), h('span', null, t('Wave')))),
     h('p', { class: 'os-hint', style: 'text-align:center;font-size:.95em;margin:.7em 0 0' }, rankText),
     info.daily ? h('p', { class: 'os-hint', style: 'text-align:center;font-size:.95em;margin:.3em 0 0' },
-      `Daily challenge ${info.daily.key}: ` + (info.daily.rank > 0 ? `rank ${info.daily.rank} of your runs today.` : 'not in your top 10 today.')) : null,
+      info.daily.rank > 0 ? t('Daily challenge {day}: rank {rank} of your runs today.', { day: info.daily.key, rank: info.daily.rank })
+        : t('Daily challenge {day}: not in your top 10 today.', { day: info.daily.key })) : null,
     info.report ? buildRunReport(info.report) : null);
 }
 
@@ -245,9 +255,9 @@ function buildRunReport(r: RunReport): HTMLElement {
   if (hist.length >= 2) {
     const dmgPerWave = hist.map((x, i) => (i + 1 < hist.length ? hist[i + 1].damage : r.damageTotal) - x.damage);
     const rows: [string, number[], string, string][] = [
-      ['Cash at wave start', hist.map((x) => x.cash), '#ffe08a', '$' + formatNum(Math.max(...hist.map((x) => x.cash))) + ' max'],
-      ['Lives', hist.map((x) => x.lives), '#ff9d8f', hist[hist.length - 1].lives + ' at the last wave'],
-      ['Damage per wave', dmgPerWave, '#b6e35a', formatNum(Math.max(...dmgPerWave)) + ' max'],
+      [t('Cash at wave start'), hist.map((x) => x.cash), '#ffe08a', t('{n} max', { n: '$' + formatNum(Math.max(...hist.map((x) => x.cash))) })],
+      [t('Lives'), hist.map((x) => x.lives), '#ff9d8f', t('{n} at the last wave', { n: hist[hist.length - 1].lives })],
+      [t('Damage per wave'), dmgPerWave, '#b6e35a', t('{n} max', { n: formatNum(Math.max(...dmgPerWave)) })],
     ];
     for (const [label, values, color, note] of rows) {
       charts.append(h('div', { class: 'os-report-chart' },
@@ -257,18 +267,18 @@ function buildRunReport(r: RunReport): HTMLElement {
   }
   const mins = Math.floor(r.time / 60000), secs = Math.floor((r.time % 60000) / 1000);
   const totals = h('div', { class: 'os-chips', style: 'justify-content:center' },
-    h('span', { class: 'os-chip' }, 'Damage dealt: ' + formatNum(r.damageTotal)),
-    h('span', { class: 'os-chip' }, 'Combos fired: ' + formatNum(r.combos)),
-    h('span', { class: 'os-chip' }, `Game time: ${mins}:${String(secs).padStart(2, '0')}`));
+    h('span', { class: 'os-chip' }, t('Damage dealt: {n}', { n: formatNum(r.damageTotal) })),
+    h('span', { class: 'os-chip' }, t('Combos fired: {n}', { n: formatNum(r.combos) })),
+    h('span', { class: 'os-chip' }, t('Game time: {time}', { time: mins + ':' + String(secs).padStart(2, '0') })));
   const top = r.top.length
     ? h('table', { class: 'os-table os-report-top' },
-      h('thead', null, h('tr', null, h('th', null, ''), h('th', null, 'Top turrets'), h('th', null, 'Damage'), h('th', null, 'Share'), h('th', null, 'Kills'))),
-      h('tbody', null, ...r.top.map((t, i) => h('tr', i === 0 ? { class: 'mvp' } : null,
-        h('td', null, h('span', { class: 'os-ico', html: iconSvg(t.kind) })),
-        h('td', null, (TURRETS[t.kind] ? TURRETS[t.kind].name : t.kind) + (i === 0 ? ' (MVP)' : '')),
-        h('td', null, formatNum(t.damage)),
-        h('td', null, r.damageTotal > 0 ? Math.round((t.damage / r.damageTotal) * 100) + '%' : '-'),
-        h('td', null, formatNum(t.kills))))))
+      h('thead', null, h('tr', null, h('th', null, ''), h('th', null, t('Top turrets')), h('th', null, t('Damage')), h('th', null, t('Share')), h('th', null, t('Kills')))),
+      h('tbody', null, ...r.top.map((tu, i) => h('tr', i === 0 ? { class: 'mvp' } : null,
+        h('td', null, h('span', { class: 'os-ico', html: iconSvg(tu.kind) })),
+        h('td', null, (TURRETS[tu.kind] ? TURRETS[tu.kind].name : tu.kind) + (i === 0 ? ' (MVP)' : '')),
+        h('td', null, formatNum(tu.damage)),
+        h('td', null, r.damageTotal > 0 ? Math.round((tu.damage / r.damageTotal) * 100) + '%' : '-'),
+        h('td', null, formatNum(tu.kills))))))
     : null;
   return h('div', { class: 'os-report' }, totals, charts, top);
 }

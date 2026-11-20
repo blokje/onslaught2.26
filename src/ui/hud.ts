@@ -12,6 +12,7 @@ import type { AppGame } from './appTypes.ts';
 import { DpsTracker } from './dps.ts';
 import { COMBO_HEX, colorDot, colorName } from './colors.ts';
 import type { KeyAction } from './keymap.ts';
+import { t, tx } from './i18n.ts';
 
 /** What the coach card shows: a tutorial step or a tip. `key` identifies it (the card rebuilds when it changes). */
 export interface CoachView {
@@ -20,9 +21,14 @@ export interface CoachView {
 }
 import type { TurretState, GameState, KeyColor, Stat, TargetMode, DirectionalMode, TurretDef, Category } from '../types.ts';
 
-const TARGET_NAMES: Record<TargetMode, string> = { near: 'Nearest', far: 'Furthest', weak: 'Weakest', strong: 'Strongest', slow: 'Slowest', fast: 'Fastest', oldest: 'Oldest', newest: 'Newest' };
-const DIR_NAMES: Record<DirectionalMode, string> = { normal: 'All around', wide: 'Wide 180', medium: 'Medium 90', tight: 'Tight 60', small: 'Narrow 45', pinpoint: 'Pinpoint 30' };
-const STAT_NAMES: Record<Stat, string> = { damage: 'Damage', range: 'Range', rate: 'Rate' };
+const TARGET_NAMES: Record<TargetMode, string> = { near: tx('Nearest'), far: tx('Furthest'), weak: tx('Weakest'), strong: tx('Strongest'), slow: tx('Slowest'), fast: tx('Fastest'), oldest: tx('Oldest'), newest: tx('Newest') };
+const DIR_NAMES: Record<DirectionalMode, string> = { normal: tx('All around'), wide: tx('Wide 180'), medium: tx('Medium 90'), tight: tx('Tight 60'), small: tx('Narrow 45'), pinpoint: tx('Pinpoint 30') };
+/** "2 red" in the current language (the same keys as the Combo Codex). */
+const colorCount = (col: string, n: number): string =>
+  col === 'red' ? t('{n} red', { n }) : col === 'green' ? t('{n} green', { n }) : col === 'blue' ? t('{n} blue', { n }) : col === 'yellow' ? t('{n} yellow', { n }) : n + ' ' + col;
+const STAT_NAMES: Record<Stat, string> = { damage: tx('Damage'), range: tx('Range'), rate: tx('Rate') };
+/** Tooltip of the "+ cost" upgrade button per stat ({key}: its key). */
+const UPGRADE_TITLES: Record<Stat, string> = { damage: tx('Upgrade damage ({key})'), range: tx('Upgrade range ({key})'), rate: tx('Upgrade rate ({key})') };
 const STAT_ACTION: Record<Stat, KeyAction> = { damage: 'upDamage', range: 'upRange', rate: 'upRate' };
 
 const COLORS: KeyColor[] = ['red', 'green', 'blue', 'yellow'];
@@ -30,15 +36,17 @@ const COMBO_NAMES: Record<string, string> = {};
 const COMBO_EXACT: Record<string, Partial<Record<KeyColor, number>>> = {};
 for (const list of Object.values(COMBOS)) for (const r of list) { COMBO_NAMES[r.id] = r.name; if (r.exact) COMBO_EXACT[r.id] = r.exact; }
 // Freak-out adds these to the multiplier sums (src/game/modifiers.js), so without modifiers it is x4 damage, x5 rate.
-const FREAK_BONUS = '+' + FREAKOUT.damageMult * 100 + '% dmg +' + FREAKOUT.rateMult * 100 + '% rate';
+const freakBonus = (): string => t('+{d}% dmg +{r}% rate', { d: FREAKOUT.damageMult * 100, r: FREAKOUT.rateMult * 100 });
+const CAT_NAMES: Record<Category, string> = { weapon: tx('Weapon'), modifier: tx('Modifier'), support: tx('Support') };
+const INFLUENCE = tx('Influence');
 type TabId = 'general' | 'upgrades' | 'combos' | 'freak';
 const TAB_ORDER: TabId[] = ['general', 'upgrades', 'combos', 'freak'];
-const TAB_NAMES: Record<TabId, string> = { general: 'General', upgrades: 'Upgrades', combos: 'Combos', freak: 'Freakout' };
+const TAB_NAMES: Record<TabId, string> = { general: tx('General'), upgrades: tx('Upgrades'), combos: tx('Combos'), freak: 'Freakout' };
 
 const dot = colorDot;
 /** Combo wait in game ms -> "ready" or "2.4s". */
-const formatWait = (ms: number): string => (ms <= 0 ? 'ready' : (ms / 1000).toFixed(1) + 's');
-const formatAgo = (ms: number): string => { const sec = Math.max(0, Math.floor(ms / 1000)); return sec < 60 ? sec + 's ago' : Math.floor(sec / 60) + 'm ago'; };
+const formatWait = (ms: number): string => (ms <= 0 ? t('ready') : (ms / 1000).toFixed(1) + 's');
+const formatAgo = (ms: number): string => { const sec = Math.max(0, Math.floor(ms / 1000)); return sec < 60 ? t('{n}s ago', { n: sec }) : t('{n}m ago', { n: Math.floor(sec / 60) }); };
 
 /** Long-press time (ms) on a rack slot that shows the turret's info on touch screens. */
 const LONG_PRESS_MS = 450;
@@ -47,7 +55,8 @@ export const NARROW_PX = 760;
 /** One line about a turret kind for the long-press toast. */
 const slotInfo = (kind: string): string => {
   const d = TURRETS[kind];
-  return `${d.name}, ${formatCash(d.cost)}${d.unlockKills ? ' (unlocks at ' + formatNum(d.unlockKills) + ' kills)' : ''}: ${d.blurb}`;
+  const v = { name: d.name, cost: formatCash(d.cost), kills: formatNum(d.unlockKills || 0), blurb: t(d.blurb) };
+  return d.unlockKills ? t('{name}, {cost} (unlocks at {kills} kills): {blurb}', v) : t('{name}, {cost}: {blurb}', v);
 };
 
 export const hotkeyLabel = (i: number): string => (i < 8 ? String(i + 1) : '⇧' + (i - 7));
@@ -168,19 +177,19 @@ export class Hud {
     this.v = {};
     // ----- top bar
     const stats = h('div', { class: 'os-panel' },
-      this.stat('cash', 'Cash', 'cash'), this.stat('lives', 'Lives', 'lives'), this.stat('wave', 'Wave', 'wave'),
-      this.stat('kills', 'Kills'), this.stat('score', 'Score'));
+      this.stat('cash', t('Cash'), 'cash'), this.stat('lives', t('Lives'), 'lives'), this.stat('wave', t('Wave'), 'wave'),
+      this.stat('kills', t('Kills')), this.stat('score', t('Score')));
     this.livesEl = stats.querySelector<HTMLElement>('.lives')!;
-    this.sendBtn = this.btn('primary', ['Send wave ', this.hk('sendWave')], () => app.sendWave(), 'Start the next wave now');
-    this.incomingEl = this.stat('incoming', 'Wave 1', 'incoming');
-    this.autoBtn = this.btn('', ['Auto ', this.hk('autoSend')], () => app.toggleAutoSend(), 'Auto-send: start the next wave as soon as the field is clear');
-    const waveBox = h('div', { class: 'os-panel os-wave-box' }, this.stat('next', 'Next wave'), this.incomingEl, this.sendBtn, this.autoBtn);
-    this.speedBtns = SPEEDS.map((s) => this.btn('', s + 'x', () => app.setSpeed(s), 'Game speed ' + s + 'x'));
+    this.sendBtn = this.btn('primary', [t('Send wave') + ' ', this.hk('sendWave')], () => app.sendWave(), t('Start the next wave now'));
+    this.incomingEl = this.stat('incoming', t('Wave {n}', { n: 1 }), 'incoming');
+    this.autoBtn = this.btn('', [t('Auto') + ' ', this.hk('autoSend')], () => app.toggleAutoSend(), t('Auto-send: start the next wave as soon as the field is clear'));
+    const waveBox = h('div', { class: 'os-panel os-wave-box' }, this.stat('next', t('Next wave')), this.incomingEl, this.sendBtn, this.autoBtn);
+    this.speedBtns = SPEEDS.map((s) => this.btn('', s + 'x', () => app.setSpeed(s), t('Game speed {s}x', { s })));
     const speeds = h('div', { class: 'os-panel os-speeds' }, ...this.speedBtns);
-    this.pauseBtn = this.btn('', ['Pause ', this.hk('pause')], () => app.togglePause());
+    this.pauseBtn = this.btn('', [t('Pause') + ' ', this.hk('pause')], () => app.togglePause());
     this.fps = h('span', { class: 'os-fps' }, '');
-    this.undoBtn = this.btn('', ['Undo ', this.hk('undo')], () => app.undo(), 'Undo the last build or upgrade');
-    const ctrls = h('div', { class: 'os-panel os-ctrls' }, this.undoBtn, this.pauseBtn, this.btn('', 'Menu', () => app.openGameMenu(), 'Options (Esc)'), this.fps);
+    this.undoBtn = this.btn('', [t('Undo') + ' ', this.hk('undo')], () => app.undo(), t('Undo the last build or upgrade'));
+    const ctrls = h('div', { class: 'os-panel os-ctrls' }, this.undoBtn, this.pauseBtn, this.btn('', t('Menu'), () => app.openGameMenu(), t('Options (Esc)')), this.fps);
     this.top = h('div', { class: 'os-top' }, stats, waveBox, speeds, ctrls);
 
     // ----- rack
@@ -188,7 +197,7 @@ export class Hud {
     this.slots = BUILD_ORDER.map((kind, i) => {
       const def = TURRETS[kind];
       const lockTxt = h('span', null, '');
-      const slot = h('button', { class: 'os-slot', type: 'button', tabindex: -1, title: `${def.name} (${hotkeyLabel(i)}): ${def.blurb}` },
+      const slot = h('button', { class: 'os-slot', type: 'button', tabindex: -1, title: `${def.name} (${hotkeyLabel(i)}): ${t(def.blurb)}` },
         h('span', { class: 'os-hk' }, hotkeyLabel(i)),
         h('span', { class: 'os-ico', html: iconSvg(kind) }),
         h('span', { class: 'os-nm' }, def.name),
@@ -219,14 +228,14 @@ export class Hud {
     this.toasts = h('div', { class: 'os-toasts' });
     this.err = h('div', { class: 'os-err' });
     this.leak = h('div', { class: 'os-leak' });
-    this.replayBadge = h('div', { class: 'os-replay-badge', role: 'status' }, 'REPLAY');
-    this.focusBadge = h('div', { class: 'os-focus-badge' }, 'Focus fire on (', this.hk('focus'), ' or Esc to clear)');
+    this.replayBadge = h('div', { class: 'os-replay-badge', role: 'status' }, t('REPLAY'));
+    this.focusBadge = h('div', { class: 'os-focus-badge' }, t('Focus fire on') + ' (', this.hk('focus'), ' ' + t('or Esc to clear') + ')');
     this.modeHint = h('div', { class: 'os-modehint' });
     this.paused = h('div', { class: 'os-paused' },
-      h('div', { class: 'os-paused-title' }, 'PAUSED'),
-      h('div', { class: 'os-paused-hint' }, 'Press ', this.hk('pause'), ' or click Resume. No waves are sent while paused.'));
+      h('div', { class: 'os-paused-title' }, t('PAUSED')),
+      h('div', { class: 'os-paused-hint' }, t('Press') + ' ', this.hk('pause'), ' ' + t('or click Resume. No waves are sent while paused.')));
     // the pause tint goes first so the top bar, side panel and rack stay above it and clickable
-    this.coach = h('div', { class: 'os-panel os-coach', role: 'region', 'aria-label': 'Tutorial and tips' });
+    this.coach = h('div', { class: 'os-panel os-coach', role: 'region', 'aria-label': t('Tutorial and tips') });
     this.el.append(this.padCursor, this.replayBadge, this.paused, this.leak, this.top, this.log, this.toasts, this.focusBadge, this.modeHint, this.side, this.rack, this.coach);
     // the error bubble sits outside of the clipped root so it can sit anywhere
     this.el.append(this.err, this.live);
@@ -247,14 +256,14 @@ export class Hud {
     if (!v) { this.coach.classList.remove('on'); this.coach.replaceChildren(); return; }
     this.coach.className = 'os-panel os-coach on ' + (v.tip ? 'tip' : 'tut');
     this.coach.replaceChildren(
-      h('div', { class: 'os-coach-head' }, h('span', { class: 'os-coach-tag' }, v.tip ? 'Tip' : 'Tutorial'), h('b', null, v.title), v.progress ? h('span', { class: 'os-coach-prog' }, v.progress) : null),
+      h('div', { class: 'os-coach-head' }, h('span', { class: 'os-coach-tag' }, v.tip ? t('Tip') : t('Tutorial')), h('b', null, v.title), v.progress ? h('span', { class: 'os-coach-prog' }, v.progress) : null),
       h('p', null, v.text),
       h('div', { class: 'os-coach-btns' }, ...v.buttons.map((b) => {
         const el = h('button', { class: 'os-btn small' + (b.primary ? ' primary' : ''), type: 'button', tabindex: -1 }, b.label);
         el.addEventListener('click', () => { b.onClick(); el.blur(); });
         return el;
       })));
-    this.announce((v.tip ? 'Tip: ' : '') + v.title + '. ' + v.text);
+    this.announce((v.tip ? t('Tip') + ': ' : '') + v.title + '. ' + v.text);
   }
 
   // ------------------------------------------------------------ feedback
@@ -286,10 +295,10 @@ export class Hud {
 
   toast(text: string, cls?: string): void {
     this.announce(text);
-    const t = h('div', { class: 'os-toast ' + (cls || '') }, text);
-    this.toasts.append(t);
+    const tu = h('div', { class: 'os-toast ' + (cls || '') }, text);
+    this.toasts.append(tu);
     while (this.toasts.children.length > 3) this.toasts.firstChild!.remove();
-    setTimeout(() => t.remove(), 4000);
+    setTimeout(() => tu.remove(), 4000);
   }
 
   showError(text: string, cx: number, cy: number): void {
@@ -318,12 +327,12 @@ export class Hud {
     this.incomingWave = wave;
     this.incomingGame = game;
     const p = game.wavePreview();
-    setText(this.incomingEl!.firstChild!, 'Wave ' + p.wave);
+    setText(this.incomingEl!.firstChild!, t('Wave {n}', { n: p.wave }));
     setText(this.v.incoming, `${formatNum(p.hp)} HP $${formatNum(p.bounty)}`);
-    const lines = [`Coming up (${p.count} attackers per wave, HP and bounty each):`];
+    const lines = [t('Coming up ({n} attackers per wave, HP and bounty each):', { n: p.count })];
     for (let n = p.wave; n < p.wave + 5; n++) {
       const q = game.wavePreview(n);
-      lines.push(`Wave ${q.wave}: ${formatNum(q.hp)} HP, $${formatNum(q.bounty)}`);
+      lines.push(t('Wave {n}: {hp} HP, {cash}', { n: q.wave, hp: formatNum(q.hp), cash: '$' + formatNum(q.bounty) }));
     }
     this.incomingEl!.title = lines.join('\n');
   }
@@ -340,23 +349,25 @@ export class Hud {
     setText(this.v.wave, s.wave);
     setText(this.v.kills, formatNum(s.kills));
     setText(this.v.score, formatNum(s.score));
-    setText(this.v.next, s.over ? '-' : app.tutorial && s.wave === 0 ? 'you start' : formatTime(s.nextWaveIn));
+    setText(this.v.next, s.over ? '-' : app.tutorial && s.wave === 0 ? t('you start') : formatTime(s.nextWaveIn));
     this.updateIncoming(game, s.wave);
     this.dps.sample(game, s.time, s.turrets);
     this.speedBtns.forEach((b, i) => setClass(b, 'is-on', s.speed === SPEEDS[i]));
-    setText(this.pauseBtn.firstChild!, s.paused ? 'Resume ' : 'Pause ');
+    setText(this.pauseBtn.firstChild!, (s.paused ? t('Resume') : t('Pause')) + ' ');
     setClass(this.pauseBtn, 'is-on', s.paused);
     show(this.paused, s.paused && !app.modalOpen(), 'flex');
     show(this.focusBadge, app.focusId != null, 'block');
     show(this.replayBadge, !!app.replayView, 'block');
-    if (app.replayView) setText(this.replayBadge, 'REPLAY ' + Math.round(app.replayView.pb.progress() * 100) + '%');
+    if (app.replayView) setText(this.replayBadge, t('REPLAY {p}%', { p: Math.round(app.replayView.pb.progress() * 100) }));
     setProp(this.sendBtn, 'disabled', !!s.over || !!s.paused);
     setClass(this.autoBtn, 'is-on', app.settings.autoSend);
     show(this.undoBtn, app.settings.undo, 'inline-flex');
     if (app.settings.undo) {
       const u = game.undoInfo();
       setProp(this.undoBtn, 'disabled', !u);
-      setProp(this.undoBtn, 'title', u ? 'Undo ' + u.label + ' (+' + formatCash(u.refund) + ')' : 'Nothing to undo (a turret that fired since cannot be undone)');
+      const what = !u ? '' : u.kind === 'build' && u.turret ? t('build {name}', { name: TURRETS[u.turret]?.name || u.turret })
+        : u.kind === 'upgrade' && u.turret && u.stat ? t('{stat} upgrade x{n} ({name})', { stat: t(STAT_NAMES[u.stat]), n: u.levels || 1, name: TURRETS[u.turret]?.name || u.turret }) : u.label;
+      setProp(this.undoBtn, 'title', u ? t('Undo {what} (+{cash})', { what, cash: formatCash(u.refund) }) : t('Nothing to undo (a turret that fired since cannot be undone)'));
     }
     for (const [el, action] of this.keyHints) setText(el, app.keyFor(action));
 
@@ -368,7 +379,7 @@ export class Hud {
       setClass(sl.el, 'poor', !locked && s.cash < sl.def.cost);
       setClass(sl.el, 'armed', app.mode === 'build' && app.armed === sl.kind);
       setClass(sl.el, 'cursor', app.rackIndex === i);
-      if (locked) setText(sl.lockTxt, sl.def.unlockKills ? 'at ' + formatNum(sl.def.unlockKills) : '');
+      if (locked) setText(sl.lockTxt, sl.def.unlockKills ? t('at {n}', { n: formatNum(sl.def.unlockKills) }) : '');
     }
 
     // mode hint
@@ -383,25 +394,25 @@ export class Hud {
   updateSide(): void {
     const app = this.app;
     const s = app.game!.state;
-    let t: TurretState | null = null;
-    if (app.selectedId != null) t = s.turrets.find((x) => x.id === app.selectedId) || null;
-    if (app.selectedId != null && !t) { app.deselect(); }
+    let tu: TurretState | null = null;
+    if (app.selectedId != null) tu = s.turrets.find((x) => x.id === app.selectedId) || null;
+    if (app.selectedId != null && !tu) { app.deselect(); }
     const buildKind = app.mode === 'build' && app.armed ? app.armed : null;
-    const key = t ? 't:' + t.id + ':' + t.kind : (buildKind ? 'b:' + buildKind : '');
+    const key = tu ? 't:' + tu.id + ':' + tu.kind : (buildKind ? 'b:' + buildKind : '');
     if (key !== this.panelKey) {
       this.panelKey = key;
       this.refs = null;
       this.previewStat = null;
       app.setPreviewRange(null);
       this.side.replaceChildren();
-      if (t) this.refs = this.buildTurretView(t);
+      if (tu) this.refs = this.buildTurretView(tu);
       else if (buildKind) this.buildKindView(buildKind);
     }
     const wasOn = this.side.classList.contains('on');
     setClass(this.side, 'on', !!key);
     setClass(this.side, 'collapsed', app.settings.infoCollapsed);
     if (key && !wasOn) this.applyPanelPos();
-    if (t && this.refs) this.updateTurretView(t, s);
+    if (tu && this.refs) this.updateTurretView(tu, s);
   }
 
   // ------------------------------------------------------------ moving the side panel
@@ -481,12 +492,12 @@ export class Hud {
   header(kind: string, title: string, subtitle: string): { head: HTMLElement; sub: HTMLElement } {
     const app = this.app;
     const sub = h('span', null, subtitle);
-    const collapse = h('button', { class: 'os-iconbtn', type: 'button', tabindex: -1, title: 'Collapse or expand (I)', 'aria-label': 'Collapse or expand the panel' }, app.settings.infoCollapsed ? '+' : '–');
+    const collapse = h('button', { class: 'os-iconbtn', type: 'button', tabindex: -1, title: t('Collapse or expand (I)'), 'aria-label': t('Collapse or expand the panel') }, app.settings.infoCollapsed ? '+' : '–');
     collapse.addEventListener('click', () => { app.toggleInfo(); collapse.textContent = app.settings.infoCollapsed ? '+' : '–'; collapse.blur(); });
     this.collapseBtn = collapse;
-    const close = h('button', { class: 'os-iconbtn', type: 'button', tabindex: -1, title: 'Close (Esc)', 'aria-label': 'Close the panel' }, '×');
+    const close = h('button', { class: 'os-iconbtn', type: 'button', tabindex: -1, title: t('Close (Esc)'), 'aria-label': t('Close the panel') }, '×');
     close.addEventListener('click', () => { app.cancelOrDeselect(); close.blur(); });
-    const head = h('div', { class: 'os-side-head', title: 'Drag to move, double-click to reset' },
+    const head = h('div', { class: 'os-side-head', title: t('Drag to move, double-click to reset') },
       h('div', { class: 'os-ico', html: iconSvg(kind) }),
       h('div', { class: 'os-side-title' }, h('b', null, title), sub),
       collapse, close);
@@ -495,36 +506,36 @@ export class Hud {
 
   buildKindView(kind: string): void {
     const def = TURRETS[kind];
-    const { head } = this.header(kind, def.name, def.category === 'modifier' ? 'Modifier' : (def.category === 'support' ? 'Support' : 'Weapon'));
+    const { head } = this.header(kind, def.name, t(CAT_NAMES[def.category]));
     const lines: HTMLElement[] = [];
     if (def.base && def.base.rate) {
       lines.push(h('div', { class: 'os-chips' },
-        h('span', { class: 'os-chip' }, 'Damage ' + formatNum(def.base.damage)),
-        h('span', { class: 'os-chip' }, 'Range ' + def.base.range),
-        h('span', { class: 'os-chip' }, 'Rate ' + def.base.rate + '/min')));
+        h('span', { class: 'os-chip' }, t('Damage') + ' ' + formatNum(def.base.damage)),
+        h('span', { class: 'os-chip' }, t('Range') + ' ' + def.base.range),
+        h('span', { class: 'os-chip' }, t('Rate') + ' ' + def.base.rate + '/min')));
     } else if (def.base && def.base.range) {
-      lines.push(h('div', { class: 'os-chips' }, h('span', { class: 'os-chip' }, 'Range ' + def.base.range)));
+      lines.push(h('div', { class: 'os-chips' }, h('span', { class: 'os-chip' }, t('Range') + ' ' + def.base.range)));
     }
     const body = h('div', { class: 'os-side-body' },
-      h('div', { class: 'os-blurb' }, def.blurb),
-      h('div', { class: 'os-chips' }, h('span', { class: 'os-chip amber' }, 'Cost ' + formatCash(def.cost))),
+      h('div', { class: 'os-blurb' }, t(def.blurb)),
+      h('div', { class: 'os-chips' }, h('span', { class: 'os-chip amber' }, t('Cost') + ' ' + formatCash(def.cost))),
       ...lines,
-      h('div', { class: 'os-hint' }, 'Click to place. Shift+Click keeps building. Esc or right click cancels.'));
+      h('div', { class: 'os-hint' }, t('Click to place. Shift+Click keeps building. Esc or right click cancels.')));
     this.side.append(head, body);
   }
 
-  buildTurretView(t: TurretState): TurretRefs {
+  buildTurretView(tu: TurretState): TurretRefs {
     const app = this.app;
-    const def = TURRETS[t.kind];
+    const def = TURRETS[tu.kind];
     const cat = def.category;
-    const { head, sub } = this.header(t.kind, def.name, cat === 'modifier' ? 'Modifier' : cat === 'support' ? 'Support' : 'Weapon');
+    const { head, sub } = this.header(tu.kind, def.name, t(CAT_NAMES[cat]));
     // the remaining fields (vals, chips, sell, move, rangeHint, tabBtns, ...) are assigned below, before refs is returned
     const refs = { sub, rows: {}, def, cat, panes: {}, tabBtns: {} } as unknown as TurretRefs;
     const pane = () => h('div', { class: 'os-side-body os-pane' });
 
     // ---- General: blurb, current stats, status chips, actions
     const general = pane();
-    general.append(h('div', { class: 'os-blurb' }, def.blurb));
+    general.append(h('div', { class: 'os-blurb' }, t(def.blurb)));
     const statList: Stat[] = cat === 'modifier' ? ['range'] : ['damage', 'range', 'rate'];
     refs.vals = {};
     const valsEl = h('div', { class: 'os-vals' });
@@ -532,32 +543,32 @@ export class Hud {
       if (cat !== 'modifier' && !(def.base && def.base[stat] != null)) continue;
       const b = h('b', null, '');
       refs.vals[stat] = b;
-      valsEl.append(h('div', null, h('span', null, cat === 'modifier' ? 'Influence' : STAT_NAMES[stat]), b));
+      valsEl.append(h('div', null, h('span', null, t(cat === 'modifier' ? INFLUENCE : STAT_NAMES[stat])), b));
     }
     if (valsEl.children.length) general.append(valsEl);
     refs.chips = {
-      holding: h('span', { class: 'os-chip good hidden' }, 'Holding pattern'),
+      holding: h('span', { class: 'os-chip good hidden' }, t('Holding pattern')),
       combo: h('span', { class: 'os-chip amber hidden' }), links: h('span', { class: 'os-chip hidden' }),
       joined: h('span', { class: 'os-chip hidden' }), kills: h('span', { class: 'os-chip hidden' }),
-      damage: h('span', { class: 'os-chip hidden', title: 'Damage this turret has done (overkill not counted, its combos included) and its damage per second over the last 10 s of game time' }),
-      lock: h('span', { class: 'os-chip hidden' }, 'Target locked'),
+      damage: h('span', { class: 'os-chip hidden', title: t('Damage this turret has done (overkill not counted, its combos included) and its damage per second over the last 10 s of game time') }),
+      lock: h('span', { class: 'os-chip hidden' }, t('Target locked')),
     };
     general.append(h('div', { class: 'os-chips' }, ...Object.values(refs.chips)));
     const actions = h('div', { class: 'os-actions' });
     const act = (key: 'sell' | 'move' | 'target' | 'lock' | 'dir' | 'join' | 'color', cls: string, content: Kid, fn: () => void, title: string): HTMLButtonElement => { const b = this.btn(cls, content, fn, title); refs[key] = b; actions.append(b); return b; };
     const k = (x: string): HTMLElement => h('span', { class: 'os-kbd' }, x);
-    act('sell', '', [h('span', null, 'Sell'), k(app.keyFor('sell'))], () => app.sell(), 'Sell for 70% of everything spent on it');
-    act('move', '', [h('span', null, 'Move ' + formatCash(MOVE_COST)), k(app.keyFor('move'))], () => app.startMove(), 'Move this turret');
+    act('sell', '', [h('span', null, t('Sell')), k(app.keyFor('sell'))], () => app.sell(), t('Sell for 70% of everything spent on it'));
+    act('move', '', [h('span', null, t('Move') + ' ' + formatCash(MOVE_COST)), k(app.keyFor('move'))], () => app.startMove(), t('Move this turret'));
     if (cat === 'weapon') {
-      act('target', '', [h('span', null, ''), k(app.keyFor('target'))], () => app.cycleTarget(), 'Cycle targeting mode');
-      act('lock', '', [h('span', null, 'Lock'), k(app.keyFor('lock'))], () => app.toggleLock(), 'Keep the current target while it is in range');
-      act('dir', 'wide', [h('span', null, ''), k(app.keyFor('cone'))], () => app.cycleDirectional(), 'Firing cone (Shift+' + app.keyFor('cone') + ' aims it at the cursor)');
+      act('target', '', [h('span', null, ''), k(app.keyFor('target'))], () => app.cycleTarget(), t('Cycle targeting mode'));
+      act('lock', '', [h('span', null, t('Lock')), k(app.keyFor('lock'))], () => app.toggleLock(), t('Keep the current target while it is in range'));
+      act('dir', 'wide', [h('span', null, ''), k(app.keyFor('cone'))], () => app.cycleDirectional(), t('Firing cone (Shift+{key} aims it at the cursor)', { key: app.keyFor('cone') }));
     }
-    if (t.kind === 'targeter') {
-      act('join', 'wide', [h('span', null, ''), k(app.keyFor('join'))], () => app.toggleJoin(), 'Join this Targeter to a turret');
+    if (tu.kind === 'targeter') {
+      act('join', 'wide', [h('span', null, ''), k(app.keyFor('join'))], () => app.toggleJoin(), t('Join this Targeter to a turret'));
     }
-    if (t.kind === 'comboOnly') {
-      act('color', 'wide', [h('span', null, ''), k(app.keyFor('color'))], () => app.cycleColor(), 'Cycle the combo colour');
+    if (tu.kind === 'comboOnly') {
+      act('color', 'wide', [h('span', null, ''), k(app.keyFor('color'))], () => app.cycleColor(), t('Cycle the combo colour'));
     }
     general.append(actions);
     refs.rangeHint = h('div', { class: 'os-hint' }, '');
@@ -567,7 +578,7 @@ export class Hud {
     // ---- Upgrades: stat rows with pips and buy buttons
     const statsEl = h('div', { class: 'os-stats' });
     for (const stat of statList) {
-      const maxL = t.maxLevels ? t.maxLevels[stat] : 0;
+      const maxL = tu.maxLevels ? tu.maxLevels[stat] : 0;
       const ladder = def.ladders && def.ladders[stat];
       const ladderLen = ladder ? ladder.length : (cat === 'modifier' && stat === 'range' ? 1 : 0);
       const n = maxL || ladderLen;
@@ -575,9 +586,9 @@ export class Hud {
       const val = h('b', null, '');
       const pips = h('div', { class: 'os-pips' }, ...Array.from({ length: n }, () => h('span', { class: 'os-pip' })));
       const key = app.keyFor(STAT_ACTION[stat]);
-      const upBtn = this.btn('', [h('span', null, ''), h('span', { class: 'os-kbd' }, key)], (e: MouseEvent) => app.upgrade(stat, e.shiftKey), 'Upgrade ' + STAT_NAMES[stat].toLowerCase() + ' (' + key + ')');
-      const maxBtn = this.btn('', 'Max', () => app.upgrade(stat, true), 'Upgrade as far as you can afford (Shift+' + key + ')');
-      const label = cat === 'modifier' ? 'Influence' : STAT_NAMES[stat];
+      const upBtn = this.btn('', [h('span', null, ''), h('span', { class: 'os-kbd' }, key)], (e: MouseEvent) => app.upgrade(stat, e.shiftKey), t(UPGRADE_TITLES[stat], { key }));
+      const maxBtn = this.btn('', t('Max'), () => app.upgrade(stat, true), t('Upgrade as far as you can afford (Shift+{key})', { key }));
+      const label = t(cat === 'modifier' ? INFLUENCE : STAT_NAMES[stat]);
       const row = h('div', { class: 'os-srow' },
         h('div', { class: 'os-srow-top' }, h('span', null, label), val), pips,
         h('div', { class: 'os-upg' }, upBtn, maxBtn));
@@ -594,18 +605,18 @@ export class Hud {
     }
 
     // ---- Combos: counts, partners and countdown, recipes, recent combos
-    if (cat === 'weapon' || t.kind === 'comboOnly') {
+    if (cat === 'weapon' || tu.kind === 'comboOnly') {
       const cp = pane();
       const cr = refs.combo = { fired: h('b', null, '0'), assisted: h('b', null, '0'), next: h('b', null, ''), nextName: h('span', null, ''),
         partners: h('div', { class: 'os-cpartners' }), recipes: h('div', { class: 'os-clist' }), recent: h('div', { class: 'os-clist' }),
         recipeRows: [], recentRows: [], pKey: null, rKey: null, lKey: null };
       cp.append(
-        h('div', { class: 'os-vals two' }, h('div', null, h('span', null, 'Fired'), cr.fired), h('div', null, h('span', null, 'Assisted'), cr.assisted)),
-        h('div', { class: 'os-ctitle' }, 'Combo with'), cr.partners,
-        h('div', { class: 'os-cnext' }, h('span', null, 'Next combo'), cr.next, cr.nextName),
-        h('div', { class: 'os-ctitle' }, t.kind === 'comboOnly' ? 'Can assist in' : 'Combos',
-          h('button', { class: 'os-linkbtn', type: 'button', tabindex: -1, title: 'Combo Codex (' + app.keyFor('codex') + ')', onclick: () => app.openCodex() }, 'All combos')), cr.recipes,
-        h('div', { class: 'os-ctitle' }, 'Recent'), cr.recent);
+        h('div', { class: 'os-vals two' }, h('div', null, h('span', null, t('Fired')), cr.fired), h('div', null, h('span', null, t('Assisted')), cr.assisted)),
+        h('div', { class: 'os-ctitle' }, t('Combo with')), cr.partners,
+        h('div', { class: 'os-cnext' }, h('span', null, t('Next combo')), cr.next, cr.nextName),
+        h('div', { class: 'os-ctitle' }, tu.kind === 'comboOnly' ? t('Can assist in') : t('Combos'),
+          h('button', { class: 'os-linkbtn', type: 'button', tabindex: -1, title: t('Combo Codex ({key})', { key: app.keyFor('codex') }), onclick: () => app.openCodex() }, t('All combos'))), cr.recipes,
+        h('div', { class: 'os-ctitle' }, t('Recent')), cr.recent);
       refs.panes.combos = cp;
     }
 
@@ -614,9 +625,8 @@ export class Hud {
       const fp = pane();
       refs.freak = h('span', { class: 'os-chip' });
       fp.append(h('div', { class: 'os-chips' }, refs.freak),
-        h('div', { class: 'os-hint' }, 'Reach the damage and rate levels to make it eligible. It then freaks out every ' +
-          FREAKOUT.space / 2000 + ' to ' + FREAKOUT.space / 1000 + ' s (less with more rate upgrades): a ' + FREAKOUT.warn / 1000 +
-          ' s warning, then ' + FREAKOUT.length / 1000 + ' s of ' + FREAK_BONUS + ' (added to the modifier bonuses).'));
+        h('div', { class: 'os-hint' }, t('Reach the damage and rate levels to make it eligible. It then freaks out every {a} to {b} s (less with more rate upgrades): a {warn} s warning, then {len} s of {bonus} (added to the modifier bonuses).',
+          { a: FREAKOUT.space / 2000, b: FREAKOUT.space / 1000, warn: FREAKOUT.warn / 1000, len: FREAKOUT.length / 1000, bonus: freakBonus() })));
       refs.panes.freak = fp;
     }
 
@@ -626,7 +636,7 @@ export class Hud {
     if (ids.length > 1) {
       const strip = h('div', { class: 'os-tabs', role: 'tablist' });
       for (const id of ids) {
-        const b = h('button', { class: 'os-tab', type: 'button', tabindex: -1, role: 'tab', id: 'os-tab-' + id, 'aria-controls': 'os-pane-' + id }, TAB_NAMES[id]);
+        const b = h('button', { class: 'os-tab', type: 'button', tabindex: -1, role: 'tab', id: 'os-tab-' + id, 'aria-controls': 'os-pane-' + id }, t(TAB_NAMES[id]));
         b.addEventListener('click', () => { this.tabPref = id; this.showTab(); b.blur(); });
         refs.tabBtns[id] = b;
         strip.append(b);
@@ -657,79 +667,79 @@ export class Hud {
       if (tb) { setClass(tb, 'is-on', id === active); tb.setAttribute('aria-selected', String(id === active)); }
     }
     if (this.app.game && this.app.game.state) {
-      const t = this.app.game.state.turrets.find((x) => x.id === this.app.selectedId);
-      if (t) this.updateTurretView(t, this.app.game.state);
+      const tu = this.app.game.state.turrets.find((x) => x.id === this.app.selectedId);
+      if (tu) this.updateTurretView(tu, this.app.game.state);
     }
   }
 
-  updateTurretView(t: TurretState, s: GameState): void {
+  updateTurretView(tu: TurretState, s: GameState): void {
     const r = this.refs!;
     const app = this.app;
     setClass(this.side, 'collapsed', app.settings.infoCollapsed);
     if (this.collapseBtn) setText(this.collapseBtn, app.settings.infoCollapsed ? '+' : '–');
     if (app.settings.infoCollapsed || r.active !== 'upgrades') app.setPreviewRange(null);
     if (app.settings.infoCollapsed) return;
-    if (r.active === 'upgrades') this.updateUpgrades(t, s);
-    else if (r.active === 'combos') this.updateCombos(t, s);
-    else if (r.active === 'freak') this.updateFreak(t);
-    else this.updateGeneral(t, s);
+    if (r.active === 'upgrades') this.updateUpgrades(tu, s);
+    else if (r.active === 'combos') this.updateCombos(tu, s);
+    else if (r.active === 'freak') this.updateFreak(tu);
+    else this.updateGeneral(tu, s);
   }
 
-  statValue(t: TurretState, stat: Stat): string {
-    if (this.refs!.cat === 'modifier') return String(Math.round(t.modRange != null ? t.modRange : (t.stats && t.stats.range) || 0));
-    if (stat === 'damage') return formatNum(t.stats ? t.stats.damage : 0);
-    if (stat === 'range') return String(Math.round(t.stats ? t.stats.range : 0));
-    return Math.round(t.stats ? t.stats.rate : 0) + '/min';
+  statValue(tu: TurretState, stat: Stat): string {
+    if (this.refs!.cat === 'modifier') return String(Math.round(tu.modRange != null ? tu.modRange : (tu.stats && tu.stats.range) || 0));
+    if (stat === 'damage') return formatNum(tu.stats ? tu.stats.damage : 0);
+    if (stat === 'range') return String(Math.round(tu.stats ? tu.stats.range : 0));
+    return Math.round(tu.stats ? tu.stats.rate : 0) + '/min';
   }
 
-  updateGeneral(t: TurretState, s: GameState): void {
+  updateGeneral(tu: TurretState, s: GameState): void {
     const r = this.refs!;
     const app = this.app;
-    for (const stat of Object.keys(r.vals) as Stat[]) setText(r.vals[stat], this.statValue(t, stat));
-    const refund = Math.floor((t.cashValue || 0) * SELL_REFUND);
-    setText(r.sell.firstChild!, 'Sell ' + formatCash(refund));
+    for (const stat of Object.keys(r.vals) as Stat[]) setText(r.vals[stat], this.statValue(tu, stat));
+    const refund = Math.floor((tu.cashValue || 0) * SELL_REFUND);
+    setText(r.sell.firstChild!, t('Sell') + ' ' + formatCash(refund));
     setProp(r.move, 'disabled', s.cash < MOVE_COST);
     setClass(r.move, 'is-on', app.mode === 'move');
-    if (r.target) setText(r.target._label!, 'Target: ' + (TARGET_NAMES[t.targetMode] || t.targetMode || TARGET_MODES[0]));
-    if (r.lock) { setClass(r.lock, 'is-on', !!t.locked); }
-    if (r.dir) setText(r.dir._label!, 'Cone: ' + (DIR_NAMES[t.directional ? t.directional.mode : 'normal'] || 'All around'));
+    if (r.target) { const m = tu.targetMode || TARGET_MODES[0]; setText(r.target._label!, t('Target: {mode}', { mode: TARGET_NAMES[m] ? t(TARGET_NAMES[m]) : m })); }
+    if (r.lock) { setClass(r.lock, 'is-on', !!tu.locked); }
+    if (r.dir) setText(r.dir._label!, t('Cone: {cone}', { cone: t(DIR_NAMES[tu.directional ? tu.directional.mode : 'normal'] || DIR_NAMES.normal) }));
     if (r.join) {
-      const j = t.joinedTo != null ? s.turrets.find((x) => x.id === t.joinedTo) : null;
-      setText(r.join._label!, app.mode === 'join' ? 'Click a turret...' : (j ? 'Joined: ' + TURRETS[j.kind].name + ' (change)' : 'Join to a turret'));
+      const j = tu.joinedTo != null ? s.turrets.find((x) => x.id === tu.joinedTo) : null;
+      setText(r.join._label!, app.mode === 'join' ? t('Click a turret...') : (j ? t('Joined: {name} (change)', { name: TURRETS[j.kind].name }) : t('Join to a turret')));
       setClass(r.join, 'is-on', app.mode === 'join');
     }
     if (r.color) {
-      const c = t.comboColor || 'red';
-      setText(r.color._label!, 'Colour: ' + colorName(c));
+      const c = tu.comboColor || 'red';
+      setText(r.color._label!, t('Colour: {c}', { c: colorName(c) }));
       r.color.style.borderColor = COMBO_HEX[c] || '';
     }
     const c = r.chips;
-    setClass(c.holding, 'hidden', !t.holding);
-    setClass(c.combo, 'hidden', !t.comboCapable);
-    setText(c.combo, t.comboReady ? 'Combo ready' : 'Combo capable');
-    const nLinks = t.links ? t.links.length : 0;
+    setClass(c.holding, 'hidden', !tu.holding);
+    setClass(c.combo, 'hidden', !tu.comboCapable);
+    setText(c.combo, tu.comboReady ? t('Combo ready') : t('Combo capable'));
+    const nLinks = tu.links ? tu.links.length : 0;
     setClass(c.links, 'hidden', !nLinks);
-    setText(c.links, 'Chained lasers: ' + nLinks);
-    const hasKills = typeof t.kills === 'number';
+    setText(c.links, t('Chained lasers: {n}', { n: nLinks }));
+    const hasKills = typeof tu.kills === 'number';
     setClass(c.kills, 'hidden', !hasKills);
-    if (hasKills) setText(c.kills, 'Kills: ' + formatNum(t.kills));
+    if (hasKills) setText(c.kills, t('Kills: {n}', { n: formatNum(tu.kills) }));
     const isWeapon = r.cat === 'weapon';
     setClass(c.damage, 'hidden', !isWeapon);
     if (isWeapon) {
-      const dps = this.dps.dps(t, s.time);
-      setText(c.damage, 'Damage: ' + formatNum(t.damageDealt || 0) + ', DPS: ' + (dps == null ? '...' : formatNum(dps)));
+      const dps = this.dps.dps(tu, s.time);
+      setText(c.damage, t('Damage: {d}, DPS: {dps}', { d: formatNum(tu.damageDealt || 0), dps: dps == null ? '...' : formatNum(dps) }));
     }
-    setClass(c.lock, 'hidden', !t.locked);
+    setClass(c.lock, 'hidden', !tu.locked);
     setClass(c.joined, 'hidden', true);
-    setText(r.rangeHint, r.cat === 'modifier' ? 'Boosts every turret whose centre is inside the circle.' : (t.kind === 'targeter' ? 'Join it to a turret to lend it this range.' : ''));
+    setText(r.rangeHint, r.cat === 'modifier' ? t('Boosts every turret whose centre is inside the circle.') : (tu.kind === 'targeter' ? t('Join it to a turret to lend it this range.') : ''));
   }
 
   /** Re-run the Upgrades tab now (hover changes should not wait for the next 10 Hz tick). */
   refreshUpgrades(): void {
     const game = this.app.game;
     if (!game || !this.refs || this.refs.active !== 'upgrades') return;
-    const t = game.state.turrets.find((x) => x.id === this.app.selectedId);
-    if (t) this.updateUpgrades(t, game.state);
+    const tu = game.state.turrets.find((x) => x.id === this.app.selectedId);
+    if (tu) this.updateUpgrades(tu, game.state);
   }
 
   /** A stat value in the panel's format (damage 1.2K, range 130, rate 60/min). */
@@ -739,25 +749,25 @@ export class Hud {
     return Math.round(v) + '/min';
   }
 
-  updateUpgrades(t: TurretState, s: GameState): void {
+  updateUpgrades(tu: TurretState, s: GameState): void {
     const r = this.refs!;
     const game = this.app.game!;
     let ring: { id: number; range: number } | null = null;
     for (const stat of Object.keys(r.rows) as Stat[]) {
       const row = r.rows[stat];
       let pv = null;
-      if (this.previewStat === stat) { try { pv = game.upgradePreview(t.id, stat); } catch (e) { pv = null; } }
+      if (this.previewStat === stat) { try { pv = game.upgradePreview(tu.id, stat); } catch (e) { pv = null; } }
       setClass(row.val, 'os-preview', !!pv);
       if (pv) {
         setText(row.val, this.formatStat(stat, pv.from[stat]) + ' → ' + this.formatStat(stat, pv.to[stat]));
-        if (stat === 'range') ring = { id: t.id, range: pv.to.range };
-      } else setText(row.val, this.statValue(t, stat));
-      const lvl = t.levels ? t.levels[stat] || 0 : 0;
+        if (stat === 'range') ring = { id: tu.id, range: pv.to.range };
+      } else setText(row.val, this.statValue(tu, stat));
+      const lvl = tu.levels ? tu.levels[stat] || 0 : 0;
       if (row.lvl !== lvl) { row.lvl = lvl; row.pips.forEach((p, i) => setClass(p, 'on', i < lvl)); }
       let cost = null;
-      try { cost = game.upgradeCost(t.id, stat); } catch (e) { cost = null; }
+      try { cost = game.upgradeCost(tu.id, stat); } catch (e) { cost = null; }
       if (cost == null) {
-        setText(row.upTxt, 'Maxed');
+        setText(row.upTxt, t('Maxed'));
         setProp(row.upBtn, 'disabled', true);
         setProp(row.maxBtn, 'disabled', true);
       } else {
@@ -770,29 +780,29 @@ export class Hud {
     this.app.setPreviewRange(ring);
   }
 
-  updateFreak(t: TurretState): void {
+  updateFreak(tu: TurretState): void {
     const fo = this.refs!.def.freakout!;
     const el = this.refs!.freak!;
-    const fr = t.freak || 'off';
+    const fr = tu.freak || 'off';
     setClass(el, 'hot', fr === 'warn');
     setClass(el, 'good', fr === 'on');
     let txt;
     if (fr === 'off') {
-      const lv = t.levels || {};
+      const lv = tu.levels || {};
       const d = Math.min(lv.damage || 0, fo.damage), ra = Math.min(lv.rate || 0, fo.rate);
-      txt = 'Freak-out at ' + fo.damage + ' dmg + ' + fo.rate + ' rate (' + d + '/' + fo.damage + ', ' + ra + '/' + fo.rate + ')';
-    } else if (fr === 'warn') txt = 'Freak-out incoming!';
-    else if (fr === 'on') txt = 'FREAKING OUT ' + FREAK_BONUS;
-    else txt = 'Freak-out ready';
+      txt = t('Freak-out at {dmg} dmg + {rate} rate ({d}/{dmg}, {r}/{rate})', { dmg: fo.damage, rate: fo.rate, d, r: ra });
+    } else if (fr === 'warn') txt = t('Freak-out incoming!');
+    else if (fr === 'on') txt = t('FREAKING OUT {bonus}', { bonus: freakBonus() });
+    else txt = t('Freak-out ready');
     setText(el, txt);
   }
 
-  updateCombos(t: TurretState, s: GameState): void {
+  updateCombos(tu: TurretState, s: GameState): void {
     const cr = this.refs!.combo!;
     const game = this.app.game!;
-    setText(cr.fired, formatNum(t.combosFired || 0));
-    setText(cr.assisted, formatNum(t.combosAssisted || 0));
-    const pv = (game.comboPreview && game.comboPreview(t.id)) || { leads: false, partners: [], recipes: [], next: null };
+    setText(cr.fired, formatNum(tu.combosFired || 0));
+    setText(cr.assisted, formatNum(tu.combosAssisted || 0));
+    const pv = (game.comboPreview && game.comboPreview(tu.id)) || { leads: false, partners: [], recipes: [], next: null };
 
     // partners in range (rebuilt only when the set changes)
     const pKey = pv.partners.map((p) => `${p.id}${p.color}`).join(',');
@@ -800,14 +810,14 @@ export class Hud {
       cr.pKey = pKey;
       cr.partnerEls = pv.partners.map((p) => h('span', { class: 'os-cpart' }, dot(p.color), TURRETS[p.kind] ? TURRETS[p.kind].name : p.kind));
       if (cr.partnerEls.length) cr.partners.replaceChildren(...cr.partnerEls);
-      else cr.partners.replaceChildren(h('span', { class: 'os-hint' }, 'No weapons within combo range'));
+      else cr.partners.replaceChildren(h('span', { class: 'os-hint' }, t('No weapons within combo range')));
     }
     pv.partners.forEach((p, i) => setClass(cr.partnerEls![i], 'off', p.wait > 0));
 
     // next combo
-    if (!t.comboCapable) { setText(cr.next, 'n/a'); setText(cr.nextName, t.kind === 'comboOnly' ? '' : 'Unlocks at max damage'); }
-    else if (!pv.next) { setText(cr.next, 'n/a'); setText(cr.nextName, pv.leads ? 'No recipe with these partners' : 'No lead in range'); }
-    else { setText(cr.next, pv.next.wait > 0 ? 'in ' + formatWait(pv.next.wait) : 'ready'); setText(cr.nextName, pv.next.name); }
+    if (!tu.comboCapable) { setText(cr.next, t('n/a')); setText(cr.nextName, tu.kind === 'comboOnly' ? '' : t('Unlocks at max damage')); }
+    else if (!pv.next) { setText(cr.next, t('n/a')); setText(cr.nextName, pv.leads ? t('No recipe with these partners') : t('No lead in range')); }
+    else { setText(cr.next, pv.next.wait > 0 ? t('in {time}', { time: formatWait(pv.next.wait) }) : t('ready')); setText(cr.nextName, pv.next.name); }
 
     // recipes (rows rebuilt only when the list changes; status text every update)
     const rKey = pv.recipes.map((x) => x.id).join(',');
@@ -817,19 +827,19 @@ export class Hud {
         const status = h('em', null, '');
         const dots = [];
         for (const col of COLORS) for (let i = 0; i < (x.needs[col] || 0); i++) dots.push(dot(col));
-        const el = h('div', { class: 'os-crow' }, h('span', { class: 'os-cdots' }, ...dots), h('span', { class: 'os-cname' }, x.name, x.isNew ? h('i', { class: 'os-cnew' }, 'new') : null), status);
+        const el = h('div', { class: 'os-crow' }, h('span', { class: 'os-cdots' }, ...dots), h('span', { class: 'os-cname' }, x.name, x.isNew ? h('i', { class: 'os-cnew' }, t('new')) : null), status);
         return { el, status };
       });
       if (cr.recipeRows.length) cr.recipes.replaceChildren(...cr.recipeRows.map((x) => x.el));
-      else cr.recipes.replaceChildren(h('span', { class: 'os-hint' }, 'No lead within combo range needs this colour'));
+      else cr.recipes.replaceChildren(h('span', { class: 'os-hint' }, t('No lead within combo range needs this colour')));
     }
     pv.recipes.forEach((x, i) => {
       const row = cr.recipeRows[i];
       const miss = Object.entries(x.missing);
       let txt;
-      if (miss.length) txt = 'needs ' + miss.map(([col, n]) => n + ' ' + col).join(', ');
-      else if (x.exactBlocked) txt = 'needs exactly ' + Object.entries(COMBO_EXACT[x.id] || {}).map(([col, n]) => n + ' ' + col).join(', ');
-      else if (x.wait === Infinity) txt = 'n/a';
+      if (miss.length) txt = t('needs {list}', { list: miss.map(([col, n]) => colorCount(col, n)).join(', ') });
+      else if (x.exactBlocked) txt = t('needs exactly {list}', { list: Object.entries(COMBO_EXACT[x.id] || {}).map(([col, n]) => colorCount(col, n ?? 0)).join(', ') });
+      else if (x.wait === Infinity) txt = t('n/a');
       else txt = formatWait(x.wait);
       setText(row.status, txt);
       setClass(row.el, 'off', x.wait === Infinity);
@@ -837,18 +847,18 @@ export class Hud {
     });
 
     // recent combos
-    const log = t.comboLog || [];
+    const log = tu.comboLog || [];
     const lKey = log.length + ':' + (log[0] ? log[0].time + log[0].id : '');
     if (lKey !== cr.lKey) {
       cr.lKey = lKey;
       cr.recentRows = log.map((e) => {
         const ago = h('em', null, '');
         const el = h('div', { class: 'os-crow' }, h('span', { class: 'os-cname' }, COMBO_NAMES[e.id] || e.id),
-          h('span', { class: 'os-crole' }, e.role === 'lead' ? 'fired' : 'assisted'), ago);
+          h('span', { class: 'os-crole' }, e.role === 'lead' ? t('fired') : t('assisted')), ago);
         return { el, ago };
       });
       if (cr.recentRows.length) cr.recent.replaceChildren(...cr.recentRows.map((x) => x.el));
-      else cr.recent.replaceChildren(h('span', { class: 'os-hint' }, 'None yet'));
+      else cr.recent.replaceChildren(h('span', { class: 'os-hint' }, t('None yet')));
     }
     log.forEach((e, i) => setText(cr.recentRows[i].ago, formatAgo(s.time - e.time)));
   }

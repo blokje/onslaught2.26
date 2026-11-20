@@ -15,6 +15,8 @@ import { ACHIEVEMENTS, newlyEarned, cleanEarned, starsForWave, bestWave } from '
 import { dailyFor } from '../src/ui/daily.ts';
 import { makeReplay, runReplay, validateReplay, replayMatches, startPlayback } from '../src/game/replay.ts';
 import { GamepadReader, PAD_BUTTONS } from '../src/ui/gamepad.ts';
+import { t, setLang, detectLang, DICT } from '../src/ui/i18n.ts';
+import { TURRETS } from '../src/data/turrets.ts';
 import { encodeReplay, decodeReplay } from '../src/ui/replayCode.ts';
 import { COMBOS } from '../src/data/combos.ts';
 import { formatNum } from '../src/ui/format.ts';
@@ -835,6 +837,39 @@ function makePlayer(game: Game, spots: Spot[]): () => void {
   check('(plat) slots: an imported file is shape-checked (junk refused, extra fields dropped)', cleanSaveWrapper('x') === null && cleanSaveWrapper({ meta: { mapId: 1 }, data: {} }) === null
     && JSON.stringify(Object.keys(cleanSaveWrapper({ ...w, evil: 1 })!)) === '["v","at","meta","data"]');
   check('(plat) slots: a saved wrapper restores the same game', JSON.stringify(Game.deserialize(cleanSaveWrapper(JSON.parse(JSON.stringify(w)))!.data).serialize()) === JSON.stringify(g.serialize()));
+}
+
+// ------------------------------------------------------------------ (i18n) translations cover every t('...') key
+{
+  const { readdirSync, readFileSync } = await import('node:fs');
+  const dir = new URL('../src/ui/', import.meta.url);
+  const files = readdirSync(dir).filter((f) => f.endsWith('.ts') && !['mock.ts', 'ui-demo.ts', 'i18n.ts'].includes(f));
+  const keys = new Map<string, string>(), dynamic: string[] = [];
+  const re = /\btx?\(\s*(['"`])((?:\\.|(?!\1)[^\\])*)\1/g; // t('...') and tx('...')
+  for (const f of files) {
+    const src = readFileSync(new URL(f, dir), 'utf8');
+    for (const m of src.matchAll(re)) {
+      if (m[1] === '`' && m[2].includes('${')) { dynamic.push(f + ': ' + m[2].slice(0, 40)); continue; }
+      keys.set(m[2].replace(/\\(.)/g, '$1'), f);
+    }
+  }
+  for (const d of Object.values(TURRETS)) keys.set(d.blurb, 'data/turrets.ts'); // turret blurbs are shown with t(def.blurb)
+  const ph = (x: string): string => [...x.matchAll(/\{(\w+)\}/g)].map((p) => p[1]).sort().join();
+  const missing: string[] = [], badPh: string[] = [];
+  for (const [k, f] of keys) for (const l of ['nl', 'de'] as const) {
+    const v = DICT[l][k];
+    if (v == null) missing.push(`${l} ${f}: ${k.slice(0, 50)}`);
+    else if (ph(v) !== ph(k)) badPh.push(`${l}: ${k.slice(0, 40)}`);
+  }
+  const unused = Object.keys(DICT.nl).filter((k) => !keys.has(k));
+  check('(i18n) every t() key has a Dutch and a German text', missing.length === 0, missing.length + ' missing, e.g. ' + missing.slice(0, 3).join(' | '));
+  check('(i18n) translations keep the {placeholders} of the English text', badPh.length === 0, badPh.slice(0, 3).join(' | '));
+  check('(i18n) t() is only called with literal text (template parts go into {placeholders})', dynamic.length === 0, dynamic.slice(0, 3).join(' | '));
+  check('(i18n) no translation is left without a t() key in the code', unused.length === 0, unused.length + ' unused, e.g. ' + unused.slice(0, 3).join(' | '));
+  check('(i18n) no em dash in any text', ![...Object.values(DICT.nl), ...Object.values(DICT.de)].some((v) => v.includes('\u2014')));
+  setLang('nl'); const nlSend = t('Send wave'); setLang('de'); const deFill = t('Wave {n} started', { n: 7 }); setLang('en');
+  check('(i18n) t() translates, fills placeholders and falls back to English', t('Not a known text {x}', { x: 1 }) === 'Not a known text 1' && (keys.has('Send wave') ? nlSend !== 'Send wave' : true) && (keys.has('Wave {n} started') ? deFill.includes('7') : true)
+    && detectLang(['de-AT', 'en']) === 'de' && detectLang(['fr', 'nl-BE']) === 'nl' && detectLang(['fr']) === 'en', `${keys.size} keys`);
 }
 
 // ------------------------------------------------------------------ (q) waveActive (auto-send)

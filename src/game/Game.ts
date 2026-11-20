@@ -85,6 +85,9 @@ export interface GameOpts {
   seed: number; waveInterval: number | null;
 }
 
+/** What game.undo() would take back: an English label, the refund, and the parts for a translated label. */
+export interface UndoInfo { label: string; refund: number; kind: 'build' | 'upgrade'; turret: string; stat?: Stat; levels?: number }
+
 /** The last build or upgrade, as game.undo() needs it (in memory only). */
 interface UndoRecord {
   kind: 'build' | 'upgrade';
@@ -584,10 +587,11 @@ export class Game {
   markFired(id: number): void { if (this._undo && this._undo.id === id) this._undo.fired = true; }
 
   /** What `undo()` would take back, or null. Read-only. */
-  undoInfo(): { label: string; refund: number } | null {
+  undoInfo(): UndoInfo | null {
     const u = this._undo;
-    if (!u || u.fired || this.state.over || !this.turretMap.has(u.id)) return null;
-    return { label: u.label, refund: u.cost };
+    const t = u ? this.turretMap.get(u.id) : undefined;
+    if (!u || !t || u.fired || this.state.over) return null;
+    return { label: u.label, refund: u.cost, kind: u.kind, turret: t.kind, stat: u.stat, levels: u.levels };
   }
 
   /**

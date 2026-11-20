@@ -77,6 +77,22 @@ DOM overlay over the canvas, input, persistence and audio. Contract: `ARCHITECTU
 - The docked turret panel starts below the top bar's measured height (`--top-h` on the HUD, kept current by a
   ResizeObserver), because the top bar wraps to two or three rows at a large scale or in a narrow window.
 
+## Languages (English, Dutch, German)
+
+- `i18n.ts`: English is the source and the key: `t('Send wave')`, `t('Wave {n} started', { n })`. Translations live in
+  `src/ui/lang/hud.ts` (HUD, menu, keymap, gamepad), `dialogs.ts` (dialogs, App texts, game error reasons) and
+  `content.ts` (tutorial, tips, achievements, Codex, turret blurbs); a missing one falls back to English.
+- Never call `t()` at module level or in table constants (modules load before the language is set). Mark table text with
+  `tx('...')` (returns it unchanged) and translate where it is shown: `t(entry.label)`. Never build a key with `${}` or
+  `+`: put the variable parts in `{placeholders}`. Turret blurbs (in `src/data`) are shown with `t(def.blurb)`.
+- Game error reasons from `src/game` are listed once with `tx()` in `GAME_REASONS` (`App.ts`) and translated in
+  `showError`. Game `message` events with numbers in them stay English.
+- Proper names stay English: turrets, combos, maps, difficulties, modes, the game name, key names.
+- The language is set in the `App` constructor (setting `language`, or `detectLang(navigator.languages)`) before any
+  text is built, and `<html lang>` follows it. Changing it in Settings reloads the page.
+- sim-test (i18n) scans `src/ui/*.ts` for every `t('...')`/`tx('...')` key (plus the turret blurbs) and fails on a missing
+  Dutch or German text, different `{placeholders}`, a non-literal `t()` key, an unused translation or an em dash.
+
 ## Tutorial
 
 - Starts on the How to Play map (`startGame` with `mapId: 'tutorial'`, from the map grid, the menu button "Tutorial",

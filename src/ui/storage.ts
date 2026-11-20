@@ -35,6 +35,8 @@ export interface Settings {
   screenShake: boolean;
   sfxVolume: number;
   tutorialDone: boolean;
+  /** UI language ('' = from the browser). */
+  language: string;
   hints: boolean;
   uiVolume: number;
   musicVolume: number;
@@ -94,6 +96,7 @@ export const DEFAULT_SETTINGS: Settings = {
   colorSymbols: true,   // accessibility: shape badge of the combo colour on every turret on the map
   uiScale: 1,           // accessibility: UI size factor, UI_SCALE.min to UI_SCALE.max
   highContrast: false,  // accessibility: solid panels, brighter secondary text, stronger outlines
+  language: '',         // '' = follow the browser (detectLang), else 'en' | 'nl' | 'de'
   tutorialDone: false,
   hints: true,          // one-time tips (src/ui/hints.ts) in the coach card
   // the tutorial was finished or skipped (hides the menu banner)

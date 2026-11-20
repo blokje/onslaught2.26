@@ -37,7 +37,8 @@ export interface AppGame {
   /** Optional (real Game): change the wave interval of the running game, ms >= 1000. */
   setWaveInterval?(ms: number): CommandResult | unknown;
   undo(): CommandResult;
-  undoInfo(): { label: string; refund: number } | null;
+  /** kind/turret/stat/levels are optional so the UI can build a translated label (the mock returns null). */
+  undoInfo(): { label: string; refund: number; kind?: 'build' | 'upgrade'; turret?: string; stat?: Stat; levels?: number } | null;
   setSpeed(speed: number): CommandResult | void;
   togglePause(): CommandResult | void;
   setPaused(paused: boolean): CommandResult | void;

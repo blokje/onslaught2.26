@@ -16,6 +16,8 @@ import { musicIntensity } from './music.ts';
 import { ACHIEVEMENTS, newlyEarned } from './achievements.ts';
 import { dailyFor } from './daily.ts';
 import { GamepadReader } from './gamepad.ts';
+import { setLang, detectLang, t, tx } from './i18n.ts';
+import type { Lang } from './i18n.ts';
 import type { PadAction } from './gamepad.ts';
 import type { Hint } from './hints.ts';
 
@@ -36,6 +38,15 @@ const FOCUS_RADIUS = 16;
 const COMBO_COLORS: KeyColor[] = ['red', 'green', 'blue', 'yellow'];
 const GAME_EVENTS: GameEventName[] = ['shot', 'kill', 'leak', 'wave', 'blast', 'combo', 'build', 'sell', 'upgrade', 'unlock', 'error', 'message', 'gameover', 'undo'];
 const BLAST_SOUND: Record<string, string> = { small: 'small', medium: 'medium', large: 'large', huge: 'huge', bfg: 'large', poison: 'medium' };
+/** Failure reasons the simulation (src/game) can return, kept as translation keys; showError translates them with t(reason). */
+export const GAME_REASONS: readonly string[] = [
+  tx('Not possible'), tx('Not enough cash'), tx('Too close to the road'), tx('Too close to the base'), tx('Outside the field'),
+  tx('Overlaps another turret'), tx('Invalid position'), tx('Fully upgraded'), tx('Game is paused'), tx('Game over'),
+  tx('No such turret'), tx('No such weapon'), tx('No such attacker'), tx('Unknown turret'), tx('Unknown stat'),
+  tx('Unknown target mode'), tx('Unknown cone'), tx('Unknown colour'), tx('Locked'), tx('Nothing to undo'),
+  tx('It has fired since, too late to undo'), tx('This turret does not shoot'), tx('Not a Targeter'),
+  tx('Targeters can only join weapons'), tx('Not a Combo-only turret'), tx('Invalid speed'), tx('Invalid wave interval'),
+];
 
 type Keys<T> = T extends unknown ? keyof T : never;
 type Val<T, K extends PropertyKey> = T extends unknown ? (K extends keyof T ? T[K] : never) : never;
@@ -181,6 +192,11 @@ export class App {
     this.game = null;
 
     this.settings = storage.getSettings();
+    // the language is chosen before any text is built (a change reloads the page)
+    const lang: Lang = this.settings.language === 'en' || this.settings.language === 'nl' || this.settings.language === 'de'
+      ? this.settings.language : detectLang(typeof navigator !== 'undefined' ? navigator.languages || [navigator.language] : []);
+    setLang(lang);
+    document.documentElement.lang = lang;
     this.applyKeys();
     this.unlocks = storage.getUnlocks();
     this.audio = new AudioEngine();
@@ -239,7 +255,7 @@ export class App {
   buildRotateNotice(): HTMLElement {
     return h('div', { class: 'os-rotate' },
       h('div', { html: '<svg viewBox="0 0 48 48" aria-hidden="true"><rect x="14" y="4" width="20" height="40" rx="4" fill="none" stroke="#ffd27a" stroke-width="3"/><circle cx="24" cy="38" r="2" fill="#ffd27a"/></svg>' }),
-      h('div', null, 'Please rotate to landscape'));
+      h('div', null, t('Please rotate to landscape')));
   }
 
   openModal(title: string, content: Node, o: ModalOptions = {}): ModalHandle {
@@ -260,7 +276,7 @@ export class App {
         if (prev && prev.isConnected) prev.focus();
       },
     };
-    const closeBtn = dismissable ? h('button', { class: 'os-iconbtn', type: 'button', title: 'Close (Esc)', 'aria-label': 'Close', onclick: () => handle.close() }, '×') : null;
+    const closeBtn = dismissable ? h('button', { class: 'os-iconbtn', type: 'button', title: t('Close (Esc)'), 'aria-label': t('Close'), onclick: () => handle.close() }, '×') : null;
     const foot = o.buttons ? h('div', { class: 'os-modal-foot' }, ...o.buttons.map((b) => {
       const el = h('button', { class: 'os-btn ' + (b.cls || ''), type: 'button' }, b.label);
       el.addEventListener('click', () => b.onClick(handle, el));
@@ -284,15 +300,15 @@ export class App {
 
   openSettings(): void {
     if (this.modals.some((m) => m.kind === 'settings')) return;
-    const m = this.openModal('Settings', buildSettings(this), { cls: '', buttons: [{ label: 'Done', cls: 'primary', onClick: (hd) => hd.close() }] });
+    const m = this.openModal(t('Settings'), buildSettings(this), { cls: '', buttons: [{ label: t('Done'), cls: 'primary', onClick: (hd) => hd.close() }] });
     m.kind = 'settings';
   }
   toggleSettings(): void {
     const open = this.modals.find((m) => m.kind === 'settings');
     if (open) open.close(); else this.openSettings();
   }
-  openHelp(): void { this.openModal('How to play', buildHelp(this), { cls: 'wide', buttons: [{ label: 'Close', cls: 'primary', onClick: (hd) => hd.close() }] }); }
-  openScores(highlight?: ScoreHighlight): void { this.openModal('High scores', buildScores(this, highlight), { cls: 'narrow wide', buttons: [{ label: 'Close', cls: 'primary', onClick: (hd) => hd.close() }] }); }
+  openHelp(): void { this.openModal(t('How to play'), buildHelp(this), { cls: 'wide', buttons: [{ label: t('Close'), cls: 'primary', onClick: (hd) => hd.close() }] }); }
+  openScores(highlight?: ScoreHighlight): void { this.openModal(t('High scores'), buildScores(this, highlight), { cls: 'narrow wide', buttons: [{ label: t('Close'), cls: 'primary', onClick: (hd) => hd.close() }] }); }
 
   openGameMenu(): void {
     if (!this.game || this.modals.some((m) => m.kind === 'gamemenu')) return;
@@ -300,21 +316,21 @@ export class App {
     const wasPaused = this.game.state.paused;
     if (!wasPaused) { this.game.setPaused(true); this._pausedByMenu = true; }
     let restartStep = 0;
-    const m = this.openModal('Menu', h('div', { class: 'os-hint', style: 'font-size:.95em' }, 'The game is paused.'), {
+    const m = this.openModal(t('Menu'), h('div', { class: 'os-hint', style: 'font-size:.95em' }, t('The game is paused.')), {
       cls: 'narrow',
       onClose: () => { if (this._pausedByMenu && this.game) this.game.setPaused(false); this._pausedByMenu = false; },
       buttons: [
-        { label: 'Resume', cls: 'primary', onClick: (hd) => hd.close() },
-        { label: 'Restart', cls: '', onClick: (hd, el) => {
-          if (restartStep === 0) { restartStep = 1; el.textContent = 'Sure? Click again'; return; }
+        { label: t('Resume'), cls: 'primary', onClick: (hd) => hd.close() },
+        { label: t('Restart'), cls: '', onClick: (hd, el) => {
+          if (restartStep === 0) { restartStep = 1; el.textContent = t('Sure? Click again'); return; }
           this._pausedByMenu = false;
           hd.close();
           this.restart();
         } },
-        { label: 'Settings', cls: '', onClick: () => this.openSettings() },
-        { label: 'Combo Codex', cls: '', onClick: () => this.openCodex() },
-        { label: 'Saves', cls: '', onClick: () => this.openSaves() },
-        { label: 'Quit to menu', cls: 'danger', onClick: (hd) => { hd.close(); this.toMenu(); } }, // close() resumes a menu pause, so the autosave is not paused
+        { label: t('Settings'), cls: '', onClick: () => this.openSettings() },
+        { label: t('Combo Codex'), cls: '', onClick: () => this.openCodex() },
+        { label: t('Saves'), cls: '', onClick: () => this.openSaves() },
+        { label: t('Quit to menu'), cls: 'danger', onClick: (hd) => { hd.close(); this.toMenu(); } }, // close() resumes a menu pause, so the autosave is not paused
       ],
     });
     m.kind = 'gamemenu';
@@ -365,11 +381,11 @@ export class App {
     let changed = false;
     if (wave >= 100 && g.state.difficulty === 'medium' && !this.unlocks.extreme) {
       this.unlocks.extreme = true; changed = true;
-      this.hud.toast('Extreme difficulty unlocked!', 'unlock');
+      this.hud.toast(t('Extreme difficulty unlocked!'), 'unlock');
     }
     if (wave >= 50 && !this.unlocks.sandbox) {
       this.unlocks.sandbox = true; changed = true;
-      this.hud.toast('Sandbox mode unlocked!', 'unlock');
+      this.hud.toast(t('Sandbox mode unlocked!'), 'unlock');
     }
     if (changed) { storage.saveUnlocks(this.unlocks); this.audio.play('unlock'); this.menu.refresh(); }
   }
@@ -384,7 +400,7 @@ export class App {
     const tut = sel.mapId === 'tutorial'; // the How to Play map always runs the coach
     if (tut) opts.waveInterval = TUTORIAL_WAVE_MS;
     let game: AppGame;
-    try { game = this.createGame(opts); } catch (e) { console.error(e); this.menu.show(); this.menu.flash('Could not start the game.'); return; }
+    try { game = this.createGame(opts); } catch (e) { console.error(e); this.menu.show(); this.menu.flash(t('Could not start the game.')); return; }
     this.attachGame(game);
     this.daily = extra.daily || null;
     if (tut) { this.tutorial = new Tutorial(); this.renderCoach(); }
@@ -407,8 +423,8 @@ export class App {
     const now = new Date().toISOString();
     for (const a of fresh) {
       this.earned[a.id] = now;
-      this.hud.toast('Achievement: ' + a.name, 'unlock');
-      this.hud.addLog('Achievement unlocked: ' + a.name + ' (' + a.desc + ')');
+      this.hud.toast(t('Achievement: {name}', { name: t(a.name) }), 'unlock');
+      this.hud.addLog(t('Achievement unlocked: {name} ({desc})', { name: t(a.name), desc: t(a.desc) }));
     }
     this.audio.play('unlock');
     storage.saveEarned(this.earned);
@@ -421,10 +437,10 @@ export class App {
       let when = '';
       try { if (d) when = new Date(d).toLocaleDateString(); } catch (e) { /* ignore */ }
       return h('div', { class: 'os-ach' + (d ? ' done' : '') }, h('span', { class: 'os-ach-mark', 'aria-hidden': 'true' }, d ? '\u2605' : '\u2606'),
-        h('div', null, h('b', null, a.name), h('div', { class: 'os-hint' }, a.desc)), h('span', { class: 'os-ach-when' }, d ? when : 'locked'));
+        h('div', null, h('b', null, t(a.name)), h('div', { class: 'os-hint' }, t(a.desc))), h('span', { class: 'os-ach-when' }, d ? when : t('locked')));
     }));
-    this.openModal('Achievements', h('div', null, h('p', { class: 'os-hint' }, `Earned ${done} of ${ACHIEVEMENTS.length}. Sandbox games do not count for wave, score or cash goals.`), list),
-      { cls: 'wide', buttons: [{ label: 'Close', cls: 'primary', onClick: (hd) => hd.close() }] });
+    this.openModal(t('Achievements'), h('div', null, h('p', { class: 'os-hint' }, t('Earned {done} of {total}. Sandbox games do not count for wave, score or cash goals.', { done, total: ACHIEVEMENTS.length })), list),
+      { cls: 'wide', buttons: [{ label: t('Close'), cls: 'primary', onClick: (hd) => hd.close() }] });
   }
 
   /** Start today's daily challenge (UTC day): fixed map, difficulty and seed, no unlock-all, default wave interval. */
@@ -438,14 +454,14 @@ export class App {
 
   /** Show the current tutorial step in the coach card (or hide it). */
   renderCoach(): void {
-    const t = this.tutorial;
-    if (!t || t.over) { this.dismissTip(false); this.hud.showCoach(null); this.setCoachTarget(null); return; }
-    const st = t.step, last = t.index === t.count - 1;
+    const tut = this.tutorial;
+    if (!tut || tut.over) { this.dismissTip(false); this.hud.showCoach(null); this.setCoachTarget(null); return; }
+    const st = tut.step, last = tut.index === tut.count - 1;
     const buttons: { label: string; primary?: boolean; onClick: () => void }[] = [];
-    if (t.index > 0) buttons.push({ label: 'Back', onClick: () => { t.back(); this.renderCoach(); } });
-    if (!last) buttons.push({ label: 'Skip tutorial', onClick: () => this.endTutorial(true) });
-    if (!st.done) buttons.push({ label: last ? 'Finish' : 'Next', primary: true, onClick: () => { t.next(); if (t.over) this.endTutorial(false); else this.renderCoach(); } });
-    this.hud.showCoach({ key: 'tut:' + st.id + ':' + JSON.stringify(this.settings.keys), title: st.title, text: st.text((a) => this.keyFor(a)), progress: `${t.index + 1} / ${t.count}`, buttons });
+    if (tut.index > 0) buttons.push({ label: t('Back'), onClick: () => { tut.back(); this.renderCoach(); } });
+    if (!last) buttons.push({ label: t('Skip tutorial'), onClick: () => this.endTutorial(true) });
+    if (!st.done) buttons.push({ label: last ? t('Finish') : t('Next'), primary: true, onClick: () => { tut.next(); if (tut.over) this.endTutorial(false); else this.renderCoach(); } });
+    this.hud.showCoach({ key: 'tut:' + st.id + ':' + JSON.stringify(this.settings.keys), title: t(st.title), text: st.text((a) => this.keyFor(a)), progress: `${tut.index + 1} / ${tut.count}`, buttons });
     this.setCoachTarget(st.target || null);
   }
 
@@ -457,7 +473,7 @@ export class App {
     this.checkAchievements();
     this.restoreWaveInterval();
     this.renderCoach();
-    this.hud.toast(skipped ? 'Tutorial skipped. Replay it from the menu.' : 'Tutorial done. Waves now come by themselves.');
+    this.hud.toast(skipped ? t('Tutorial skipped. Replay it from the menu.') : t('Tutorial done. Waves now come by themselves.'));
   }
 
   /** Tips (setting hints): queue state-based ones, show the next when none is on screen. Never during the tutorial. */
@@ -471,7 +487,7 @@ export class App {
     if (!h) return;
     storage.saveHints(this.hints.seen);
     this.tipShown = h;
-    this.hud.showCoach({ key: 'tip:' + h.id, tip: true, title: h.title, text: h.text((a) => this.keyFor(a)), buttons: [{ label: 'Got it', primary: true, onClick: () => this.dismissTip(true) }] });
+    this.hud.showCoach({ key: 'tip:' + h.id, tip: true, title: t(h.title), text: h.text((a) => this.keyFor(a)), buttons: [{ label: t('Got it'), primary: true, onClick: () => this.dismissTip(true) }] });
     if (this.tipTimer) clearTimeout(this.tipTimer);
     this.tipTimer = setTimeout(() => { if (this.tipShown === h) this.dismissTip(true); }, TIP_MS);
   }
@@ -504,7 +520,7 @@ export class App {
       console.error(e);
       storage.clearGame();
       this.menu.refresh();
-      this.menu.flash('The saved game could not be loaded.');
+      this.menu.flash(t('The saved game could not be loaded.'));
       return;
     }
     this.closeAllModals();
@@ -591,7 +607,7 @@ export class App {
   /** Load a save wrapper (autosave, slot or import) as the running game. Returns an error text or null. */
   loadWrapper(w: storage.SaveWrapper): string | null {
     let game: AppGame;
-    try { game = this.restoreGame(w.data); } catch (e) { console.error(e); return e instanceof Error ? e.message : 'The save could not be loaded.'; }
+    try { game = this.restoreGame(w.data); } catch (e) { console.error(e); return e instanceof Error ? e.message : t('The save could not be loaded.'); }
     this.closeAllModals();
     this.attachGame(game);
     this.daily = typeof w.meta?.daily === 'string' ? w.meta.daily : null;
@@ -603,11 +619,11 @@ export class App {
     const body = h('div', { class: 'os-saves' });
     const msg = h('p', { class: 'os-hint' }, '');
     const desc = (w: storage.SaveWrapper | null): string => {
-      if (!w) return 'Empty';
+      if (!w) return t('Empty');
       const map = MAPS_BY_ID[w.meta.mapId];
       let when = '';
       try { when = w.at ? new Date(w.at).toLocaleString() : ''; } catch (e) { /* ignore */ }
-      return `${map ? map.name : w.meta.mapId}, ${DIFFICULTIES[w.meta.difficulty]?.name || w.meta.difficulty}${w.meta.mode === 'sandbox' ? ' (Sandbox)' : ''}, wave ${w.meta.wave}${w.meta.daily ? ', daily ' + w.meta.daily : ''}${when ? ' - ' + when : ''}`;
+      return `${map ? map.name : w.meta.mapId}, ${DIFFICULTIES[w.meta.difficulty]?.name || w.meta.difficulty}${w.meta.mode === 'sandbox' ? ' (Sandbox)' : ''}, ${t('wave {n}', { n: w.meta.wave })}${w.meta.daily ? ', ' + t('daily {day}', { day: w.meta.daily }) : ''}${when ? ' - ' + when : ''}`;
     };
     const exportFile = (w: storage.SaveWrapper): void => {
       const url = URL.createObjectURL(new Blob([JSON.stringify(w)], { type: 'application/json' }));
@@ -619,32 +635,32 @@ export class App {
     const render = (): void => {
       const rows: HTMLElement[] = [];
       const auto = storage.loadGame();
-      rows.push(h('div', { class: 'os-save-row' }, h('b', null, 'Autosave'), h('span', null, desc(auto)),
-        auto ? btn('Load', () => { msg.textContent = this.loadWrapper(auto) || ''; }) : null, auto ? btn('Export', () => exportFile(auto)) : null));
+      rows.push(h('div', { class: 'os-save-row' }, h('b', null, t('Autosave')), h('span', null, desc(auto)),
+        auto ? btn(t('Load'), () => { msg.textContent = this.loadWrapper(auto) || ''; }) : null, auto ? btn(t('Export'), () => exportFile(auto)) : null));
       const cur = this.saveWrapper();
       for (let i = 1; i <= storage.SLOT_COUNT; i++) {
         const w = storage.getSlot(i);
-        rows.push(h('div', { class: 'os-save-row' }, h('b', null, 'Slot ' + i), h('span', null, desc(w)),
-          cur ? btn('Save here', () => { const c = this.saveWrapper(); if (c && storage.saveSlot(i, c)) { msg.textContent = 'Saved in slot ' + i + '.'; render(); } else msg.textContent = 'Could not save (storage full or disabled?).'; }, 'primary') : null,
-          w ? btn('Load', () => { msg.textContent = this.loadWrapper(w) || ''; }) : null,
-          w ? btn('Export', () => exportFile(w)) : null,
-          w ? btn('Delete', () => { storage.clearSlot(i); msg.textContent = 'Slot ' + i + ' cleared.'; render(); }, 'danger') : null));
+        rows.push(h('div', { class: 'os-save-row' }, h('b', null, t('Slot {n}', { n: i })), h('span', null, desc(w)),
+          cur ? btn(t('Save here'), () => { const c = this.saveWrapper(); if (c && storage.saveSlot(i, c)) { msg.textContent = t('Saved in slot {n}.', { n: i }); render(); } else msg.textContent = t('Could not save (storage full or disabled?).'); }, 'primary') : null,
+          w ? btn(t('Load'), () => { msg.textContent = this.loadWrapper(w) || ''; }) : null,
+          w ? btn(t('Export'), () => exportFile(w)) : null,
+          w ? btn(t('Delete'), () => { storage.clearSlot(i); msg.textContent = t('Slot {n} cleared.', { n: i }); render(); }, 'danger') : null));
       }
       body.replaceChildren(...rows);
     };
-    const file = h('input', { type: 'file', accept: '.json,application/json', 'aria-label': 'Import a save file' });
+    const file = h('input', { type: 'file', accept: '.json,application/json', 'aria-label': t('Import a save file') });
     file.addEventListener('change', () => {
       const f = file.files && file.files[0];
       if (!f) return;
-      f.text().then((t) => {
+      f.text().then((txt) => {
         let w: storage.SaveWrapper | null = null;
-        try { w = storage.cleanSaveWrapper(JSON.parse(t)); } catch (e) { w = null; }
-        msg.textContent = w ? (this.loadWrapper(w) || '') : 'That file is not an OnSlaught2.26 save.';
-      }, () => { msg.textContent = 'Could not read the file.'; });
+        try { w = storage.cleanSaveWrapper(JSON.parse(txt)); } catch (e) { w = null; }
+        msg.textContent = w ? (this.loadWrapper(w) || '') : t('That file is not an OnSlaught2.26 save.');
+      }, () => { msg.textContent = t('Could not read the file.'); });
     });
     render();
-    this.openModal('Saves', h('div', { class: 'os-help' }, body, h('h3', null, 'Import'), h('p', { class: 'os-hint' }, 'Load a save file exported here or on another device:'), file, msg),
-      { cls: 'wide', buttons: [{ label: 'Close', cls: 'primary', onClick: (hd) => hd.close() }] });
+    this.openModal(t('Saves'), h('div', { class: 'os-help' }, body, h('h3', null, t('Import')), h('p', { class: 'os-hint' }, t('Load a save file exported here or on another device:')), file, msg),
+      { cls: 'wide', buttons: [{ label: t('Close'), cls: 'primary', onClick: (hd) => hd.close() }] });
   }
 
   // =================================================================== game events
@@ -662,30 +678,31 @@ export class App {
       }
       case 'kill': a.play('kill'); break;
       case 'blast': a.play('blast_' + (BLAST_SOUND[p.size as string | number] || 'small')); break;
-      case 'combo': a.play('combo'); if (typeof p.id === 'string') storage.recordCombo(p.id); this.hud.toast('Combo: ' + (p.name || 'Combo') + '!', 'combo'); break;
-      case 'wave': a.play('horn'); this.hud.announce('Wave ' + (p.wave ?? '') + ' started'); this.checkUnlocks(p.wave != null ? p.wave : this.game!.state.wave); break;
-      case 'leak': a.play('alarm'); this.hud.flashLeak(); this.hud.announce('Leak! ' + (p.lives ?? '') + ' lives left'); break;
+      case 'combo': a.play('combo'); if (typeof p.id === 'string') storage.recordCombo(p.id); this.hud.toast(t('Combo: {name}!', { name: p.name || 'Combo' }), 'combo'); break;
+      case 'wave': a.play('horn'); this.hud.announce(t('Wave {n} started', { n: p.wave ?? '' })); this.checkUnlocks(p.wave != null ? p.wave : this.game!.state.wave); break;
+      case 'leak': a.play('alarm'); this.hud.flashLeak(); this.hud.announce(t('Leak! {n} lives left', { n: p.lives ?? '' })); break;
       case 'build': a.play('build'); break;
-      case 'sell': a.play('sell'); if (p.refund != null) this.hud.addLog('Sold for ' + formatCash(p.refund)); break;
+      case 'sell': a.play('sell'); if (p.refund != null) this.hud.addLog(t('Sold for {cash}', { cash: formatCash(p.refund) })); break;
       case 'upgrade': a.play('upgrade'); break;
-      case 'undo': a.play('sell'); if (p.refund != null) this.hud.addLog('Undone, refunded ' + formatCash(p.refund)); break;
+      case 'undo': a.play('sell'); if (p.refund != null) this.hud.addLog(t('Undone, refunded {cash}', { cash: formatCash(p.refund) })); break;
       case 'unlock': {
         const def = p.kind != null ? TURRETS[p.kind] : undefined;
-        this.hud.toast('Unlocked: ' + (def ? def.name : p.kind), 'unlock');
-        this.hud.addLog('New turret available: ' + (def ? def.name : p.kind));
+        this.hud.toast(t('Unlocked: {name}', { name: def ? def.name : String(p.kind) }), 'unlock');
+        this.hud.addLog(t('New turret available: {name}', { name: def ? def.name : String(p.kind) }));
         a.play('unlock');
         break;
       }
-      case 'error': this.errSeq++; this.showError(p.reason || 'Not possible'); break;
+      case 'error': this.errSeq++; this.showError(p.reason || tx('Not possible')); break;
       case 'message': if (p.text) this.hud.addLog(p.text); break;
       case 'gameover': this.onGameOver(p); break;
       default: break;
     }
   }
 
+  /** Show an error bubble at the cursor. `reason` is an English key (GAME_REASONS or a tx() literal) or an already translated text. */
   showError(reason: string): void {
     const c = this.cursor;
-    this.hud.showError(String(reason), c.known ? c.cx : window.innerWidth / 2, c.known ? c.cy : window.innerHeight / 2);
+    this.hud.showError(t(String(reason)), c.known ? c.cx : window.innerWidth / 2, c.known ? c.cy : window.innerHeight / 2);
     this.audio.play('error');
   }
 
@@ -711,13 +728,13 @@ export class App {
     this.cancelMode();
     this.closeAllModals();
     this.audio.play('alarm');
-    const m = this.openModal('Game over', buildGameOver(info), {
+    const m = this.openModal(t('Game over'), buildGameOver(info), {
       cls: '', dismissable: false,
       buttons: [
-        ...(replay ? [{ label: 'Save replay', onClick: () => this.downloadReplay(replay) }, { label: 'Copy replay code', onClick: (_h: unknown, el: HTMLButtonElement) => { void this.copyReplay(replay, el); } }] : []),
-        { label: 'High scores', onClick: () => this.openScores({ mapId: info.mapId, difficulty: info.difficulty, mode: info.mode, rank: info.rank }) },
-        { label: 'Menu', onClick: (hd) => { hd.close(); this.toMenu(); } },
-        { label: 'Restart', cls: 'primary', onClick: (hd) => { hd.close(); this.restart(); } },
+        ...(replay ? [{ label: t('Save replay'), onClick: () => this.downloadReplay(replay) }, { label: t('Copy replay code'), onClick: (_h: unknown, el: HTMLButtonElement) => { void this.copyReplay(replay, el); } }] : []),
+        { label: t('High scores'), onClick: () => this.openScores({ mapId: info.mapId, difficulty: info.difficulty, mode: info.mode, rank: info.rank }) },
+        { label: t('Menu'), onClick: (hd) => { hd.close(); this.toMenu(); } },
+        { label: t('Restart'), cls: 'primary', onClick: (hd) => { hd.close(); this.restart(); } },
       ],
     });
     m.kind = 'gameover';
@@ -739,26 +756,26 @@ export class App {
     try {
       const code = await encodeReplay(data);
       await navigator.clipboard.writeText(code);
-      el.textContent = 'Code copied';
-    } catch (e) { console.error(e); el.textContent = 'Copy failed'; }
+      el.textContent = t('Code copied');
+    } catch (e) { console.error(e); el.textContent = t('Copy failed'); }
   }
 
   /** Replays dialog: paste a code or open a file, then watch it. */
   openReplays(): void {
     if (!this.replays) return;
-    const area = h('textarea', { class: 'os-replay-code', rows: 4, placeholder: 'Paste a replay code here', 'aria-label': 'Replay code' });
-    const file = h('input', { type: 'file', accept: '.json,application/json', 'aria-label': 'Replay file' });
-    const msg = h('p', { class: 'os-hint' }, 'Replays come from the game-over screen: Save replay or Copy replay code.');
+    const area = h('textarea', { class: 'os-replay-code', rows: 4, placeholder: t('Paste a replay code here'), 'aria-label': t('Replay code') });
+    const file = h('input', { type: 'file', accept: '.json,application/json', 'aria-label': t('Replay file') });
+    const msg = h('p', { class: 'os-hint' }, t('Replays come from the game-over screen: Save replay or Copy replay code.'));
     const load = async (text: string): Promise<void> => {
       try {
         const data = this.replays!.validate(await decodeReplay(text));
         this.closeAllModals();
         this.startReplay(data);
-      } catch (e) { msg.textContent = e instanceof Error ? e.message : 'Could not read that replay.'; }
+      } catch (e) { msg.textContent = e instanceof Error ? e.message : t('Could not read that replay.'); }
     };
-    file.addEventListener('change', () => { const f = file.files && file.files[0]; if (f) f.text().then(load, () => { msg.textContent = 'Could not read the file.'; }); });
-    this.openModal('Replays', h('div', { class: 'os-help' }, msg, area, h('div', { style: 'margin-top:.5em' }, file)), {
-      cls: '', buttons: [{ label: 'Close', onClick: (hd) => hd.close() }, { label: 'Watch', cls: 'primary', onClick: () => { void load(area.value); } }],
+    file.addEventListener('change', () => { const f = file.files && file.files[0]; if (f) f.text().then(load, () => { msg.textContent = t('Could not read the file.'); }); });
+    this.openModal(t('Replays'), h('div', { class: 'os-help' }, msg, area, h('div', { style: 'margin-top:.5em' }, file)), {
+      cls: '', buttons: [{ label: t('Close'), onClick: (hd) => hd.close() }, { label: t('Watch'), cls: 'primary', onClick: () => { void load(area.value); } }],
     });
   }
 
@@ -768,7 +785,7 @@ export class App {
     const pb = this.replays.play(data);
     this.attachGame(pb.game);
     this.replayView = { pb, data, ended: false };
-    this.hud.toast('Watching a replay. Speed and pause work; Esc menu to leave.');
+    this.hud.toast(t('Watching a replay. Speed and pause work; Esc menu to leave.'));
   }
 
   /** The replay reached its end: pause and say whether it reproduced the recorded result. */
@@ -779,9 +796,9 @@ export class App {
     const ok = v.pb.matches();
     try { this.game?.setPaused(true); } catch (e) { /* ignore */ }
     const info = this.replays ? this.replays.info(v.data) : null;
-    const text = ok ? `Replay finished: wave ${info?.wave}, score ${formatNum(info?.score ?? 0)}, exactly as recorded.` : 'Replay finished, but the result differs from the recorded one (the file may have been edited or made by another version).';
+    const text = ok ? t('Replay finished: wave {wave}, score {score}, exactly as recorded.', { wave: info?.wave ?? '', score: formatNum(info?.score ?? 0) }) : t('Replay finished, but the result differs from the recorded one (the file may have been edited or made by another version).');
     this.hud.addLog(text);
-    this.openModal('Replay finished', h('p', null, text), { cls: 'narrow', buttons: [{ label: 'Menu', cls: 'primary', onClick: (hd) => { hd.close(); this.toMenu(); } }] });
+    this.openModal(t('Replay finished'), h('p', null, text), { cls: 'narrow', buttons: [{ label: t('Menu'), cls: 'primary', onClick: (hd) => { hd.close(); this.toMenu(); } }] });
   }
 
   // =================================================================== per frame
@@ -791,8 +808,8 @@ export class App {
     if (this.fpsAcc >= 500) {
       if (this.settings.showFps && this.game) {
         const fps = Math.round((this.fpsN * 1000) / this.fpsAcc);
-        const t = fps + ' fps';
-        if (this.hud.fps.textContent !== t) this.hud.fps.textContent = t;
+        const txt = fps + ' fps';
+        if (this.hud.fps.textContent !== txt) this.hud.fps.textContent = txt;
       }
       this.fpsAcc = 0; this.fpsN = 0;
     }
@@ -874,7 +891,7 @@ export class App {
 
   toggleAutoSend(): void {
     this.updateSettings({ autoSend: !this.settings.autoSend });
-    this.hud.toast(this.settings.autoSend ? 'Auto-send on: the next wave starts when the field is clear' : 'Auto-send off');
+    this.hud.toast(this.settings.autoSend ? t('Auto-send on: the next wave starts when the field is clear') : t('Auto-send off'));
     this.hudDirty = true;
   }
 
@@ -1073,11 +1090,11 @@ export class App {
   // =================================================================== command helpers
   run(fn: () => CommandResult | void, view = false): CommandResult | void | null {
     // watching a replay: only view commands (speed, pause) may run, everything else would change the recorded game
-    if (this.replayView && !view) { this.hud.toast('Watching a replay: you cannot change this game.'); return null; }
+    if (this.replayView && !view) { this.hud.toast(t('Watching a replay: you cannot change this game.')); return null; }
     const seq = this.errSeq;
     let res: CommandResult | void | null = null;
     try { res = fn(); } catch (e) { console.error(e); return null; }
-    if (res && res.ok === false && this.errSeq === seq) this.showError(res.reason || 'Not possible');
+    if (res && res.ok === false && this.errSeq === seq) this.showError(res.reason || tx('Not possible'));
     this.hudDirty = true;
     return res;
   }
@@ -1118,7 +1135,7 @@ export class App {
       const d = Math.hypot(a.x - wx, a.y - wy);
       if (d <= bd) { bd = d; best = a; }
     }
-    if (!best) { this.showError('No attacker there'); return; }
+    if (!best) { this.showError(tx('No attacker there')); return; }
     const target: Attacker = best;
     this.focusId = target.id;
     this.run(() => this.game!.focusFire(target.id));
@@ -1178,10 +1195,10 @@ export class App {
 
   modeHint(): string {
     switch (this.mode) {
-      case 'build': return `Placing ${TURRETS[this.armed ?? '']?.name || ''}: click to build, Shift+click to keep building, Esc cancels`;
-      case 'move': return `Click the new spot (costs ${formatCash(MOVE_COST)}), Esc cancels`;
-      case 'join': return 'Click the turret to join with (click the Targeter itself to unjoin), Esc cancels';
-      case 'focus': return 'Click an attacker to focus fire on it, Esc cancels';
+      case 'build': return t('Placing {name}: click to build, Shift+click to keep building, Esc cancels', { name: TURRETS[this.armed ?? '']?.name || '' });
+      case 'move': return t('Click the new spot (costs {cost}), Esc cancels', { cost: formatCash(MOVE_COST) });
+      case 'join': return t('Click the turret to join with (click the Targeter itself to unjoin), Esc cancels');
+      case 'focus': return t('Click an attacker to focus fire on it, Esc cancels');
       default: return '';
     }
   }
@@ -1194,10 +1211,10 @@ export class App {
     this.rackIndex = BUILD_ORDER.indexOf(kind);
     if (!noToggle && this.mode === 'build' && this.armed === kind) { this.cancelMode(); return; }
     if (!s.unlocked || !s.unlocked[kind]) {
-      this.showError(def.unlockKills ? `${def.name} unlocks at ${formatNum(def.unlockKills)} kills` : `${def.name} is locked`);
+      this.showError(def.unlockKills ? t('{name} unlocks at {kills} kills', { name: def.name, kills: formatNum(def.unlockKills) }) : t('{name} is locked', { name: def.name }));
       return;
     }
-    if (s.cash < def.cost) { this.showError(`Not enough cash for ${def.name} (${formatCash(def.cost)})`); return; }
+    if (s.cash < def.cost) { this.showError(t('Not enough cash for {name} ({cost})', { name: def.name, cost: formatCash(def.cost) })); return; }
     if (this.mode === 'move' || this.mode === 'join' || this.mode === 'focus') this.cancelMode();
     this.selectedId = null;
     this.armed = kind;
@@ -1221,7 +1238,7 @@ export class App {
     const kind = (this.mode === 'build' ? this.armed : BUILD_ORDER[this.rackIndex]) as string;
     const s = this.game!.state;
     const def = TURRETS[kind];
-    if (!s.unlocked || !s.unlocked[kind]) { this.showError(`${def.name} is locked`); return; }
+    if (!s.unlocked || !s.unlocked[kind]) { this.showError(t('{name} is locked', { name: def.name })); return; }
     const c = this.cursor;
     const w = this.worldAt(c.known ? c.cx : window.innerWidth / 2, c.known ? c.cy : window.innerHeight / 2);
     this.placeAt(kind, w.x, w.y, true);
@@ -1235,7 +1252,7 @@ export class App {
   // =================================================================== commands (buttons and keys)
   needSelection(): TurretState | null {
     const t = this.selectedTurret();
-    if (!t) this.showError('Select a turret first');
+    if (!t) this.showError(tx('Select a turret first'));
     return t;
   }
 
@@ -1244,7 +1261,7 @@ export class App {
     if (!t) return;
     let cost: number | null = null;
     try { cost = this.game!.upgradeCost(t.id, stat); } catch (e) { cost = null; }
-    if (cost == null) { this.showError('Nothing to upgrade there'); return; }
+    if (cost == null) { this.showError(tx('Nothing to upgrade there')); return; }
     this.run(() => this.game!.upgrade(t.id, stat, !!toMax));
   }
 
@@ -1252,7 +1269,7 @@ export class App {
   undo(): void {
     const g = this.game;
     if (!g) return;
-    if (!this.settings.undo) { this.hud.toast('Undo is off. Turn on "Relaxed: undo" in Settings.'); return; }
+    if (!this.settings.undo) { this.hud.toast(t('Undo is off. Turn on "Relaxed: undo" in Settings.')); return; }
     const res = this.run(() => g.undo());
     if (res && res.ok && this.selectedId != null && !g.state.turrets.some((t) => t.id === this.selectedId)) this.deselect();
   }
@@ -1265,12 +1282,12 @@ export class App {
   }
 
   startMove(): void {
-    const t = this.needSelection();
-    if (!t) return;
+    const sel = this.needSelection();
+    if (!sel) return;
     if (this.mode === 'move') { this.cancelMode(); return; }
-    if (this.game!.state.cash < MOVE_COST) { this.showError(`Moving costs ${formatCash(MOVE_COST)}`); return; }
+    if (this.game!.state.cash < MOVE_COST) { this.showError(t('Moving costs {cost}', { cost: formatCash(MOVE_COST) })); return; }
     this.cancelMode();
-    this.moveId = t.id;
+    this.moveId = sel.id;
     this.setMode('move');
   }
 
@@ -1303,7 +1320,7 @@ export class App {
   toggleJoin(): void {
     const t = this.needSelection();
     if (!t) return;
-    if (t.kind !== 'targeter') { this.showError('Only a Targeter can join'); return; }
+    if (t.kind !== 'targeter') { this.showError(tx('Only a Targeter can join')); return; }
     if (this.mode === 'join') { this.cancelMode(); return; }
     this.cancelMode();
     this.setMode('join');
@@ -1312,7 +1329,7 @@ export class App {
   cycleColor(): void {
     const t = this.needSelection();
     if (!t) return;
-    if (t.kind !== 'comboOnly') { this.showError('Only Combo-only has a colour'); return; }
+    if (t.kind !== 'comboOnly') { this.showError(tx('Only Combo-only has a colour')); return; }
     const i = COMBO_COLORS.indexOf(t.comboColor || 'red');
     this.run(() => this.game!.setComboColor(t.id, COMBO_COLORS[(i + 1) % COMBO_COLORS.length]));
   }
@@ -1432,16 +1449,16 @@ export class App {
 
   openKeys(): void {
     if (this.modals.some((m) => m.kind === 'keys')) return;
-    const m = this.openModal('Controls', buildKeys(this), {
+    const m = this.openModal(t('Controls'), buildKeys(this), {
       cls: 'wide', onClose: () => { this.keyCapture = null; },
-      buttons: [{ label: 'Close', cls: 'primary', onClick: (hd) => hd.close() }],
+      buttons: [{ label: t('Close'), cls: 'primary', onClick: (hd) => hd.close() }],
     });
     m.kind = 'keys';
   }
   openCodex(): void {
     if (this.modals.some((m) => m.kind === 'codex')) return;
     if (this.tutorial) this.tutorial.codexOpened = true;
-    const m = this.openModal('Combo Codex', buildCodex(storage.getCodex()), { cls: 'wide', buttons: [{ label: 'Close', cls: 'primary', onClick: (hd) => hd.close() }] });
+    const m = this.openModal(t('Combo Codex'), buildCodex(storage.getCodex()), { cls: 'wide', buttons: [{ label: t('Close'), cls: 'primary', onClick: (hd) => hd.close() }] });
     m.kind = 'codex';
   }
   toggleCodex(): void {

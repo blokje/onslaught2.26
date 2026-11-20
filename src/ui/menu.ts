@@ -8,6 +8,7 @@ import type { App } from './App.ts';
 import { STAR_WAVES, starsForWave, bestWave } from './achievements.ts';
 import { dailyFor } from './daily.ts';
 import type { MapDef } from '../types.ts';
+import { t } from './i18n.ts';
 
 /** Columns of the map grid (6 x 3, see .os-maps in ui.css). */
 const MAP_COLS = 6;
@@ -95,7 +96,7 @@ export class Menu {
       h('div', { html: LOGO_SVG }),
       h('div', null,
         h('h1', { 'aria-label': 'OnSlaught2.26' }, h('span', { class: 't1' }, 'OnSlaught'), h('span', { class: 't2' }, '2.26')),
-        h('p', null, 'Hold the line. Upgrade. Combine. Survive.')));
+        h('p', null, t('Hold the line. Upgrade. Combine. Survive.'))));
 
     const maps = h('div', { class: 'os-maps' });
     let extraNo = 0;
@@ -138,29 +139,29 @@ export class Menu {
     this.note = h('div', { class: 'os-menu-note' });
     this.dailyTxt = h('span', null, '');
     this.dailyBox = h('div', { class: 'os-daily' }, this.dailyTxt,
-      h('button', { class: 'os-btn small', type: 'button', onclick: () => app.startDaily() }, 'Play daily'));
-    this.tutBanner = h('div', { class: 'os-tut-banner' }, h('span', null, 'New here?'),
-      h('button', { class: 'os-btn primary small', type: 'button', onclick: () => app.startTutorial() }, 'Play the tutorial'));
-    this.startBtn = h('button', { class: 'os-btn primary big', type: 'button', onclick: () => this.start() }, 'Start');
-    this.contBtn = h('button', { class: 'os-btn big', type: 'button', onclick: () => app.continueGame() }, 'Continue');
+      h('button', { class: 'os-btn small', type: 'button', onclick: () => app.startDaily() }, t('Play daily')));
+    this.tutBanner = h('div', { class: 'os-tut-banner' }, h('span', null, t('New here?')),
+      h('button', { class: 'os-btn primary small', type: 'button', onclick: () => app.startTutorial() }, t('Play the tutorial')));
+    this.startBtn = h('button', { class: 'os-btn primary big', type: 'button', onclick: () => this.start() }, t('Start'));
+    this.contBtn = h('button', { class: 'os-btn big', type: 'button', onclick: () => app.continueGame() }, t('Continue'));
 
     const side = h('div', { class: 'os-menu-side' },
-      h('div', null, h('h4', null, 'Difficulty'), diff),
-      h('div', null, h('h4', null, 'Mode'), mode),
+      h('div', null, h('h4', null, t('Difficulty')), diff),
+      h('div', null, h('h4', null, t('Mode')), mode),
       this.tutBanner,
       this.note,
       this.startBtn,
       this.dailyBox,
       this.contBtn,
       h('div', { class: 'os-menu-btns' },
-        h('button', { class: 'os-btn', type: 'button', onclick: () => app.openScores() }, 'High scores'),
-        h('button', { class: 'os-btn', type: 'button', onclick: () => app.openSettings() }, 'Settings'),
-        h('button', { class: 'os-btn', type: 'button', onclick: () => app.openHelp() }, 'How to play'),
-        h('button', { class: 'os-btn', type: 'button', onclick: () => app.openCodex() }, 'Combo Codex'),
-        h('button', { class: 'os-btn', type: 'button', onclick: () => app.startTutorial() }, 'Tutorial'),
-        h('button', { class: 'os-btn', type: 'button', onclick: () => app.openAchievements() }, 'Achievements'),
-        app.replays ? h('button', { class: 'os-btn', type: 'button', onclick: () => app.openReplays() }, 'Replays') : null,
-        h('button', { class: 'os-btn', type: 'button', onclick: () => app.openSaves() }, 'Saves')));
+        h('button', { class: 'os-btn', type: 'button', onclick: () => app.openScores() }, t('High scores')),
+        h('button', { class: 'os-btn', type: 'button', onclick: () => app.openSettings() }, t('Settings')),
+        h('button', { class: 'os-btn', type: 'button', onclick: () => app.openHelp() }, t('How to play')),
+        h('button', { class: 'os-btn', type: 'button', onclick: () => app.openCodex() }, t('Combo Codex')),
+        h('button', { class: 'os-btn', type: 'button', onclick: () => app.startTutorial() }, t('Tutorial')),
+        h('button', { class: 'os-btn', type: 'button', onclick: () => app.openAchievements() }, t('Achievements')),
+        app.replays ? h('button', { class: 'os-btn', type: 'button', onclick: () => app.openReplays() }, t('Replays')) : null,
+        h('button', { class: 'os-btn', type: 'button', onclick: () => app.openSaves() }, t('Saves'))));
 
     this.el.append(h('div', { class: 'os-panel os-menu-card' }, logo, h('div', { class: 'os-menu-main' }, maps, side)));
     this.refresh();
@@ -169,14 +170,14 @@ export class Menu {
   pickMap(id: string): void { this.sel.mapId = id; this.app.updateSettings({ lastMap: id }); this.refresh(); }
 
   pickDiff(id: string): void {
-    if (!this.app.isDifficultyUnlocked(id)) { this.flash('Extreme unlocks after you reach wave 100 on Medium.'); return; }
+    if (!this.app.isDifficultyUnlocked(id)) { this.flash(t('Extreme unlocks after you reach wave 100 on Medium.')); return; }
     this.sel.difficulty = id;
     this.app.updateSettings({ lastDifficulty: id });
     this.refresh();
   }
 
   pickMode(id: string): void {
-    if (!this.app.isModeUnlocked(id)) { this.flash('Sandbox unlocks after you reach wave 50 on any difficulty.'); return; }
+    if (!this.app.isModeUnlocked(id)) { this.flash(t('Sandbox unlocks after you reach wave 50 on any difficulty.')); return; }
     this.sel.mode = id;
     this.app.updateSettings({ lastMode: id });
     this.refresh();
@@ -196,33 +197,34 @@ export class Menu {
     for (const [id, b] of this.diffBtns) {
       b.classList.toggle('is-on', id === this.sel.difficulty);
       b.classList.toggle('locked', !app.isDifficultyUnlocked(id));
-      b.title = DIFFICULTIES[id].unlock ? 'Reach wave 100 on Medium to unlock' : '';
+      b.title = DIFFICULTIES[id].unlock ? t('Reach wave 100 on Medium to unlock') : '';
     }
     for (const [id, b] of this.modeBtns) {
       b.classList.toggle('is-on', id === this.sel.mode);
       b.classList.toggle('locked', !app.isModeUnlocked(id));
-      b.title = MODES[id].unlock ? 'Reach wave 50 on any difficulty to unlock' : '';
+      b.title = MODES[id].unlock ? t('Reach wave 50 on any difficulty to unlock') : '';
     }
     const d = DIFFICULTIES[this.sel.difficulty];
     const secs = app.settings.waveInterval > 0 ? app.settings.waveInterval : d.waveInterval / 1000;
     this.note.textContent = this.sel.mode === 'sandbox'
-      ? 'Sandbox: huge starting cash, everything unlocked.'
-      : `${d.name}: $${d.startCash} start, ${d.lives} ${d.lives === 1 ? 'life' : 'lives'}, new wave every ${secs}s.`;
+      ? t('Sandbox: huge starting cash, everything unlocked.')
+      : d.lives === 1 ? t('{name}: {cash} start, {lives} life, new wave every {secs}s.', { name: d.name, cash: '$' + d.startCash, lives: d.lives, secs })
+        : t('{name}: {cash} start, {lives} lives, new wave every {secs}s.', { name: d.name, cash: '$' + d.startCash, lives: d.lives, secs });
     // map stars for the selected difficulty: best wave in Normal mode reaching 25 / 50 / 100
     const diffName = DIFFICULTIES[this.sel.difficulty]?.name || this.sel.difficulty;
     for (const [id, el] of this.starEls) {
       const best = bestWave(storage.getScores(id, this.sel.difficulty, 'normal'));
       const n = starsForWave(best);
       el.textContent = '\u2605'.repeat(n) + '\u2606'.repeat(STAR_WAVES.length - n);
-      el.title = `${diffName}: best wave ${best}. Stars at waves ${STAR_WAVES.join(', ')}.`;
-      el.setAttribute('aria-label', `${n} of 3 stars on ${diffName}`);
+      el.title = t('{diff}: best wave {best}. Stars at waves {waves}.', { diff: diffName, best, waves: STAR_WAVES.join(', ') });
+      el.setAttribute('aria-label', t('{n} of 3 stars on {diff}', { n, diff: diffName }));
     }
     // today's daily challenge (UTC day) and the best score on it so far
     const dl = dailyFor(new Date());
     const dmap = MAPS.find((x) => x.id === dl.mapId);
     const best = storage.getDailyScores(dl.key)[0];
-    this.dailyTxt.replaceChildren(h('b', null, 'Daily ' + dl.key), h('br'),
-      `${dmap ? dmap.name : dl.mapId}, ${DIFFICULTIES[dl.difficulty]?.name || dl.difficulty}` + (best ? `, best ${best.score.toLocaleString('en-US')} (wave ${best.wave})` : ', not played yet'));
+    this.dailyTxt.replaceChildren(h('b', null, t('Daily {date}', { date: dl.key })), h('br'),
+      `${dmap ? dmap.name : dl.mapId}, ${DIFFICULTIES[dl.difficulty]?.name || dl.difficulty}` + ', ' + (best ? t('best {score} (wave {wave})', { score: best.score.toLocaleString('en-US'), wave: best.wave }) : t('not played yet')));
     // first-time players: offer the tutorial until it is done or skipped, and only before any high score exists
     this.tutBanner.style.display = !app.settings.tutorialDone && !Object.keys(storage.getAllScores()).length ? '' : 'none';
     const save = storage.loadGame();
@@ -230,8 +232,8 @@ export class Menu {
     if (save) {
       const m = save.meta || {};
       const map = MAPS.find((x) => x.id === m.mapId);
-      this.contBtn.replaceChildren('Continue', h('span', { class: 'os-sub' },
-        `${map ? map.name : 'Saved game'}${m.difficulty ? ', ' + (DIFFICULTIES[m.difficulty]?.name || m.difficulty) : ''}${m.wave != null ? ', wave ' + m.wave : ''}`));
+      this.contBtn.replaceChildren(t('Continue'), h('span', { class: 'os-sub' },
+        `${map ? map.name : t('Saved game')}${m.difficulty ? ', ' + (DIFFICULTIES[m.difficulty]?.name || m.difficulty) : ''}${m.wave != null ? ', ' + t('wave {n}', { n: m.wave }) : ''}`));
     }
   }
 

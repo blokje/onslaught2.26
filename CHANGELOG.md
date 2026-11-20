@@ -6,6 +6,15 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
 ## Unreleased
 
 ### Added (2026 roadmap, phase 7: platform)
+- Dutch and German: all UI text (HUD, menu, dialogs, How to play, tutorial, tips, Codex, achievements, controls, error
+  bubbles, turret blurbs; 534 texts) through `t()` in the new `src/ui/i18n.ts`, with packs in `src/ui/lang/`. Setting
+  "Language" (automatic from the browser by default; the page reloads to switch). Proper names stay English. The undo
+  tooltip now builds its label from parts (`UndoInfo` in `src/game/Game.ts` gained kind, turret, stat, levels) so it can
+  be translated. New sim-test checks (i18n) that fail on any missing or inconsistent translation. Translations written
+  with the help of three parallel agents and reviewed for conflicting terms (four harmonised). Checked in Chromium in
+  Dutch and German (menu, HUD, panel, Codex, Controls, no text overflowing its button, no console errors) and the
+  earlier English checks again. The Dutch and German wording has not been reviewed by a native speaker.
+  Docs: `ARCHITECTURE.md`, `README.md`, `docs/claude/ui.md`, `docs/claude/gotchas.md`, `docs/claude/testing.md`.
 - Save slots and save files: Menu > Saves (also in the in-game menu) shows the autosave and three slots with Load, Save
   here, Delete and Export (a JSON file), and imports a save file (shape-checked, then validated by `Game.deserialize`).
   New storage `os226.slot1..3`, `cleanSaveWrapper`, `App.saveWrapper/loadWrapper`. New sim-test checks (plat). Checked in

@@ -1,6 +1,7 @@
 // One table of rebindable keyboard actions. App.onKey, the controls overlay (? key) and the rebinding UI all read it,
 // so the handler and the help text cannot drift apart. Bindings are KeyboardEvent.code values (physical keys), so they
 // do not depend on the keyboard layout; Shift variants (Shift+Q = max, Shift+D = aim) belong to the action itself.
+import { tx } from './i18n.ts';
 
 export type KeyAction =
   | 'upDamage' | 'upRange' | 'upRate' | 'sell' | 'move' | 'target' | 'lock' | 'focus' | 'cone' | 'join' | 'color'
@@ -10,28 +11,28 @@ export interface KeyActionDef { id: KeyAction; code: string; label: string; grou
 
 /** Default bindings (SPEC.md section 8). Order is the order shown in the controls overlay. */
 export const KEY_ACTIONS: readonly KeyActionDef[] = [
-  { id: 'upDamage', code: 'KeyQ', label: 'Upgrade damage (Shift: as far as you can afford)', group: 'Turret' },
-  { id: 'upRange', code: 'KeyW', label: 'Upgrade range (Shift: max)', group: 'Turret' },
-  { id: 'upRate', code: 'KeyE', label: 'Upgrade rate (Shift: max)', group: 'Turret' },
-  { id: 'sell', code: 'KeyS', label: 'Sell the selected turret (70% back)', group: 'Turret' },
-  { id: 'move', code: 'KeyM', label: 'Move it ($500), then click the new spot', group: 'Turret' },
-  { id: 'target', code: 'KeyT', label: 'Cycle targeting mode', group: 'Turret' },
-  { id: 'lock', code: 'KeyL', label: 'Lock onto the current target', group: 'Turret' },
-  { id: 'focus', code: 'KeyF', label: 'Focus fire: press, then click an attacker', group: 'Turret' },
-  { id: 'cone', code: 'KeyD', label: 'Cycle the firing cone (Shift: aim it at the cursor)', group: 'Turret' },
-  { id: 'join', code: 'KeyJ', label: 'Targeter: join to a turret', group: 'Turret' },
-  { id: 'color', code: 'KeyX', label: 'Combo-only: cycle its colour', group: 'Turret' },
-  { id: 'undo', code: 'KeyU', label: 'Undo the last build or upgrade (Relaxed: undo setting)', group: 'Turret' },
-  { id: 'build', code: 'KeyB', label: 'Build the armed turret at the cursor (Enter works too)', group: 'Turret' },
-  { id: 'ranges', code: 'KeyR', label: 'Show all range rings', group: 'View' },
-  { id: 'combo', code: 'KeyC', label: 'Show combo partners of the selected turret', group: 'View' },
-  { id: 'codex', code: 'KeyK', label: 'Combo Codex: every combo and what it does', group: 'View' },
-  { id: 'info', code: 'KeyI', label: 'Collapse or expand the turret panel', group: 'View' },
-  { id: 'sendWave', code: 'Space', label: 'Send the next wave now (bonus cash)', group: 'Game' },
-  { id: 'autoSend', code: 'KeyA', label: 'Auto-send waves on/off', group: 'Game' },
-  { id: 'pause', code: 'KeyP', label: 'Pause / resume', group: 'Game' },
-  { id: 'settings', code: 'KeyG', label: 'Settings', group: 'Game' },
-  { id: 'keys', code: 'Slash', label: 'This controls overview (? also works)', group: 'Game' },
+  { id: 'upDamage', code: 'KeyQ', label: tx('Upgrade damage (Shift: as far as you can afford)'), group: 'Turret' },
+  { id: 'upRange', code: 'KeyW', label: tx('Upgrade range (Shift: max)'), group: 'Turret' },
+  { id: 'upRate', code: 'KeyE', label: tx('Upgrade rate (Shift: max)'), group: 'Turret' },
+  { id: 'sell', code: 'KeyS', label: tx('Sell the selected turret (70% back)'), group: 'Turret' },
+  { id: 'move', code: 'KeyM', label: tx('Move it ($500), then click the new spot'), group: 'Turret' },
+  { id: 'target', code: 'KeyT', label: tx('Cycle targeting mode'), group: 'Turret' },
+  { id: 'lock', code: 'KeyL', label: tx('Lock onto the current target'), group: 'Turret' },
+  { id: 'focus', code: 'KeyF', label: tx('Focus fire: press, then click an attacker'), group: 'Turret' },
+  { id: 'cone', code: 'KeyD', label: tx('Cycle the firing cone (Shift: aim it at the cursor)'), group: 'Turret' },
+  { id: 'join', code: 'KeyJ', label: tx('Targeter: join to a turret'), group: 'Turret' },
+  { id: 'color', code: 'KeyX', label: tx('Combo-only: cycle its colour'), group: 'Turret' },
+  { id: 'undo', code: 'KeyU', label: tx('Undo the last build or upgrade (Relaxed: undo setting)'), group: 'Turret' },
+  { id: 'build', code: 'KeyB', label: tx('Build the armed turret at the cursor (Enter works too)'), group: 'Turret' },
+  { id: 'ranges', code: 'KeyR', label: tx('Show all range rings'), group: 'View' },
+  { id: 'combo', code: 'KeyC', label: tx('Show combo partners of the selected turret'), group: 'View' },
+  { id: 'codex', code: 'KeyK', label: tx('Combo Codex: every combo and what it does'), group: 'View' },
+  { id: 'info', code: 'KeyI', label: tx('Collapse or expand the turret panel'), group: 'View' },
+  { id: 'sendWave', code: 'Space', label: tx('Send the next wave now (bonus cash)'), group: 'Game' },
+  { id: 'autoSend', code: 'KeyA', label: tx('Auto-send waves on/off'), group: 'Game' },
+  { id: 'pause', code: 'KeyP', label: tx('Pause / resume'), group: 'Game' },
+  { id: 'settings', code: 'KeyG', label: tx('Settings'), group: 'Game' },
+  { id: 'keys', code: 'Slash', label: tx('This controls overview (? also works)'), group: 'Game' },
 ];
 
 /** Keys that keep their fixed meaning and cannot be bound to an action. */
@@ -43,12 +44,12 @@ export const RESERVED_CODES: ReadonlySet<string> = new Set([
 
 /** Fixed (not rebindable) controls, for the overlay. */
 export const FIXED_KEYS: readonly [string, string][] = [
-  ['1 to 8, Shift+1 to 8', 'Pick a turret to build (Shift: the second row of eight)'],
-  ['Click, Shift+Click', 'Build, select or pick a target; Shift keeps building'],
-  ['Left, Right', 'Walk along the build rack'],
-  ['Esc, right click', 'Cancel, deselect, or open the game menu'],
-  ['Wheel, right drag', 'Zoom and pan (two fingers on touch)'],
-  ['Drag panel header', 'Move the turret panel; double-click puts it back'],
+  [tx('1 to 8, Shift+1 to 8'), tx('Pick a turret to build (Shift: the second row of eight)')],
+  [tx('Click, Shift+Click'), tx('Build, select or pick a target; Shift keeps building')],
+  [tx('Left, Right'), tx('Walk along the build rack')],
+  [tx('Esc, right click'), tx('Cancel, deselect, or open the game menu')],
+  [tx('Wheel, right drag'), tx('Zoom and pan (two fingers on touch)')],
+  [tx('Drag panel header'), tx('Move the turret panel; double-click puts it back')],
 ];
 
 const DEFAULT_CODE = new Map(KEY_ACTIONS.map((a) => [a.id, a.code]));
