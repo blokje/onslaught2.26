@@ -60,6 +60,25 @@ function cylinder(seg: number, top: number = 1): THREE.BufferGeometry {
   return g;
 }
 
+/** Flat outline (world units, x forward, y down) extruded to height 1 on z = 0..1. */
+function slab(pts: [number, number][]): THREE.BufferGeometry {
+  const sh = new THREE.Shape();
+  pts.forEach(([x, y], i) => { if (i === 0) sh.moveTo(x, -y); else sh.lineTo(x, -y); });
+  sh.closePath();
+  return new THREE.ExtrudeGeometry(sh, { depth: 1, bevelEnabled: false });
+}
+function mantaOutline(): [number, number][] {
+  const out: [number, number][] = [];
+  const half = (sgn: number): void => {
+    for (let i = 0; i <= 8; i++) { const k = i / 8; out.push([10 - 15.4 * k, sgn * (10 * Math.sin(k * Math.PI * 0.5) * (0.35 + 0.65 * k))]); }
+    for (let i = 1; i <= 4; i++) { const k = i / 4; out.push([-5.4 - 4 * k, sgn * 10 * (1 - k)]); }
+  };
+  half(-1);
+  const back: [number, number][] = [];
+  for (const [x, y] of out.slice(1, -1)) back.push([x, -y]);
+  return out.concat(back.reverse());
+}
+
 export interface Meshes {
   /** Turret plinths (cylinder) and bodies. */
   cyl: MeshBatch;
@@ -75,6 +94,11 @@ export interface Meshes {
   tor: MeshBatch;
   /** Transparent spheres: shields. */
   shell: MeshBatch;
+  /** Wheels: unit cylinder with its axis sideways (local y), centred. */
+  wheel: MeshBatch;
+  /** Delta-wing and manta outlines extruded to height 1 (sizes in world units at scale 1). */
+  delta: MeshBatch;
+  manta: MeshBatch;
   all: MeshBatch[];
   lights: THREE.Object3D[];
 }
@@ -83,18 +107,21 @@ export interface Meshes {
 export function buildMeshes(scene: THREE.Scene, order: number): Meshes {
   const box = new THREE.BoxGeometry(1, 1, 1); box.translate(0, 0, 0.5);
   const m: Meshes = {
-    cyl: new MeshBatch(cylinder(20, 0.86), 1200, order),
+    cyl: new MeshBatch(cylinder(20, 0.86), 3000, order),
     oct: new MeshBatch(cylinder(8), 1600, order),
-    box: new MeshBatch(box, 2000, order),
-    sph: new MeshBatch(new THREE.SphereGeometry(1, 14, 10), 3000, order),
+    box: new MeshBatch(box, 8000, order),
+    sph: new MeshBatch(new THREE.SphereGeometry(1, 14, 10), 6000, order),
     tet: new MeshBatch(new THREE.TetrahedronGeometry(1), 1600, order),
     dod: new MeshBatch(new THREE.DodecahedronGeometry(1), 200, order),
     tor: new MeshBatch(new THREE.TorusGeometry(1, 0.16, 6, 20), 1600, order),
     shell: new MeshBatch(new THREE.SphereGeometry(1, 16, 12), 1200, order + 0.05, { opacity: 0.32, emissive: 0.15 }),
+    wheel: new MeshBatch(new THREE.CylinderGeometry(1, 1, 1, 12), 6000, order),
+    delta: new MeshBatch(slab([[10.6, 0], [-6.8, -8.4], [-3.6, 0], [-6.8, 8.4]]), 800, order),
+    manta: new MeshBatch(slab(mantaOutline()), 800, order),
     all: [],
     lights: [],
   };
-  m.all = [m.cyl, m.oct, m.box, m.sph, m.tet, m.dod, m.tor, m.shell];
+  m.all = [m.cyl, m.oct, m.box, m.sph, m.tet, m.dod, m.tor, m.wheel, m.delta, m.manta, m.shell];
   for (const b of m.all) scene.add(b.mesh);
   const amb = new THREE.AmbientLight(0xffffff, 1.35);
   const sun = new THREE.DirectionalLight(0xfff2dc, 2.1);

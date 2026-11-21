@@ -9,6 +9,7 @@ three.js 0.160.0, orthographic top-down. Contract: `ARCHITECTURE.md` section 2. 
 | `Renderer.ts` | Public class: WebGL setup, batches, frame, overlay state, resize. Extras: `setViewInsets`, `getZoom`, `dispose`, `.canvas`. |
 | `camera3d.ts` | [OS3] `View3D`: perspective camera, fit, ray picking, zoom, pan, rotate (see 3D view). |
 | `meshes.ts` | [OS3] `MeshBatch` (instanced 3D shapes) and the lights of the 3D view. |
+| `vehicles3d.ts` | [OS3] The nine attacker vehicles and the enemy-kind cues in 3D (`drawVehicle`). |
 | `camera.ts` | View state and input: wheel zoom toward the cursor (0.5x to 4x), right/middle drag pan, two-finger pinch/pan, clamping. `screenToWorld` / `worldToScreen`. |
 | `terrain.ts` | Ground shader (sand noise, circuit lines, vignette), road as a signed-distance texture, dashes, base compound. |
 | `atlas.ts` | `newCanvas()` / `ctx2d()` (shared with `terrain.ts`; `ctx2d` throws if there is no 2D context). All sprites drawn procedurally with the 2D canvas into atlases (effects, 9 attackers, 16 turret bases and weapons) plus a text atlas for "+$n" and combo names. |
@@ -61,14 +62,18 @@ Setting `viewMode` ('top' | 'tilted' | '3d', default '3d') becomes the renderer 
   (`zoomAt` keeps the ground point under it), right/middle drag pans the ground, Shift or Alt + right drag rotates (x)
   and tilts (y), two fingers pinch, pan and twist. Keys `[` and `]` call `renderer.rotateView` (15 degrees). Screen shake
   moves the target (`shakeX/Y`), picking ignores it.
-- **Shapes** (`meshes.ts`): 8 `MeshBatch`es (wrapping `THREE.InstancedMesh`) of unit geometries: cylinder, octagonal
-  drum, box, sphere, tetrahedron, dodecahedron, torus and a transparent shield sphere, so the 3D view adds 8 draw calls.
+- **Shapes** (`meshes.ts`): 11 `MeshBatch`es (wrapping `THREE.InstancedMesh`) of unit geometries: cylinder, octagonal
+  drum, box, sphere, tetrahedron, dodecahedron, torus, wheel, extruded delta and manta outlines and a transparent shield
+  sphere, so the 3D view adds 11 draw calls.
   Lambert materials lit by an ambient and a directional light (from the upper left); they are `transparent` so three.js
   sorts them by `renderOrder` (6.5) between the ground layers and the projectiles. `entities.ts` draws into them when
   `R.opts.view3d`: turrets as a plinth (height `PLINTH_H` 5) with a body, a head and a barrel per kind (`BARREL`), modifier
-  dishes with a spinning ring and the icon on top, Combo-only as an orb with a ring; attackers by kind (Runner sphere,
-  Armored drum with a plate, Swarmer tetrahedron, Splitter two spheres, Regenerator with a halo, Boss dodecahedron,
-  shield shell) in the wave colour, with a small hop (none under reduce motion). Blob shadows use `tShadow` and `attSh`.
+  dishes with a spinning ring and the icon on top, Combo-only as an orb with a ring. Attackers (`vehicles3d.ts`,
+  `drawVehicle`) are the same nine vehicles as the 2D sprites (drone, buggy, saucer, crawler, beetle, delta skiff, orb
+  roller, truck, manta) in the wave colour, built from the unit shapes plus wheel, delta and manta batches; the flying
+  ones bob (not under reduce motion). The enemy kind is a shape cue on top: Armored steel flank and roof plates, Shielded
+  a transparent shell, Splitter a bright seam, Regenerator a green halo, Boss a crown of red spikes, Swarmer smaller.
+  Blob shadows use `tShadow` and `attSh`.
 - **Batches in 3D**: sprite instances got a height `z` and a local offset (`addAt`), plus per-batch `set3d(lift, bill,
   depth)`: projectiles, smoke and beams at height 11, text billboarded at 24, HP bars billboarded above each unit
   (`attTop`), modifier icons and colour badges depth-tested on top of the shapes, the upgrade ring (`tRing`) lifted onto

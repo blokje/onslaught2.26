@@ -5,6 +5,11 @@ Every task adds a line under **Unreleased**. OnSlaught2.26 keeps its own changel
 ## Unreleased
 
 ### Added
+- 3D attackers are now the same nine vehicles as in 2D (drone, buggy, saucer, crawler, beetle, delta skiff, orb roller,
+  truck, manta) instead of plain spheres, with the enemy kind as a shape on top (armour plates, shield shell, splitter
+  seam, regenerator halo, boss spikes). New `src/render/vehicles3d.ts` and wheel, delta and manta batches (11 draw calls
+  for all 3D shapes). Checked in Chromium with a lineup of every type and kind in the 3D render demo, no console errors.
+  Docs: `docs/claude/rendering.md`.
 - 3D view, on by default (setting `viewMode`, Settings > View, key V cycles 3D, top-down and tilted): a perspective
   camera orbiting the field (`src/render/camera3d.ts`) with exact ground-plane picking, zoom to the cursor, pan, rotate
   and tilt (Shift + right drag, `[` and `]`, two-finger twist), and on portrait phones the field turned a quarter so it

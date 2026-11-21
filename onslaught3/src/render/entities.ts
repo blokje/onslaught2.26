@@ -7,6 +7,7 @@ import { clamp, hex, hash2, TAU } from './util.ts';
 import type { RGB } from './util.ts';
 import type { TurretState } from '../types.ts';
 import { ENEMIES } from '../data/enemies.ts';
+import { drawVehicle } from './vehicles3d.ts';
 import type { Res, Frame } from './context.ts';
 
 const rgbCache = new Map<string, RGB>();
@@ -216,26 +217,13 @@ export function drawAttackers(R: Res, f: Frame): void {
     // 2D: offsets in world y; 3D: billboarded above the body (bx, by, bz are the bar centre, oy shifts it up the screen)
     let bx = x, by = y - 13.2 * (0.4 + 0.6 * scale) * ks, bz = 0;
     if (m3) {
-      const col = rgb(ATTACKER_COLORS[type]);
-      const cr = col[0] * r, cg = col[1] * g, cb = col[2] * bl;
       const rad = 7 * scale * ks;
-      const hop = calm || a.blackholed ? 0 : Math.abs(Math.sin(f.t * 9 + a.id * 1.3)) * 1.6;
-      b.attSh.add(x + 3, y + 3, 0, rad * 3, rad * 2.6, c.fx.glow, 0, 0, 0, 0.45);
-      const z = rad + hop;
-      switch (a.kind) {
-        case 'armored': m3.oct.add(x, y, hop, rot, rad * 1.15, rad * 1.15, rad * 1.4, cr * 0.6 + 0.2, cg * 0.6 + 0.2, cb * 0.6 + 0.22); m3.box.add(x, y, hop + rad * 1.4, rot, rad * 1.2, rad * 0.9, rad * 0.35, cr, cg, cb); break;
-        case 'swarm': m3.tet.add(x, y, z, rot + f.t * (calm ? 0 : 3), rad * 1.2, rad * 1.2, rad * 1.2, cr, cg, cb); break;
-        case 'splitter': {
-          const px = -Math.sin(rot) * rad * 0.55, py = Math.cos(rot) * rad * 0.55;
-          m3.sph.add(x + px, y + py, z, rot, rad * 0.75, rad * 0.75, rad * 0.75, cr, cg, cb);
-          m3.sph.add(x - px, y - py, z, rot, rad * 0.75, rad * 0.75, rad * 0.75, cr * 0.8 + 0.2, cg * 0.8 + 0.15, cb * 0.8);
-          break; }
-        case 'boss': m3.dod.add(x, y, z, rot, rad, rad, rad, cr * 0.6 + 0.4, cg * 0.5, cb * 0.5); break;
-        default: m3.sph.add(x, y, z, rot, rad * 1.2, rad, rad, cr, cg, cb);
-      }
-      if (a.kind === 'regen') m3.tor.add(x, y, z, f.t * (calm ? 0 : 1.5), rad * 1.4, rad * 1.4, rad * 1.2, 0.35, 1, 0.5);
-      if (a.shield && a.shield > 0) m3.shell.add(x, y, z, 0, rad * 1.6, rad * 1.6, rad * 1.6, 0.35, 0.85, 1);
-      bx = x; by = y; bz = z + rad + 7 + (a.kind === 'armored' ? rad * 0.4 : 0);
+      b.attSh.add(x + 3, y + 3, 0, rad * 3.2, rad * 2.6, c.fx.glow, 0, 0, 0, 0.45);
+      const top = drawVehicle(m3, {
+        type, kind: a.kind, x, y, rot, s: 0.95 * scale * ks, lift: 0, col: rgb(ATTACKER_COLORS[type]), tint: [r, g, bl],
+        t: f.t, calm: calm || !!a.blackholed, shield: !!(a.shield && a.shield > 0), id: a.id,
+      });
+      bx = x; by = y; bz = top + 5;
     } else {
       b.att.add(x, y, rot, s, s, cell, r, g, bl, 1);
     }
