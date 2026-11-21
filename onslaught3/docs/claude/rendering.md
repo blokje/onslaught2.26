@@ -7,6 +7,8 @@ three.js 0.160.0, orthographic top-down. Contract: `ARCHITECTURE.md` section 2. 
 | File | Role |
 |---|---|
 | `Renderer.ts` | Public class: WebGL setup, batches, frame, overlay state, resize. Extras: `setViewInsets`, `getZoom`, `dispose`, `.canvas`. |
+| `camera3d.ts` | [OS3] `View3D`: perspective camera, fit, ray picking, zoom, pan, rotate (see 3D view). |
+| `meshes.ts` | [OS3] `MeshBatch` (instanced 3D shapes) and the lights of the 3D view. |
 | `camera.ts` | View state and input: wheel zoom toward the cursor (0.5x to 4x), right/middle drag pan, two-finger pinch/pan, clamping. `screenToWorld` / `worldToScreen`. |
 | `terrain.ts` | Ground shader (sand noise, circuit lines, vignette), road as a signed-distance texture, dashes, base compound. |
 | `atlas.ts` | `newCanvas()` / `ctx2d()` (shared with `terrain.ts`; `ctx2d` throws if there is no 2D context). All sprites drawn procedurally with the 2D canvas into atlases (effects, 9 attackers, 16 turret bases and weapons) plus a text atlas for "+$n" and combo names. |
@@ -41,8 +43,37 @@ with `ys = TILT_Y` (0.78, about 39 degrees). Every y conversion uses `scaleY` (`
 clamp, zoom at the cursor, pan, pinch) and `render()` sets the frustum half-height to `H / 2 / scaleY`. No raycasting,
 so clicks stay exact; the Playwright check builds at a point, zooms at it and pans, and the turret stays under the
 click. Turrets get a soft drop shadow in the new `tShadow` batch (order 3.4, under the turret bases). Turrets and rings
-show as ellipses, which is what a tilted flat field looks like. A real perspective camera was not used: it would make
-picking, pan clamping and the screen-constant line widths much harder for little gain.
+show as ellipses, which is what a tilted flat field looks like. OnSlaught 3 also has a real perspective view, see 3D view below.
+
+## 3D view [OS3] (default)
+
+Setting `viewMode` ('top' | 'tilted' | '3d', default '3d') becomes the renderer options `tilted` and `view3d`
+(`App.applyLook`). `Renderer._applyView` switches between the views at run time; the 2D path is unchanged.
+
+- **Camera** (`camera3d.ts`, `View3D`): a `PerspectiveCamera` (fov 38) orbiting a ground target `(tx, ty)` with `yaw`,
+  `pitch` (default 0.96 rad, about 55 degrees, range 0.6 to 1.35) and `dist = fitDist / zoom`. Three.js space is
+  `(x, -y, z)` with z up, like the batches. `setViewOffset` puts the target at the centre of the free area (HUD insets).
+  `fit()` binary-searches the distance at which the four field corners fit the free area, using `defaultYaw()`: a
+  quarter turn when the free area is portrait (phones), else 0. `screenToWorld` casts a ray onto z = 0 (exact; sim-test
+  checks the round trip at several yaw/pitch/zoom values), `worldToScreen` projects. No DOM: the canvas rectangle comes
+  from a callback, so it runs in Node.
+- **Input** (`CameraController` in `camera.ts` delegates to `v3` while it is set): wheel zooms toward the cursor
+  (`zoomAt` keeps the ground point under it), right/middle drag pans the ground, Shift or Alt + right drag rotates (x)
+  and tilts (y), two fingers pinch, pan and twist. Keys `[` and `]` call `renderer.rotateView` (15 degrees). Screen shake
+  moves the target (`shakeX/Y`), picking ignores it.
+- **Shapes** (`meshes.ts`): 8 `MeshBatch`es (wrapping `THREE.InstancedMesh`) of unit geometries: cylinder, octagonal
+  drum, box, sphere, tetrahedron, dodecahedron, torus and a transparent shield sphere, so the 3D view adds 8 draw calls.
+  Lambert materials lit by an ambient and a directional light (from the upper left); they are `transparent` so three.js
+  sorts them by `renderOrder` (6.5) between the ground layers and the projectiles. `entities.ts` draws into them when
+  `R.opts.view3d`: turrets as a plinth (height `PLINTH_H` 5) with a body, a head and a barrel per kind (`BARREL`), modifier
+  dishes with a spinning ring and the icon on top, Combo-only as an orb with a ring; attackers by kind (Runner sphere,
+  Armored drum with a plate, Swarmer tetrahedron, Splitter two spheres, Regenerator with a halo, Boss dodecahedron,
+  shield shell) in the wave colour, with a small hop (none under reduce motion). Blob shadows use `tShadow` and `attSh`.
+- **Batches in 3D**: sprite instances got a height `z` and a local offset (`addAt`), plus per-batch `set3d(lift, bill,
+  depth)`: projectiles, smoke and beams at height 11, text billboarded at 24, HP bars billboarded above each unit
+  (`attTop`), modifier icons and colour badges depth-tested on top of the shapes, the upgrade ring (`tRing`) lifted onto
+  the plinth. Rings got `set3d(lift, depth)`. Line widths use `View3D.wpp()` (world units per pixel at the target).
+- Not done: shadow maps, a 3D ghost (the build preview stays a flat image on the ground) and 3D projectiles.
 
 ## Screen shake and kill impact (game feel)
 

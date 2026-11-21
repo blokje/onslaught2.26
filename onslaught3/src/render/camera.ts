@@ -9,8 +9,9 @@
 import { FIELD } from '../data/rules.ts';
 import { clamp } from './util.ts';
 import type { ViewInsets } from '../types.ts';
+import { View3D } from './camera3d.ts';
 
-interface Pair { mx: number; my: number; dist: number }
+interface Pair { mx: number; my: number; dist: number; ang: number }
 type Handlers = Record<string, EventListener>;
 
 export const ZOOM_MIN = 0.5, ZOOM_MAX = 4;
@@ -28,7 +29,9 @@ export class CameraController {
   fitScale: number;
   touches: Map<number, { x: number; y: number }>;
   gesture: Pair | null;
-  pan: { id: number; x: number; y: number } | null;
+  pan: { id: number; x: number; y: number; rot?: boolean } | null;
+  /** [OS3] 3D view camera; while set, every conversion and input goes through it. */
+  v3: View3D | null = null;
   _h!: Handlers; // set in _bind()
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -53,16 +56,27 @@ export class CameraController {
   /** Vertical squash: 1 top-down, TILT_Y in the tilted view. */
   ys = 1;
   setTilt(on: boolean): void { this.ys = on ? TILT_Y : 1; this._fit(); this._clamp(); }
+  /** [OS3] Switch the 3D view on or off (a fresh 3D camera starts fitted). */
+  set3d(on: boolean): void {
+    if (on && !this.v3) {
+      const v = new View3D(() => { const r = this.canvas.getBoundingClientRect(); return { left: r.left, top: r.top }; });
+      Object.assign(v.insets, this.insets); v.setSize(this.W, this.H); v.reset();
+      this.v3 = v; this.zoom = 1;
+    } else if (!on && this.v3) { this.v3 = null; this.reset(); }
+  }
+  /** [OS3] Rotate the 3D view (radians); no-op in 2D. */
+  rotate(dYaw: number, dPitch: number = 0): void { if (this.v3) this.v3.rotate(dYaw, dPitch); }
 
   /** Free-area centre offset (px) from the canvas centre, caused by UI insets. */
   _offset(): { x: number; y: number } { return { x: (this.insets.left - this.insets.right) / 2, y: (this.insets.top - this.insets.bottom) / 2 }; }
 
   setSize(w: number, h: number): void {
     this.W = Math.max(1, w); this.H = Math.max(1, h);
+    if (this.v3) this.v3.setSize(this.W, this.H);
     this._fit();
     this._clamp();
   }
-  setInsets(i: Partial<ViewInsets>): void { Object.assign(this.insets, i); this._fit(); this._clamp(); }
+  setInsets(i: Partial<ViewInsets>): void { Object.assign(this.insets, i); if (this.v3) this.v3.setInsets(i); this._fit(); this._clamp(); }
 
   _fit(): void {
     const m = Math.max(10, Math.min(this.W, this.H) * 0.03);
@@ -71,7 +85,7 @@ export class CameraController {
     this.fitScale = Math.min(aw / FIELD.width, ah / (FIELD.height * this.ys));
   }
 
-  reset(): void { this.zoom = 1; this.cx = FIELD.width / 2; this.cy = FIELD.height / 2; this._clamp(); }
+  reset(): void { if (this.v3) this.v3.reset(); this.zoom = 1; this.cx = FIELD.width / 2; this.cy = FIELD.height / 2; this._clamp(); }
 
   /** Keep at least `keep` pixels of the field visible on each axis. */
   _clamp(): void {
@@ -92,16 +106,24 @@ export class CameraController {
   center(): { x: number; y: number } { const off = this._offset(); return { x: this.cx - off.x / this.scale, y: this.cy - off.y / this.scaleY }; }
 
   screenToWorld(clientX: number, clientY: number): { x: number; y: number } {
+    if (this.v3) return this.v3.screenToWorld(clientX, clientY);
     const r = this.canvas.getBoundingClientRect(), c = this.center(), s = this.scale;
     return { x: c.x + (clientX - r.left - this.W / 2) / s, y: c.y + (clientY - r.top - this.H / 2) / this.scaleY };
   }
   worldToScreen(x: number, y: number): { x: number; y: number } {
+    if (this.v3) return this.v3.worldToScreen(x, y);
     const r = this.canvas.getBoundingClientRect(), c = this.center(), s = this.scale;
     return { x: r.left + this.W / 2 + (x - c.x) * s, y: r.top + this.H / 2 + (y - c.y) * this.scaleY };
   }
 
   /** Zoom to `newZoom` keeping the world point under client (px, py) fixed. */
   zoomAt(newZoom: number, clientX: number, clientY: number): void {
+    if (this.v3) {
+      const r = this.canvas.getBoundingClientRect();
+      this.v3.zoomAt(newZoom, clientX - r.left, clientY - r.top, ZOOM_MIN, ZOOM_MAX);
+      this.zoom = this.v3.zoom;
+      return;
+    }
     const before = this.screenToWorld(clientX, clientY);
     this.zoom = clamp(newZoom, ZOOM_MIN, ZOOM_MAX);
     const r = this.canvas.getBoundingClientRect(), s = this.scale, sy = this.scaleY, off = this._offset();
@@ -110,7 +132,7 @@ export class CameraController {
     this.cy = before.y - (clientY - r.top - this.H / 2) / sy + off.y / sy;
     this._clamp();
   }
-  panBy(dxPx: number, dyPx: number): void { this.cx -= dxPx / this.scale; this.cy -= dyPx / this.scaleY; this._clamp(); }
+  panBy(dxPx: number, dyPx: number): void { if (this.v3) { this.v3.panBy(dxPx, dyPx); return; } this.cx -= dxPx / this.scale; this.cy -= dyPx / this.scaleY; this._clamp(); }
 
   // ------------------------------------------------------------ events
   _bind(): void {
@@ -156,7 +178,7 @@ export class CameraController {
       return; // never consume
     }
     if (e.button === 1 || e.button === 2) {
-      this.pan = { id: e.pointerId, x: e.clientX, y: e.clientY };
+      this.pan = { id: e.pointerId, x: e.clientX, y: e.clientY, rot: !!this.v3 && (e.shiftKey || e.altKey) }; // [OS3] Shift/Alt + drag rotates the 3D view
       try { this.canvas.setPointerCapture(e.pointerId); } catch (_) { /* ignore */ }
       e.preventDefault();
     }
@@ -172,7 +194,8 @@ export class CameraController {
     }
     if (this.pan && this.pan.id === e.pointerId) {
       if ((e.buttons & 6) === 0) { this.pan = null; return; } // button released outside
-      this.panBy(e.clientX - this.pan.x, e.clientY - this.pan.y);
+      if (this.pan.rot) this.rotate((e.clientX - this.pan.x) * 0.008, (e.clientY - this.pan.y) * 0.005);
+      else this.panBy(e.clientX - this.pan.x, e.clientY - this.pan.y);
       this.pan.x = e.clientX; this.pan.y = e.clientY;
     }
   }
@@ -193,12 +216,22 @@ export class CameraController {
   _pair(): Pair {
     const it = this.touches.values();
     const a = it.next().value!, b = it.next().value!; // callers guarantee two touches
-    return { mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2, dist: Math.max(8, Math.hypot(a.x - b.x, a.y - b.y)) };
+    return { mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2, dist: Math.max(8, Math.hypot(a.x - b.x, a.y - b.y)), ang: Math.atan2(b.y - a.y, b.x - a.x) };
   }
   _startGesture(): void { this.gesture = this._pair(); }
   _updateGesture(): void {
     const g = this.gesture, n = this._pair();
     if (!g) return;
+    if (this.v3) { // [OS3] pinch zoom, two-finger pan and twist to rotate, around the fingers' midpoint
+      const r = this.canvas.getBoundingClientRect(), v = this.v3;
+      const w = v._pick(g.mx - r.left, g.my - r.top);
+      let da = n.ang - g.ang; da = Math.atan2(Math.sin(da), Math.cos(da));
+      v.zoom = clamp(v.zoom * n.dist / g.dist, ZOOM_MIN, ZOOM_MAX); this.zoom = v.zoom;
+      v.yaw -= da;
+      v.keepUnder(w, n.mx - r.left, n.my - r.top);
+      this.gesture = n;
+      return;
+    }
     // zoom about the previous midpoint, then translate so the same world point follows the new midpoint
     const worldAtPrev = this.screenToWorld(g.mx, g.my);
     this.zoom = clamp(this.zoom * n.dist / g.dist, ZOOM_MIN, ZOOM_MAX);

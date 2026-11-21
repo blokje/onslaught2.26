@@ -55,6 +55,8 @@ export interface AppRenderer {
   render(realDtMs?: number): void;
   /** Optional: presentation options (the mock renderer has none). */
   setOptions?(o: Partial<RenderOptions>): void;
+  /** [OS3] Optional: rotate the 3D view (radians). */
+  rotateView?(dYaw: number): void;
 }
 
 /** A replay being shown: the live game plus its progress and end check. */

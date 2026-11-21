@@ -7,6 +7,10 @@ import { cleanEarned } from './achievements.ts';
 import { COMBOS } from '../data/combos.ts';
 
 const COMBO_IDS: ReadonlySet<string> = new Set(Object.values(COMBOS).flat().map((r) => r.id));
+
+/** [OS3] Field views (setting `viewMode`). */
+export type ViewMode = 'top' | 'tilted' | '3d';
+export const VIEW_MODES: readonly ViewMode[] = ['top', 'tilted', '3d'];
 import type { KeyAction } from './keymap.ts';
 
 const PREFIX = 'os3.';
@@ -34,6 +38,8 @@ export interface Settings {
   reduceMotion: boolean;
   screenShake: boolean;
   tiltedView: boolean;
+  /** [OS3] Field view: top-down, tilted (2D squash) or 3D (perspective camera). Replaces tiltedView, which stays for old saves. */
+  viewMode: ViewMode;
   sfxVolume: number;
   tutorialDone: boolean;
   /** [OS3] mutators picked last time (cleaned on use). */
@@ -109,6 +115,7 @@ export const DEFAULT_SETTINGS: Settings = {
   musicVolume: 0.6,     // music bus (src/ui/music.ts); 0 stops the music
   screenShake: true,    // shake the view on big blasts (never with reduce motion)
   tiltedView: false,    // game feel: the field seen at an angle with turret shadows (renderer option `tilted`)
+  viewMode: '3d',       // [OS3] 'top' | 'tilted' | '3d' (renderer options `tilted` / `view3d`)
   reduceMotion: false,  // accessibility: calm UI and map; when never saved, getSettings() follows prefers-reduced-motion
   infoCollapsed: false,
   panelPos: null,       // turret panel { x, y } in px from the HUD's top-left, null = default dock
@@ -148,6 +155,9 @@ export function getSettings(): Settings {
   out.uiScale = clampScale(out.uiScale);
   for (const k of ['sfxVolume', 'uiVolume', 'musicVolume'] as const) out[k] = Math.max(0, Math.min(1, out[k] as number));
   if (typeof src.reduceMotion !== 'boolean') out.reduceMotion = prefersReducedMotion(); // first start: follow the OS
+  // [OS3] view mode: known values only; settings from before it existed keep a chosen tilted view
+  if (!VIEW_MODES.includes(out.viewMode as ViewMode)) out.viewMode = '3d';
+  if (typeof src.viewMode !== 'string' && src.tiltedView === true) out.viewMode = 'tilted';
   return out as unknown as Settings; // every key was checked against the type of its default
 }
 

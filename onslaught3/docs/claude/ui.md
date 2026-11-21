@@ -64,7 +64,9 @@ per wave and explains each special kind (`ENEMY_TEXT` in `src/ui/enemies.ts`, tr
   0.25, arpeggio from 0.45, hats from 0.65; tempo 96 to 132 bpm. A 4-bar A minor loop (Am F C G).
 - Transitions: the menu and the HUD fade in, dialogs fade and pop in (`os-in`, `os-pop` in `ui.css`); none under `.os-rm`.
   No closing animation, so `close()` stays instant and focus handling is unchanged.
-- Tilted view (`tiltedView`, default off), sent as the renderer option `tilted`.
+- [OS3] Field view (`viewMode`, default '3d'): first item in Settings under a View heading (a select: 3D, Top-down,
+  Tilted view), V cycles it in the game with a toast (`App.cycleView`, names in `src/ui/view.ts`), `[` and `]` rotate the
+  3D view. Sent as the renderer options `view3d` / `tilted`. The old `tiltedView` checkbox is gone; the setting migrates.
 - Screen shake (`screenShake`, default on), sent with `renderer.setOptions`; reduce motion always wins.
 - Reduce motion and flashes (`reduceMotion`): on the first start (no stored value) `getSettings()` follows
   `prefers-reduced-motion`. `App.applyLook()` toggles `os-rm` on `.os-root` and calls `renderer.setOptions` (optional on

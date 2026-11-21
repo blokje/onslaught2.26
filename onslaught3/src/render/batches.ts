@@ -6,7 +6,7 @@
 
 import * as THREE from 'three';
 
-const SPRITE_STRIDE = 13; // x y rot | sx sy | u0 v0 u1 v1 | r g b a
+const SPRITE_STRIDE = 16; // x y z rot | sx sy ox oy | u0 v0 u1 v1 | r g b a (z, ox, oy: [OS3] 3D view, 0 in 2D)
 const RING_STRIDE = 15;   // x y R | width fill soft dash | start sweep ticks clip | r g b a
 
 /** Texture rectangle of one sprite (texture coords; v0 = top row of the canvas). */
@@ -32,15 +32,25 @@ function makeGeometry(stride: number, capacity: number, attrs: [string, number][
 }
 
 const SPRITE_VERT = /* glsl */ `
-attribute vec3 aPR; attribute vec2 aSize; attribute vec4 aUV; attribute vec4 aCol;
+attribute vec4 aPR; attribute vec4 aSize; attribute vec4 aUV; attribute vec4 aCol;
+uniform float uLift; uniform float uBill;
 varying vec2 vUv; varying vec4 vCol;
 void main() {
-  vec2 l = position.xy * aSize;                       // local y is DOWN (world convention)
-  float c = cos(aPR.z), s = sin(aPR.z);
-  vec2 w = aPR.xy + vec2(c * l.x - s * l.y, s * l.x + c * l.y);
+  vec2 l = position.xy * aSize.xy;                    // local y is DOWN (world convention)
+  float c = cos(aPR.w), s = sin(aPR.w);
+  vec2 q = vec2(c * l.x - s * l.y, s * l.x + c * l.y) + aSize.zw;
+  vec3 p;
+  if (uBill > 0.5) {
+    // [OS3] billboard: the quad faces the camera; q is in screen-aligned units (x right, y down)
+    vec3 right = vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]);
+    vec3 up = vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]);
+    p = vec3(aPR.x, -aPR.y, aPR.z + uLift) + right * q.x - up * q.y;
+  } else {
+    p = vec3(aPR.x + q.x, -(aPR.y + q.y), aPR.z + uLift);
+  }
   vUv = vec2(aUV.x + (position.x + 0.5) * (aUV.z - aUV.x), aUV.y + (position.y + 0.5) * (aUV.w - aUV.y));
   vCol = aCol;
-  gl_Position = projectionMatrix * viewMatrix * vec4(w.x, -w.y, 0.0, 1.0);
+  gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
 }`;
 
 const SPRITE_FRAG = /* glsl */ `
@@ -53,13 +63,13 @@ void main() {
 
 const RING_VERT = /* glsl */ `
 attribute vec3 aPR; attribute vec4 aW; attribute vec4 aArc; attribute vec4 aCol;
-uniform float uWpp;
+uniform float uWpp; uniform float uLift;
 varying vec2 vLocal; varying vec3 vPR; varying vec4 vW; varying vec4 vArc; varying vec4 vCol;
 void main() {
   float h = aPR.z + aW.x * 0.5 + uWpp * 2.0;
   vec2 l = position.xy * 2.0 * h;
   vLocal = l; vPR = aPR; vW = aW; vArc = aArc; vCol = aCol;
-  gl_Position = projectionMatrix * viewMatrix * vec4(aPR.x + l.x, -(aPR.y + l.y), 0.0, 1.0);
+  gl_Position = projectionMatrix * viewMatrix * vec4(aPR.x + l.x, -(aPR.y + l.y), uLift, 1.0);
 }`;
 
 const RING_FRAG = /* glsl */ `
@@ -117,23 +127,35 @@ export class SpriteBatch {
   constructor(texture: THREE.Texture, capacity: number, { additive = false, order = 0 }: BatchOptions = {}) {
     this.capacity = capacity;
     this.count = 0;
-    const { geometry, data, buf } = makeGeometry(SPRITE_STRIDE, capacity, [['aPR', 3], ['aSize', 2], ['aUV', 4], ['aCol', 4]]);
+    const { geometry, data, buf } = makeGeometry(SPRITE_STRIDE, capacity, [['aPR', 4], ['aSize', 4], ['aUV', 4], ['aCol', 4]]);
     this.geometry = geometry; this.data = data; this.buf = buf;
     this.material = new THREE.ShaderMaterial(baseMaterial(additive, {
-      uniforms: { map: { value: texture } }, vertexShader: SPRITE_VERT, fragmentShader: SPRITE_FRAG,
+      uniforms: { map: { value: texture }, uLift: { value: 0 }, uBill: { value: 0 } }, vertexShader: SPRITE_VERT, fragmentShader: SPRITE_FRAG,
     }));
+    this.baseOrder = order;
     this.mesh = new THREE.Mesh(geometry, this.material);
     this.mesh.frustumCulled = false;
     this.mesh.renderOrder = order;
     this.mesh.visible = false;
   }
+  /** Draw order in the 2D view (the 3D view may move a batch, see Renderer._applyView). */
+  baseOrder: number;
   setTexture(t: THREE.Texture): void { this.material.uniforms.map.value = t; }
+  /** [OS3] 3D view: height added to every instance, billboard mode (quads face the camera) and depth testing. */
+  set3d(lift: number, bill: boolean, depth: boolean = false): void {
+    this.material.uniforms.uLift.value = lift; this.material.uniforms.uBill.value = bill ? 1 : 0;
+    this.material.depthTest = depth;
+  }
   begin(): void { this.count = 0; }
   add(x: number, y: number, rot: number, sx: number, sy: number, cell: Cell, r: number, g: number, b: number, a: number): void {
+    this.addAt(x, y, 0, 0, 0, rot, sx, sy, cell, r, g, b, a);
+  }
+  /** [OS3] Like add, with a height z and a local offset (ox, oy) applied after rotation (screen-aligned when billboarded). */
+  addAt(x: number, y: number, z: number, ox: number, oy: number, rot: number, sx: number, sy: number, cell: Cell, r: number, g: number, b: number, a: number): void {
     if (this.count >= this.capacity) return;
     const d = this.data;
     let o = this.count++ * SPRITE_STRIDE;
-    d[o++] = x; d[o++] = y; d[o++] = rot; d[o++] = sx; d[o++] = sy;
+    d[o++] = x; d[o++] = y; d[o++] = z; d[o++] = rot; d[o++] = sx; d[o++] = sy; d[o++] = ox; d[o++] = oy;
     d[o++] = cell.u0; d[o++] = cell.v0; d[o++] = cell.u1; d[o++] = cell.v1;
     d[o++] = r; d[o++] = g; d[o++] = b; d[o] = a;
   }
@@ -157,7 +179,8 @@ export class RingBatch {
   geometry: THREE.InstancedBufferGeometry;
   data: Float32Array;
   buf: THREE.InstancedInterleavedBuffer;
-  uniforms: { uWpp: { value: number }; uTime: { value: number } };
+  uniforms: { uWpp: { value: number }; uTime: { value: number }; uLift: { value: number } };
+  baseOrder: number;
   material: THREE.ShaderMaterial;
   mesh: THREE.Mesh;
   constructor(capacity: number, { additive = false, order = 0 }: BatchOptions = {}) {
@@ -165,7 +188,8 @@ export class RingBatch {
     this.count = 0;
     const { geometry, data, buf } = makeGeometry(RING_STRIDE, capacity, [['aPR', 3], ['aW', 4], ['aArc', 4], ['aCol', 4]]);
     this.geometry = geometry; this.data = data; this.buf = buf;
-    this.uniforms = { uWpp: { value: 1 }, uTime: { value: 0 } };
+    this.uniforms = { uWpp: { value: 1 }, uTime: { value: 0 }, uLift: { value: 0 } };
+    this.baseOrder = order;
     this.material = new THREE.ShaderMaterial(baseMaterial(additive, {
       uniforms: this.uniforms, vertexShader: RING_VERT, fragmentShader: RING_FRAG,
     }));
@@ -174,6 +198,8 @@ export class RingBatch {
     this.mesh.renderOrder = order;
     this.mesh.visible = false;
   }
+  /** [OS3] 3D view: height of the ring plane and depth testing. */
+  set3d(lift: number, depth: boolean = false): void { this.uniforms.uLift.value = lift; this.material.depthTest = depth; }
   begin(wpp: number, t: number): void { this.count = 0; this.uniforms.uWpp.value = wpp; this.uniforms.uTime.value = t; }
   /** width: stroke width (world units). fill: 0..1 disc fill alpha. soft: 0..1 edge softness. dash: dash count (0 = solid). */
   add(x: number, y: number, R: number, width: number, fill: number, soft: number, dash: number, r: number, g: number, b: number, a: number): void {

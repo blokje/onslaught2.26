@@ -308,6 +308,8 @@ export interface RenderOptions {
   screenShake?: boolean;
   /** Tilted view: the field drawn as if seen at an angle (vertical squash) with turret drop shadows. */
   tilted?: boolean;
+  /** [OS3] 3D view: perspective camera orbiting the field, turrets and attackers as 3D shapes. Wins over `tilted`. */
+  view3d?: boolean;
 }
 
 export interface ViewInsets { top: number; right: number; bottom: number; left: number }

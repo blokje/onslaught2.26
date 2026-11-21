@@ -2,7 +2,8 @@
 
 The free successor of [OnSlaught2.26](../README.md): the same engine and all its 2026 improvements (tutorial, Codex,
 replays, daily challenge, achievements, accessibility, languages, phones, gamepad, PWA), but without the rule that
-the original game's numbers are frozen. Here the game can grow: new enemies, mutators, new balance.
+the original game's numbers are frozen. Here the game can grow: new enemies, mutators, new balance, and a real 3D view
+(on by default; V switches to top-down or tilted, Shift + right drag or [ and ] rotates).
 
 It lives in `onslaught3/` next to OnSlaught2.26 and shares the repository's `node_modules`. From the repository root:
 

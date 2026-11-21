@@ -245,6 +245,8 @@ arrows, Esc and Enter are fixed. Keys are physical positions (QWERTY names).
 | A | auto-send on/off: send the next wave as soon as the field is clear [NEW] |
 | P | pause |
 | I | info panel |
+| V | [OS3] switch the field view: 3D, top-down, tilted (saved) |
+| [ / ] | [OS3] rotate the 3D view 15 degrees left / right; Shift + right drag rotates and tilts |
 | Drag panel header | move the info panel, double-click to dock it again [CHOICE] |
 | G | settings |
 | Esc | cancel build/move/join/focus mode, else clear focus fire, else deselect, else open the game menu (auto-repeat ignored) |

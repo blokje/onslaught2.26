@@ -19,6 +19,7 @@ import { makeReplay, runReplay, validateReplay, replayMatches, startPlayback } f
 import { GamepadReader, PAD_BUTTONS } from '../src/ui/gamepad.ts';
 import { t, setLang, detectLang, DICT } from '../src/ui/i18n.ts';
 import { TURRETS } from '../src/data/turrets.ts';
+import { View3D } from '../src/render/camera3d.ts';
 import { encodeReplay, decodeReplay } from '../src/ui/replayCode.ts';
 import { COMBOS } from '../src/data/combos.ts';
 import { formatNum } from '../src/ui/format.ts';
@@ -923,6 +924,33 @@ function makePlayer(game: Game, spots: Spot[]): () => void {
   const bad = JSON.parse(JSON.stringify(m.serialize())); if (bad.attackers[0]) bad.attackers[0].kind = 'dragon'; if (bad.spawners[0]) bad.spawners[0].kinds = ['dragon'];
   let loaded = false; try { const b2 = Game.deserialize(bad); b2.advance(60); loaded = true; } catch (e) { loaded = false; }
   check('(os3) an unknown enemy kind in a save is ignored, not a crash', loaded);
+}
+
+// ------------------------------------------------------------------ (os3) 3D view camera and view setting
+{
+  const v = new View3D(() => ({ left: 10, top: 20 }));
+  v.setInsets({ top: 60, bottom: 100, left: 0, right: 0 }); v.setSize(1400, 860); v.reset();
+  let worst = 0, inView = true;
+  for (const [yaw, pitch, zoom] of [[0, 0.96, 1], [0.7, 0.8, 2.2], [-2.4, 1.3, 0.6], [3.1, 0.62, 3.5]]) {
+    v.yaw = yaw; v.pitch = pitch; v.zoom = zoom; v.update();
+    for (const [x, y] of [[360, 225], [100, 80], [650, 400], [300, 30]]) {
+      const sp = v.worldToScreen(x, y), w = v.screenToWorld(sp.x, sp.y);
+      if (sp.x > -1e4) worst = Math.max(worst, Math.hypot(w.x - x, w.y - y));
+    }
+  }
+  v.reset();
+  for (const [x, y] of [[0, 0], [720, 0], [0, 450], [720, 450]]) {
+    const sp = v.worldToScreen(x, y);
+    if (sp.x < 10 || sp.x > 1410 || sp.y < 20 + 60 || sp.y > 20 + 860 - 100) inView = false;
+  }
+  check('(os3) 3D camera: screenToWorld(worldToScreen(p)) = p at any yaw, pitch and zoom', worst < 0.01, worst.toExponential(2));
+  check('(os3) 3D camera: the fitted view shows the whole field inside the free area', inView);
+  const before = v.screenToWorld(10 + 300, 20 + 500);
+  v.zoomAt(2.5, 300, 500, 0.5, 4);
+  const after = v.screenToWorld(10 + 300, 20 + 500);
+  check('(os3) 3D camera: zooming keeps the point under the cursor', v.zoom === 2.5 && Math.hypot(after.x - before.x, after.y - before.y) < 0.01, `${before.x},${before.y} -> ${after.x},${after.y}`);
+  const sGet = (raw: unknown) => { const mem = new Map<string, string>([['os3.settings', JSON.stringify(raw)]]); const old = (globalThis as Record<string, unknown>).localStorage; (globalThis as Record<string, unknown>).localStorage = { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, val: string) => { mem.set(k, val); }, removeItem: (k: string) => { mem.delete(k); } }; try { return getSettings().viewMode; } finally { (globalThis as Record<string, unknown>).localStorage = old; } };
+  check('(os3) view setting: 3D by default, an old tilted view stays tilted, junk falls back to 3D', sGet({}) === '3d' && sGet({ tiltedView: true }) === 'tilted' && sGet({ viewMode: 'top' }) === 'top' && sGet({ viewMode: 'x' }) === '3d', `${sGet({})} ${sGet({ tiltedView: true })}`);
 }
 
 // ------------------------------------------------------------------ (os3) mutators

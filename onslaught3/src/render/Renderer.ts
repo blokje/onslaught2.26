@@ -15,7 +15,9 @@ import { buildFxAtlas, buildUnitAtlas, buildTurretAtlases, TextAtlas, cellUV, mo
 import { Terrain } from './terrain.ts';
 import { CameraController } from './camera.ts';
 import { Particles } from './particles.ts';
-import { drawTurrets, drawAttackers, drawProjectiles } from './entities.ts';
+import { drawTurrets, drawAttackers, drawProjectiles, PLINTH_H } from './entities.ts';
+import { buildMeshes, meshesVisible } from './meshes.ts';
+import type { Meshes } from './meshes.ts';
 import { drawBeams, drawEffects, drawOverlay } from './fxlayer.ts';
 import { clamp } from './util.ts';
 import type { Overlay, ViewInsets, RenderOptions } from '../types.ts';
@@ -45,6 +47,8 @@ export class Renderer {
   sprites: SpriteBatch[];
   rings: RingBatch[];
   view: CameraController;
+  /** [OS3] 3D view meshes and lights. */
+  meshes: Meshes;
   _onPointerMove: (e: PointerEvent) => void;
   _onPointerLeave: () => void;
   _onWinResize: () => void;
@@ -102,6 +106,7 @@ export class Renderer {
       trailSeen: new Map(),
       fxSeen: new Map(),
       opts: { reduceMotion: false, screenShake: true },
+      m: null,
       shake: 0,
     };
     const mk = <T extends SpriteBatch | RingBatch>(batch: T): T => { this.scene.add(batch.mesh); return batch; };
@@ -137,6 +142,7 @@ export class Renderer {
       ovAdd: mk(new SpriteBatch(FXT, 800, { additive: true, order: 12.6 })),
     };
     this.res.b = b;
+    this.meshes = buildMeshes(this.scene, 6.5); // [OS3] between the ground layers and the projectiles
     this.sprites = ['tShadow', 'tGlow', 'tBase', 'tWeap', 'tWeapAdd', 'tIcon', 'groundFx', 'groundFxAdd', 'attSh', 'attGlow', 'att', 'attTop', 'smoke', 'proj', 'projAdd', 'beams', 'blastAdd', 'text', 'ghostBase', 'ghostWeap', 'ghostIcon', 'ovAdd'].map((n) => b[n as keyof Batches] as SpriteBatch);
     this.rings = (['ringUnder', 'tRing', 'groundRing', 'ringAdd', 'ringTop'] as const).map((n) => b[n]);
 
@@ -172,9 +178,30 @@ export class Renderer {
 
   /** Presentation options (accessibility); partial objects merge. Never touches game state. */
   setOptions(o: Partial<RenderOptions>): void {
-    const was = !!this.res.opts.tilted;
+    const was = !!this.res.opts.tilted, was3 = !!this.res.opts.view3d;
     Object.assign(this.res.opts, o);
     if (!!this.res.opts.tilted !== was) this.view.setTilt(!!this.res.opts.tilted);
+    if (!!this.res.opts.view3d !== was3) this._applyView(!!this.res.opts.view3d);
+  }
+
+  /** [OS3] Rotate the 3D view (radians; positive turns the field clockwise on screen). No-op in 2D. */
+  rotateView(dYaw: number, dPitch: number = 0): void { this.view.rotate(dYaw, dPitch); }
+
+  /** [OS3] Switch batches, meshes, lights and camera between the 2D and the 3D view. */
+  _applyView(on: boolean): void {
+    this.view.set3d(on);
+    this.res.m = on ? this.meshes : null;
+    meshesVisible(this.meshes, on);
+    const b = this.res.b;
+    for (const sb of this.sprites) { sb.set3d(0, false, false); sb.mesh.renderOrder = sb.baseOrder; }
+    for (const rb of this.rings) { rb.set3d(0, false); rb.mesh.renderOrder = rb.baseOrder; }
+    if (!on) return;
+    for (const sb of [b.proj, b.projAdd, b.smoke, b.beams]) sb.set3d(11, false);
+    b.text.set3d(24, true);
+    b.attTop.set3d(0, true);
+    b.tIcon.set3d(0, false, true); b.tIcon.mesh.renderOrder = 6.7;  // on top of the shapes, hidden behind nearer ones
+    b.tRing.set3d(PLINTH_H + 0.25, true); b.tRing.mesh.renderOrder = 6.7;
+    b.attSh.mesh.renderOrder = 6.4; b.attGlow.mesh.renderOrder = 6.41; // ground layers under the shapes
   }
 
   /** Merge overlay settings (full or partial objects both work). */
@@ -197,7 +224,8 @@ export class Renderer {
     const dtMs = st && st.paused ? 0 : dt * speed;
 
     // camera
-    const view = this.view, s = view.scale, c = view.center();
+    const view = this.view, v3 = view.v3;
+    const s = view.scale, c = view.center();
     const hw = view.W / 2 / s, hh = view.H / 2 / view.scaleY; // taller world window when tilted (scaleY < scale)
     const cam = this.camera;
     cam.left = -hw; cam.right = hw; cam.top = hh; cam.bottom = -hh;
@@ -213,7 +241,13 @@ export class Renderer {
     }
     cam.position.x = c.x + sx; cam.position.y = -c.y + sy;
     cam.updateProjectionMatrix();
-    const wpp = 1 / s;
+    let wpp = 1 / s;
+    let drawCam: THREE.Camera = cam;
+    if (v3) { // [OS3] 3D view: the shake moves the target point instead
+      v3.shakeX = sx; v3.shakeY = -sy; v3.update();
+      drawCam = v3.camera; wpp = v3.wpp();
+      for (const mb of this.meshes.all) mb.begin();
+    }
 
     // scenery
     this.terrain.setMap(st ? st.map : null);
@@ -242,10 +276,11 @@ export class Renderer {
       drawOverlay(R, f);
     }
 
+    if (v3) for (const mb of this.meshes.all) mb.end();
     for (const sb of this.sprites) sb.end();
     for (const rb of this.rings) rb.end();
     this.text.endFrame();
-    this.renderer.render(this.scene, cam);
+    this.renderer.render(this.scene, drawCam);
   }
 
   dispose(): void {

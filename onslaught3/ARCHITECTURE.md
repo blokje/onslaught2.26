@@ -178,7 +178,8 @@ r.setOverlay({                              // UI-driven overlays, call whenever
 r.resetView();                              // fit field to screen
 r.setViewInsets({ top, right, bottom, left }) // optional: CSS px covered by HUD panels, the fitted field avoids them
 r.getZoom()                                 // -> current zoom factor
-r.setOptions({ reduceMotion, screenShake, tilted }) // optional presentation options, partial objects merge; never touches game state
+r.setOptions({ reduceMotion, screenShake, tilted, view3d }) // optional presentation options, partial objects merge; never touches game state ([OS3] view3d: perspective 3D view)
+r.rotateView(dYaw, dPitch?)                 // [OS3] optional: rotate (and tilt) the 3D view, radians; no-op in 2D
 r.dispose();                                // remove listeners and the canvas, release WebGL
 r.canvas                                    // the canvas element
 ```
@@ -187,6 +188,8 @@ r.canvas                                    // the canvas element
 Camera: orthographic top-down. Fits the field on load with a small margin; mouse wheel zooms toward the cursor
 (0.5× to 4×), right- or middle-button drag pans, two-finger pinch/drag on touch. Left button is reserved for the UI.
 Panning is clamped so the field cannot leave the screen entirely.
+[OS3] 3D view (`view3d`, the default): a perspective camera orbiting a ground point; `screenToWorld` hits the ground
+plane exactly. Shift/Alt + right drag and `rotateView` rotate and tilt, two fingers twist. Details: `docs/claude/rendering.md`.
 
 Art direction: original procedural art, no copied sprites. Sandy desert ground with subtle noise and faint
 circuit-board line patterns; brown road with soft edges; a fenced compound as the base; turrets as round metal
@@ -222,7 +225,7 @@ pooled meshes for attackers/projectiles).
 - **Settings**: master volume / mute, wave interval override, snap-to-grid toggle (grid 22 units), unlock-all switch,
   show FPS, `autoPause` (pause while the tab is hidden), `autoSend` (send the next wave when the field is clear, see
   `game.waveActive()`), `panelPos` (moved turret panel), `keys` (rebound keys: `{ action: KeyboardEvent.code }`, only
-  the ones that differ from `src/ui/keymap.ts`), `undo` (Relaxed: undo, off by default), `colorSymbols` (shape badges on the map, default on), `uiScale` (0.8 to 1.6, `clampScale`), `highContrast`, `reduceMotion` (first start follows `prefers-reduced-motion`), `sfxVolume`, `uiVolume` and `musicVolume` (bus volumes on top of the master volume), `language` ('' = from the browser, else en/nl/de; a change reloads the page), `tutorialDone` (tutorial finished or skipped), `screenShake` (default on, never with reduce motion), `tiltedView` (renderer option `tilted`, default off), `hints` (one-time tips, default on). `getSettings()` drops stored values
+  the ones that differ from `src/ui/keymap.ts`), `undo` (Relaxed: undo, off by default), `colorSymbols` (shape badges on the map, default on), `uiScale` (0.8 to 1.6, `clampScale`), `highContrast`, `reduceMotion` (first start follows `prefers-reduced-motion`), `sfxVolume`, `uiVolume` and `musicVolume` (bus volumes on top of the master volume), `language` ('' = from the browser, else en/nl/de; a change reloads the page), `tutorialDone` (tutorial finished or skipped), `screenShake` (default on, never with reduce motion), `tiltedView` (old 2.26 switch, kept; read once to migrate), [OS3] `viewMode` ('top' | 'tilted' | '3d', default '3d'; renderer options `tilted` and `view3d`; a save without it but with `tiltedView` true becomes 'tilted'), `hints` (one-time tips, default on). `getSettings()` drops stored values
   whose type does not match the default.
 - **Audio** (`src/ui/audio.ts`): Web Audio synthesized SFX driven by game events (cannon pop, laser zap, rocket whoosh,
   spark crackle, blasts by size, nuke boom, kill tick, leak alarm, wave horn, combo chord, UI clicks). Rate-limit

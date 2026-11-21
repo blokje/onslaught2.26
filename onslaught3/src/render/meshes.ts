@@ -1,0 +1,110 @@
+// [OS3] 3D view: procedural instanced meshes for turrets and attackers.
+// Every shape is a unit geometry (z up, standing on z = 0 or centred, see SHAPES) drawn through one THREE.InstancedMesh,
+// so the 3D view adds about ten draw calls no matter how many units there are. Per instance: position, yaw, scale and
+// colour. Materials are Lambert (one sun + ambient light) and transparent, so three.js sorts them by renderOrder with
+// the sprite batches instead of drawing them before the ground.
+
+import * as THREE from 'three';
+
+export class MeshBatch {
+  mesh: THREE.InstancedMesh;
+  capacity: number;
+  count = 0;
+  _m = new THREE.Matrix4();
+  _c = new THREE.Color();
+  constructor(geometry: THREE.BufferGeometry, capacity: number, order: number, opts: { opacity?: number; emissive?: number } = {}) {
+    const op = opts.opacity ?? 1;
+    const mat = new THREE.MeshLambertMaterial({
+      color: 0xffffff, transparent: true, opacity: op, depthTest: true, depthWrite: op >= 1,
+      emissive: new THREE.Color(opts.emissive ?? 0, opts.emissive ?? 0, opts.emissive ?? 0),
+    });
+    this.capacity = capacity;
+    this.mesh = new THREE.InstancedMesh(geometry, mat, capacity);
+    this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.mesh.setColorAt(0, this._c.setRGB(1, 1, 1)); // creates instanceColor
+    this.mesh.instanceColor!.setUsage(THREE.DynamicDrawUsage);
+    this.mesh.frustumCulled = false;
+    this.mesh.renderOrder = order;
+    this.mesh.count = 0;
+    this.mesh.visible = false;
+  }
+  begin(): void { this.count = 0; }
+  /** World position (x right, y down, z up), yaw `rot` (world angle, as the sprites use it), scale (sx, sy, sz), colour. */
+  add(x: number, y: number, z: number, rot: number, sx: number, sy: number, sz: number, r: number, g: number, b: number): void {
+    if (this.count >= this.capacity) return;
+    // world angle a (y down) is -a around three.js z (y up); the shapes point along +x
+    const c = Math.cos(-rot), s = Math.sin(-rot);
+    this._m.set(
+      c * sx, -s * sy, 0, x,
+      s * sx, c * sy, 0, -y,
+      0, 0, sz, z,
+      0, 0, 0, 1,
+    );
+    this.mesh.setMatrixAt(this.count, this._m);
+    this.mesh.setColorAt(this.count, this._c.setRGB(r, g, b));
+    this.count++;
+  }
+  end(): void {
+    this.mesh.count = this.count;
+    this.mesh.instanceMatrix.needsUpdate = true;
+    if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
+    this.mesh.visible = this.count > 0;
+  }
+  dispose(): void { this.mesh.geometry.dispose(); (this.mesh.material as THREE.Material).dispose(); }
+}
+
+/** Unit cylinder of radius 1 and height 1 standing on z = 0 (z up). */
+function cylinder(seg: number, top: number = 1): THREE.BufferGeometry {
+  const g = new THREE.CylinderGeometry(top, 1, 1, seg);
+  g.rotateX(Math.PI / 2); g.translate(0, 0, 0.5);
+  return g;
+}
+
+export interface Meshes {
+  /** Turret plinths (cylinder) and bodies. */
+  cyl: MeshBatch;
+  /** Octagonal drums: modifier dishes, Armored attackers. */
+  oct: MeshBatch;
+  /** Unit boxes centred on z = 0.5: barrels, launchers, armour plates. */
+  box: MeshBatch;
+  /** Unit spheres centred at the origin: heads, Runners, Splitter halves, Regenerators. */
+  sph: MeshBatch;
+  tet: MeshBatch;
+  dod: MeshBatch;
+  /** Flat torus (ring) around z = 0: Regenerator halo, modifier rings. */
+  tor: MeshBatch;
+  /** Transparent spheres: shields. */
+  shell: MeshBatch;
+  all: MeshBatch[];
+  lights: THREE.Object3D[];
+}
+
+/** Build the 3D batches and lights and add them to the scene (hidden until used). */
+export function buildMeshes(scene: THREE.Scene, order: number): Meshes {
+  const box = new THREE.BoxGeometry(1, 1, 1); box.translate(0, 0, 0.5);
+  const m: Meshes = {
+    cyl: new MeshBatch(cylinder(20, 0.86), 1200, order),
+    oct: new MeshBatch(cylinder(8), 1600, order),
+    box: new MeshBatch(box, 2000, order),
+    sph: new MeshBatch(new THREE.SphereGeometry(1, 14, 10), 3000, order),
+    tet: new MeshBatch(new THREE.TetrahedronGeometry(1), 1600, order),
+    dod: new MeshBatch(new THREE.DodecahedronGeometry(1), 200, order),
+    tor: new MeshBatch(new THREE.TorusGeometry(1, 0.16, 6, 20), 1600, order),
+    shell: new MeshBatch(new THREE.SphereGeometry(1, 16, 12), 1200, order + 0.05, { opacity: 0.32, emissive: 0.15 }),
+    all: [],
+    lights: [],
+  };
+  m.all = [m.cyl, m.oct, m.box, m.sph, m.tet, m.dod, m.tor, m.shell];
+  for (const b of m.all) scene.add(b.mesh);
+  const amb = new THREE.AmbientLight(0xffffff, 1.35);
+  const sun = new THREE.DirectionalLight(0xfff2dc, 2.1);
+  sun.position.set(-0.45, 0.6, 1); // from the upper left, high: shadows fall to the lower right (as the 2D art)
+  m.lights = [amb, sun];
+  for (const l of m.lights) { l.visible = false; scene.add(l); }
+  return m;
+}
+
+export function meshesVisible(m: Meshes, on: boolean): void {
+  for (const l of m.lights) l.visible = on;
+  if (!on) for (const b of m.all) { b.begin(); b.end(); }
+}

@@ -5,6 +5,15 @@ Every task adds a line under **Unreleased**. OnSlaught2.26 keeps its own changel
 ## Unreleased
 
 ### Added
+- 3D view, on by default (setting `viewMode`, Settings > View, key V cycles 3D, top-down and tilted): a perspective
+  camera orbiting the field (`src/render/camera3d.ts`) with exact ground-plane picking, zoom to the cursor, pan, rotate
+  and tilt (Shift + right drag, `[` and `]`, two-finger twist), and on portrait phones the field turned a quarter so it
+  fills the screen. Turrets and attackers are procedural instanced 3D shapes with light and blob shadows
+  (`src/render/meshes.ts`, 8 extra draw calls); sprites and rings got a height and a billboard mode for projectiles,
+  beams, text and HP bars. The tilted view moved from Accessibility to the new View section. New sim-test checks (os3:
+  camera round trip, fit, zoom, setting migration). Checked in Chromium (desktop build after zoom, pan and rotate lands
+  under the click, V switching, iPhone 13 portrait, settings dialog, demo pages; no console errors). Docs:
+  `docs/claude/rendering.md`, `ARCHITECTURE.md`, `SPEC.md` §8, `docs/claude/ui.md`, `README.md`.
 - Mutators (SPEC.md 11.4): Fast, Tough, No selling and Poor, stackable toggles in the menu, each multiplying the score
   (x1.1 to x1.3). Saved with the game, kept by Continue and Restart, and half of the daily challenges add one. New
   `src/data/mutators.ts`, `src/ui/mutators.ts`, `GameOptions.mutators`, `game.mut`, setting `lastMutators`,

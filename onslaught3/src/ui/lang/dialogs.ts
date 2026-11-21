@@ -5,8 +5,18 @@ import type { LangPack } from '../i18n.ts';
 
 export const DIALOG_TEXT: LangPack = {
   nl: {
+    // [OS3] 3D view
+    "3D": "3D",
+    "Top-down": "Bovenaf",
+    "Field view": "Veldweergave",
+    "3D: right drag pans, Shift + right drag or [ and ] rotates, the wheel zooms. Tilted: the flat field at an angle. V switches in the game.": "3D: rechts slepen schuift, Shift + rechts slepen of [ en ] draait, het wiel zoomt. Schuin: het platte veld onder een hoek. V wisselt in het spel.",
+    "View: {name}": "Weergave: {name}",
+    "Switch the field view: 3D, top-down, tilted": "Veldweergave wisselen: 3D, bovenaf, schuin",
+    "Rotate the 3D view left": "3D-weergave naar links draaien",
+    "Rotate the 3D view right": "3D-weergave naar rechts draaien",
+    "Shift + right drag": "Shift + rechts slepen",
+    "Rotate and tilt the 3D view (twist two fingers on touch)": "3D-weergave draaien en kantelen (twee vingers draaien op touch)",
     'Tilted view': 'Schuin aanzicht',
-    'Shows the field at an angle, with shadows under the turrets.': 'Toont het veld van schuin boven, met schaduwen onder de torens.',
     // ---- settings
     'Language': 'Taal',
     'Automatic (browser)': 'Automatisch (browser)',
@@ -231,8 +241,18 @@ export const DIALOG_TEXT: LangPack = {
     'Undo is off. Turn on "Relaxed: undo" in Settings.': 'Ongedaan maken staat uit. Zet "Ontspannen: ongedaan maken" aan in Instellingen.',
   },
   de: {
+    // [OS3] 3D view
+    "3D": "3D",
+    "Top-down": "Von oben",
+    "Field view": "Feldansicht",
+    "3D: right drag pans, Shift + right drag or [ and ] rotates, the wheel zooms. Tilted: the flat field at an angle. V switches in the game.": "3D: Rechts ziehen verschiebt, Umschalt + rechts ziehen oder [ und ] dreht, das Mausrad zoomt. Schräg: das flache Feld im Winkel. V wechselt im Spiel.",
+    "View: {name}": "Ansicht: {name}",
+    "Switch the field view: 3D, top-down, tilted": "Feldansicht wechseln: 3D, von oben, schräg",
+    "Rotate the 3D view left": "3D-Ansicht nach links drehen",
+    "Rotate the 3D view right": "3D-Ansicht nach rechts drehen",
+    "Shift + right drag": "Umschalt + rechts ziehen",
+    "Rotate and tilt the 3D view (twist two fingers on touch)": "3D-Ansicht drehen und neigen (zwei Finger drehen auf Touch)",
     'Tilted view': 'Schräge Ansicht',
-    'Shows the field at an angle, with shadows under the turrets.': 'Zeigt das Feld schräg von oben, mit Schatten unter den Türmen.',
     // ---- settings
     'Language': 'Sprache',
     'Automatic (browser)': 'Automatisch (Browser)',

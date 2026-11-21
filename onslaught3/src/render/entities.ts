@@ -2,7 +2,7 @@
 // Everything is rebuilt each frame from game.state (cheap: a few hundred instances).
 
 import { TURRETS, TURRET_SIZE } from '../data/turrets.ts';
-import { KIND_INDEX, KIND_TINT, COMBO_COLOR } from './atlas.ts';
+import { KIND_INDEX, KIND_TINT, COMBO_COLOR, ATTACKER_COLORS } from './atlas.ts';
 import { clamp, hex, hash2, TAU } from './util.ts';
 import type { RGB } from './util.ts';
 import type { TurretState } from '../types.ts';
@@ -28,6 +28,16 @@ const RING_MIN_TICK_PX = 2.5;                    // narrower ticks merge into a 
 // colour-symbol badge: drawn size of the 32-unit icon cell (shape about 9 units) and its offset below the centre
 const SYMBOL_SIZE = 15;
 const SYMBOL_DY = 14;
+
+// [OS3] 3D view shapes (world units). The upgrade ring lies on top of the plinth (Renderer lifts tRing to PLINTH_H).
+export const PLINTH_H = 5;
+const PLINTH_R = TURRET_SIZE / 2 - 0.5;
+const GUNMETAL: RGB = [0.3, 0.32, 0.36];
+/** Barrel per weapon kind: length, width, height. */
+const BARREL: Record<string, [number, number, number]> = {
+  blue: [16, 6, 6], green: [18, 3.5, 3.5], red: [12, 12, 7], yellow: [10, 4, 4],
+  targeter: [8, 8, 5], sniper: [28, 3, 3], fusion: [14, 7, 7], railgun: [30, 5, 4],
+};
 
 /** Rendering tint for a turret kind (used for glow, rings). */
 export function turretColor(t: TurretState): RGB {
@@ -57,7 +67,9 @@ export function drawTurrets(R: Res, f: Frame): void {
     const x = t.x, y = t.y;
 
     // tilted view: a soft drop shadow below and in front of the turret, so it reads as standing on the field
-    if (R.opts.tilted) b.tShadow.add(x + 2, y + 7, 0, 54, 40, c.fx.glow, 0, 0, 0, 0.55);
+    const m3 = R.opts.view3d ? R.m : null;
+    if (m3) b.tShadow.add(x + 6, y + 7, 0, 66, 56, c.fx.glow, 0, 0, 0, 0.5);
+    else if (R.opts.tilted) b.tShadow.add(x + 2, y + 7, 0, 54, 40, c.fx.glow, 0, 0, 0, 0.55);
 
     // halo when a combo is possible
     if (t.comboCapable) {
@@ -68,7 +80,8 @@ export function drawTurrets(R: Res, f: Frame): void {
     // base plate (tinted red and flashing during the freak-out warning)
     let br = 1, bg = 1, bb = 1;
     if (t.freak === 'warn') { const fl = calm ? 0.6 : 0.5 + 0.5 * Math.sin(t0 * 16); bg = bb = 1 - 0.55 * fl; }
-    b.tBase.add(x, y, 0, 64, 64, c.tb[idx], br, bg, bb, 1);
+    if (m3) m3.cyl.add(x, y, 0, 0, PLINTH_R, PLINTH_R, PLINTH_H, 0.24 * br, 0.26 * bg, 0.3 * bb);
+    else b.tBase.add(x, y, 0, 64, 64, c.tb[idx], br, bg, bb, 1);
 
     // weapon
     let rot = t.angle || 0;
@@ -84,7 +97,7 @@ export function drawTurrets(R: Res, f: Frame): void {
       jx = (Math.random() - 0.5) * 1.3; jy = (Math.random() - 0.5) * 1.3;
       const fl = 0.8 + 0.2 * Math.random();
       b.tGlow.add(x, y, 0, 92, 92, c.fx.glow, 1, 0.45, 0.1, 0.42 * fl);
-      for (let k = 0; k < 2; k++) {
+      for (let k = 0; k < 2 && !m3; k++) {
         b.tWeapAdd.add(x + (Math.random() - 0.5) * 3, y + (Math.random() - 0.5) * 3 - 1, rot, isMod ? 50 : 64, isMod ? 50 : 64, c.tw[idx], 1, 0.5, 0.15, 0.22);
       }
       if (f.dtMs > 0 && Math.random() < f.dtMs * 0.012) {
@@ -92,13 +105,34 @@ export function drawTurrets(R: Res, f: Frame): void {
       }
     }
     const ws = isMod ? 50 : 64; // modifier dishes are drawn smaller so the icon on top stays readable
-    b.tWeap.add(x + jx, y + jy, rot, ws, ws, c.tw[idx], wr, wg, wb, 1);
     const icon = c.ti[t.kind];
-    if (isMod && icon) b.tIcon.add(x, y, 0, 32, 32, icon, wr, wg, wb, 1);
+    if (m3) {
+      const k0 = PLINTH_H, kx = x + jx, ky = y + jy;
+      const tr = col[0] * wr, tg = col[1] * wg, tb = col[2] * wb;
+      if (isMod) {
+        m3.oct.add(kx, ky, k0, rot, 14, 14, 5, tr * 0.9, tg * 0.9, tb * 0.9);
+        m3.tor.add(kx, ky, k0 + 5.5, rot, 11, 11, 3, tr, tg, tb);
+        if (icon) b.tIcon.addAt(x, y, k0 + 5.3, 0, 0, 0, 30, 30, icon, 1, 1, 1, 1);
+      } else if (t.kind === 'comboOnly') {
+        m3.cyl.add(kx, ky, k0, 0, 7, 7, 5, 0.35, 0.37, 0.42);
+        m3.sph.add(kx, ky, k0 + 13, rot, 9, 9, 9, tr, tg, tb);
+        m3.tor.add(kx, ky, k0 + 13, rot, 13, 13, 4, tr * 0.8, tg * 0.8, tb * 0.8);
+      } else {
+        const bar = BARREL[t.kind] || [14, 5, 5];
+        m3.cyl.add(kx, ky, k0, 0, 11, 11, 8, tr * 0.75, tg * 0.75, tb * 0.75);
+        m3.sph.add(kx, ky, k0 + 10, rot, 8.5, 8.5, 7, tr, tg, tb);
+        const d = bar[0] / 2 + 3;
+        m3.box.add(kx + Math.cos(rot) * d, ky + Math.sin(rot) * d, k0 + 9.5 - bar[2] / 2 + 1, rot, bar[0], bar[1], bar[2], GUNMETAL[0] * wr, GUNMETAL[1] * wg, GUNMETAL[2] * wb);
+        if (t.kind === 'yellow') m3.tor.add(kx, ky, k0 + 10, 0, 10, 10, 4, 1, 0.9, 0.35);
+      }
+    } else {
+      b.tWeap.add(x + jx, y + jy, rot, ws, ws, c.tw[idx], wr, wg, wb, 1);
+      if (isMod && icon) b.tIcon.add(x, y, 0, 32, 32, icon, wr, wg, wb, 1);
+    }
     // colour-symbol badge (accessibility): the combo colour as a shape, low on the base, inside the upgrade ring
     if (R.overlay.colorSymbols !== false && t.comboColor) {
       const sym = c.sym[t.comboColor];
-      if (sym) { const sc = rgb(COMBO_COLOR[t.comboColor]); b.tIcon.add(x, y + SYMBOL_DY, 0, SYMBOL_SIZE, SYMBOL_SIZE, sym, sc[0], sc[1], sc[2], 1); }
+      if (sym) { const sc = rgb(COMBO_COLOR[t.comboColor]); b.tIcon.addAt(x, y + SYMBOL_DY, m3 ? PLINTH_H + 0.3 : 0, 0, 0, 0, SYMBOL_SIZE, SYMBOL_SIZE, sym, sc[0], sc[1], sc[2], 1); }
     }
 
     // freak indicators
@@ -146,6 +180,8 @@ const HP_W = 15;
 export function drawAttackers(R: Res, f: Frame): void {
   const { b, c } = R;
   const holes = f.holes;
+  const m3 = R.opts.view3d ? R.m : null;
+  const calm = R.opts.reduceMotion;
   for (const a of f.state.attackers) {
     const type = (((a.type | 0) % 9) + 9) % 9;
     const cell = c.att[type];
@@ -157,7 +193,7 @@ export function drawAttackers(R: Res, f: Frame): void {
       scale = best < 1e9 ? clamp(best / rad * 1.2, 0.18, 1) : 0.6;
       rot += f.t * 11 + a.id;
       r = 0.65; g = 0.45; bl = 1;
-    } else {
+    } else if (!m3) {
       b.attSh.add(x + 1.8, y + 2.6, rot, 32, 32, cell, 0, 0, 0, 0.3);
     }
     if (a.poisoned) {
@@ -176,19 +212,47 @@ export function drawAttackers(R: Res, f: Frame): void {
       if (a.kind === 'splitter') b.groundRing.add(x, y, rr, 1.4, 0, 0.3, 4, 1, 0.75, 0.3, 0.85);
     }
     const s = 32 * scale * ks;
-    b.att.add(x, y, rot, s, s, cell, r, g, bl, 1);
-    // HP bar (always screen-up, drawn above the unit); a boss gets a longer one, a shield a cyan bar above it
+    // HP bar (always screen-up, drawn above the unit); a boss gets a longer one, a shield a cyan bar above it.
+    // 2D: offsets in world y; 3D: billboarded above the body (bx, by, bz are the bar centre, oy shifts it up the screen)
+    let bx = x, by = y - 13.2 * (0.4 + 0.6 * scale) * ks, bz = 0;
+    if (m3) {
+      const col = rgb(ATTACKER_COLORS[type]);
+      const cr = col[0] * r, cg = col[1] * g, cb = col[2] * bl;
+      const rad = 7 * scale * ks;
+      const hop = calm || a.blackholed ? 0 : Math.abs(Math.sin(f.t * 9 + a.id * 1.3)) * 1.6;
+      b.attSh.add(x + 3, y + 3, 0, rad * 3, rad * 2.6, c.fx.glow, 0, 0, 0, 0.45);
+      const z = rad + hop;
+      switch (a.kind) {
+        case 'armored': m3.oct.add(x, y, hop, rot, rad * 1.15, rad * 1.15, rad * 1.4, cr * 0.6 + 0.2, cg * 0.6 + 0.2, cb * 0.6 + 0.22); m3.box.add(x, y, hop + rad * 1.4, rot, rad * 1.2, rad * 0.9, rad * 0.35, cr, cg, cb); break;
+        case 'swarm': m3.tet.add(x, y, z, rot + f.t * (calm ? 0 : 3), rad * 1.2, rad * 1.2, rad * 1.2, cr, cg, cb); break;
+        case 'splitter': {
+          const px = -Math.sin(rot) * rad * 0.55, py = Math.cos(rot) * rad * 0.55;
+          m3.sph.add(x + px, y + py, z, rot, rad * 0.75, rad * 0.75, rad * 0.75, cr, cg, cb);
+          m3.sph.add(x - px, y - py, z, rot, rad * 0.75, rad * 0.75, rad * 0.75, cr * 0.8 + 0.2, cg * 0.8 + 0.15, cb * 0.8);
+          break; }
+        case 'boss': m3.dod.add(x, y, z, rot, rad, rad, rad, cr * 0.6 + 0.4, cg * 0.5, cb * 0.5); break;
+        default: m3.sph.add(x, y, z, rot, rad * 1.2, rad, rad, cr, cg, cb);
+      }
+      if (a.kind === 'regen') m3.tor.add(x, y, z, f.t * (calm ? 0 : 1.5), rad * 1.4, rad * 1.4, rad * 1.2, 0.35, 1, 0.5);
+      if (a.shield && a.shield > 0) m3.shell.add(x, y, z, 0, rad * 1.6, rad * 1.6, rad * 1.6, 0.35, 0.85, 1);
+      bx = x; by = y; bz = z + rad + 7 + (a.kind === 'armored' ? rad * 0.4 : 0);
+    } else {
+      b.att.add(x, y, rot, s, s, cell, r, g, bl, 1);
+    }
+    const bar = (ox: number, oy: number, w: number, h: number, cr: number, cg: number, cb: number, ca: number): void => {
+      if (m3) b.attTop.addAt(bx, by, bz, ox, oy, 0, w, h, c.fx.whiteSolid, cr, cg, cb, ca);
+      else b.attTop.add(bx + ox, by + oy, 0, w, h, c.fx.whiteSolid, cr, cg, cb, ca);
+    };
     const fr = clamp(a.maxHp > 0 ? a.hp / a.maxHp : 0, 0, 1);
     const hw = HP_W * (ks > 1.4 ? 2 : 1);
-    const by = y - 13.2 * (0.4 + 0.6 * scale) * ks;
-    b.attTop.add(x, by, 0, hw + 1.4, 3.2, c.fx.whiteSolid, 0.03, 0.03, 0.04, 0.72);
+    bar(0, 0, hw + 1.4, 3.2, 0.03, 0.03, 0.04, 0.72);
     if (fr > 0) {
       const w = hw * fr;
-      b.attTop.add(x - hw / 2 + w / 2, by, 0, w, 2, c.fx.whiteSolid, fr > 0.5 ? (1 - fr) * 2 : 1, fr > 0.5 ? 1 : fr * 2, 0.15, 1);
+      bar(-hw / 2 + w / 2, 0, w, 2, fr > 0.5 ? (1 - fr) * 2 : 1, fr > 0.5 ? 1 : fr * 2, 0.15, 1);
     }
     if (kd && kd.shield && a.shield && a.shield > 0) {
       const sw = hw * clamp(a.shield / (a.maxHp * kd.shield), 0, 1);
-      b.attTop.add(x - hw / 2 + sw / 2, by - 3, 0, sw, 1.6, c.fx.whiteSolid, 0.35, 0.85, 1, 1);
+      bar(-hw / 2 + sw / 2, -3, sw, 1.6, 0.35, 0.85, 1, 1);
     }
   }
 }

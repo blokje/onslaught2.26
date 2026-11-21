@@ -3,6 +3,7 @@
 import type { GameState, Overlay, TurretState, Effect, RenderOptions } from '../types.ts';
 import type { SpriteBatch, RingBatch, Cell } from './batches.ts';
 import type { Particles } from './particles.ts';
+import type { Meshes } from './meshes.ts';
 import type { TextAtlas } from './atlas.ts';
 
 /** What the renderer needs from a game: the state to draw and (optionally) the combo partner query. */
@@ -52,6 +53,8 @@ export interface Res {
   trailSeen: Map<number, { x: number; y: number; s: number }>; // projectile id -> last trail point + frame stamp
   fxSeen: Map<number, number>;                                  // effect id -> frame stamp
   opts: RenderOptions;                                          // renderer.setOptions (reduceMotion, screenShake)
+  /** [OS3] 3D view meshes (drawn only while opts.view3d is on). */
+  m: Meshes | null;
   /** Screen-shake energy 0..1 (added by big blasts, decays each frame; see Renderer.render). */
   shake: number;
 }

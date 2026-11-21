@@ -10,6 +10,7 @@ import { iconSvg } from './icons.ts';
 import { KEY_ACTIONS, FIXED_KEYS, RESERVED_CODES, keyLabel, rebind, resolveBindings } from './keymap.ts';
 import type { KeyAction } from './keymap.ts';
 import { PAD_HELP } from './gamepad.ts';
+import { VIEW_NAMES } from './view.ts';
 import { LANGS, t, tx } from './i18n.ts';
 
 const kbd = (label: string): HTMLElement => h('span', { class: 'os-kbd' }, label);
@@ -41,7 +42,7 @@ export function buildSettings(app: App): HTMLElement {
     wave.value = String(v);
     app.updateSettings({ waveInterval: v });
   });
-  const check = (key: 'snap' | 'unlockAll' | 'showFps' | 'autoPause' | 'autoSend' | 'undo' | 'colorSymbols' | 'highContrast' | 'reduceMotion' | 'hints' | 'screenShake' | 'tiltedView'): HTMLInputElement => {
+  const check = (key: 'snap' | 'unlockAll' | 'showFps' | 'autoPause' | 'autoSend' | 'undo' | 'colorSymbols' | 'highContrast' | 'reduceMotion' | 'hints' | 'screenShake'): HTMLInputElement => {
     const c = h('input', { type: 'checkbox' });
     c.checked = !!s[key];
     c.addEventListener('change', () => app.updateSettings({ [key]: c.checked } as Partial<storage.Settings>)); // key is one of the boolean settings above
@@ -73,7 +74,14 @@ export function buildSettings(app: App): HTMLElement {
     }
   });
 
+  // [OS3] field view, first in the list so it is easy to find
+  const viewSel = h('select', { 'aria-label': t('Field view') }, ...storage.VIEW_MODES.map((m) => h('option', { value: m }, t(VIEW_NAMES[m])))) as HTMLSelectElement;
+  viewSel.value = s.viewMode;
+  viewSel.addEventListener('change', () => app.updateSettings({ viewMode: viewSel.value as storage.ViewMode }));
   return h('div', null,
+    h('h3', { class: 'os-set-h' }, t('View')),
+    field(t('Field view'), t('3D: right drag pans, Shift + right drag or [ and ] rotates, the wheel zooms. Tilted: the flat field at an angle. V switches in the game.'), viewSel),
+    h('h3', { class: 'os-set-h' }, t('General')),
     field('Language / Taal / Sprache', t('The page reloads to switch.'), langSel),
     field(t('Master volume'), null, h('div', { style: 'display:flex;align-items:center;gap:.6em' }, vol)),
     field(t('Game effects volume'), t('Shots, explosions, combos, alarms.'), busSlider('sfxVolume', t('Game effects volume'))),
@@ -95,7 +103,6 @@ export function buildSettings(app: App): HTMLElement {
     field(t('Interface size'), t('Scales all text, panels and buttons.'), h('div', { style: 'display:flex;align-items:center;gap:.6em' }, scale, scaleTxt)),
     field(t('High contrast'), t('Solid panels, brighter text and stronger outlines.'), check('highContrast')),
     field(t('Screen shake'), t('The view shakes a little on big explosions. Always off with Reduce motion.'), check('screenShake')),
-    field(t('Tilted view'), t('Shows the field at an angle, with shadows under the turrets.'), check('tiltedView')),
     field(t('Reduce motion and flashes'), t('No blinking, pulsing or shaking; dimmer explosions. Starts on when your system asks for less motion.'), check('reduceMotion')),
     field(t('Colour shapes on the map'), t('Each turret shows the shape of its combo colour: red triangle, green circle, blue square, yellow diamond.'), check('colorSymbols')),
     field(t('Saved progress'), t('Unlocks, high scores, the autosave, Combo Codex counts and achievements.'), resetBtn));

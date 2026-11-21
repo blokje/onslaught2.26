@@ -31,6 +31,7 @@ import type { KeyAction } from './keymap.ts';
 import { formatCash, formatNum } from './format.ts';
 import type { AppGame, AppRenderer, AppOptions, CommandResult, ReplayPlayback, ReplaySupport } from './appTypes.ts';
 import { encodeReplay, decodeReplay } from './replayCode.ts';
+import { VIEW_NAMES } from './view.ts';
 import type { GameEventName, GameEvents, GameOptions, GameState, Overlay, Stat, TurretState, Attacker, KeyColor, DirectionalMode, WaveRecord } from '../types.ts';
 
 const GRID = 22;
@@ -346,7 +347,7 @@ export class App {
     if ('uiVolume' in patch) this.audio.setBusVolume('ui', this.settings.uiVolume);
     if ('musicVolume' in patch) this.audio.setBusVolume('music', this.settings.musicVolume);
     if ('showFps' in patch) this.applyFps();
-    if ('uiScale' in patch || 'highContrast' in patch || 'reduceMotion' in patch || 'screenShake' in patch || 'tiltedView' in patch) this.applyLook();
+    if ('uiScale' in patch || 'highContrast' in patch || 'reduceMotion' in patch || 'screenShake' in patch || 'tiltedView' in patch || 'viewMode' in patch) this.applyLook();
     if ('keys' in patch) this.applyKeys();
     if ('colorSymbols' in patch) this.overlayDirty = true;
     if ('unlockAll' in patch || 'waveInterval' in patch) this.menu.refresh();
@@ -358,7 +359,7 @@ export class App {
     this.root.style.setProperty('--ui-scale', String(sc));
     this.root.classList.toggle('os-hc', !!this.settings.highContrast);
     this.root.classList.toggle('os-rm', !!this.settings.reduceMotion);
-    try { this.renderer.setOptions?.({ reduceMotion: !!this.settings.reduceMotion, screenShake: !!this.settings.screenShake, tilted: !!this.settings.tiltedView }); } catch (e) { console.error(e); }
+    try { this.renderer.setOptions?.({ reduceMotion: !!this.settings.reduceMotion, screenShake: !!this.settings.screenShake, tilted: this.settings.viewMode === 'tilted', view3d: this.settings.viewMode === '3d' }); } catch (e) { console.error(e); }
     this.hud.applyPanelPos(); // the panel size changed with the scale; keep it on screen
   }
 
@@ -1439,7 +1440,18 @@ export class App {
       case 'settings': this.toggleSettings(); break;
       case 'keys': this.toggleKeys(); break;
       case 'codex': this.toggleCodex(); break;
+      case 'view': this.cycleView(); break;
+      case 'rotLeft': this.renderer.rotateView?.(-Math.PI / 12); break;
+      case 'rotRight': this.renderer.rotateView?.(Math.PI / 12); break;
     }
+  }
+
+  /** [OS3] V: 3D, top-down, tilted, 3D again; the choice is saved and named in a toast. */
+  cycleView(): void {
+    const order: storage.ViewMode[] = ['3d', 'top', 'tilted'];
+    const next = order[(order.indexOf(this.settings.viewMode) + 1) % order.length];
+    this.updateSettings({ viewMode: next });
+    this.hud.toast(t('View: {name}', { name: t(VIEW_NAMES[next]) }));
   }
 
   /** Rebuild the code -> action lookup from the settings (after a rebind or reset). */

@@ -5,7 +5,8 @@ import { tx } from './i18n.ts';
 
 export type KeyAction =
   | 'upDamage' | 'upRange' | 'upRate' | 'sell' | 'move' | 'target' | 'lock' | 'focus' | 'cone' | 'join' | 'color'
-  | 'undo' | 'codex' | 'ranges' | 'combo' | 'sendWave' | 'autoSend' | 'pause' | 'info' | 'settings' | 'build' | 'keys';
+  | 'undo' | 'codex' | 'ranges' | 'combo' | 'sendWave' | 'autoSend' | 'pause' | 'info' | 'settings' | 'build' | 'keys'
+  | 'view' | 'rotLeft' | 'rotRight';
 
 export interface KeyActionDef { id: KeyAction; code: string; label: string; group: 'Turret' | 'View' | 'Game' }
 
@@ -28,6 +29,9 @@ export const KEY_ACTIONS: readonly KeyActionDef[] = [
   { id: 'combo', code: 'KeyC', label: tx('Show combo partners of the selected turret'), group: 'View' },
   { id: 'codex', code: 'KeyK', label: tx('Combo Codex: every combo and what it does'), group: 'View' },
   { id: 'info', code: 'KeyI', label: tx('Collapse or expand the turret panel'), group: 'View' },
+  { id: 'view', code: 'KeyV', label: tx('Switch the field view: 3D, top-down, tilted'), group: 'View' },
+  { id: 'rotLeft', code: 'BracketLeft', label: tx('Rotate the 3D view left'), group: 'View' },
+  { id: 'rotRight', code: 'BracketRight', label: tx('Rotate the 3D view right'), group: 'View' },
   { id: 'sendWave', code: 'Space', label: tx('Send the next wave now (bonus cash)'), group: 'Game' },
   { id: 'autoSend', code: 'KeyA', label: tx('Auto-send waves on/off'), group: 'Game' },
   { id: 'pause', code: 'KeyP', label: tx('Pause / resume'), group: 'Game' },
@@ -49,6 +53,7 @@ export const FIXED_KEYS: readonly [string, string][] = [
   [tx('Left, Right'), tx('Walk along the build rack')],
   [tx('Esc, right click'), tx('Cancel, deselect, or open the game menu')],
   [tx('Wheel, right drag'), tx('Zoom and pan (two fingers on touch)')],
+  [tx('Shift + right drag'), tx('Rotate and tilt the 3D view (twist two fingers on touch)')],
   [tx('Drag panel header'), tx('Move the turret panel; double-click puts it back')],
 ];
 
