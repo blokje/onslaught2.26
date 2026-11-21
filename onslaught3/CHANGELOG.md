@@ -5,6 +5,10 @@ Every task adds a line under **Unreleased**. OnSlaught2.26 keeps its own changel
 ## Unreleased
 
 ### Added
+- 3D build preview: while placing a turret in the 3D view the preview is the 3D turret itself, translucent green where
+  it fits and red where it does not (was a flat image). Shares `turretShape3d` with the real turrets; 5 small ghost
+  batches. Checked in Chromium (Cannon and Laser, valid and on the road, top-down still shows the 2D preview, no console
+  errors). Docs: `docs/claude/rendering.md`.
 - 3D attackers are now the same nine vehicles as in 2D (drone, buggy, saucer, crawler, beetle, delta skiff, orb roller,
   truck, manta) instead of plain spheres, with the enemy kind as a shape on top (armour plates, shield shell, splitter
   seam, regenerator halo, boss spikes). New `src/render/vehicles3d.ts` and wheel, delta and manta batches (11 draw calls

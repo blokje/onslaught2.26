@@ -6,7 +6,7 @@ import type { BlastSize } from '../types.ts';
 import { DIRECTIONAL } from '../data/rules.ts';
 import { KIND_INDEX, MOD_TINT } from './atlas.ts';
 import { clamp, hash2, fmtCompact, TAU } from './util.ts';
-import { rgb, rangeOf, turretColor } from './entities.ts';
+import { rgb, rangeOf, turretColor, turretShape3d, plinth3d, PLINTH_H } from './entities.ts';
 import type { RGB } from './util.ts';
 import type { Cell, SpriteBatch } from './batches.ts';
 import type { Effect, TurretState } from '../types.ts';
@@ -399,12 +399,19 @@ export function drawOverlay(R: Res, f: Frame): void {
     if (rng > 0) {
       b.ringTop.add(gh.x, gh.y, rng, px(2), 0.1, 0.3, 0, col[0], col[1], col[2], 0.75);
     }
-    b.ghostBase.add(gh.x, gh.y, 0, 64, 64, c.tb[idx], tint[0], tint[1], tint[2], 0.78);
     const rot = isMod ? t * 0.8 : 0;
-    const gws = isMod ? 50 : 64;
-    b.ghostWeap.add(gh.x, gh.y, rot, gws, gws, c.tw[idx], tint[0], tint[1], tint[2], 0.78);
     const gIcon = c.ti[gh.kind];
-    if (isMod && gIcon) b.ghostIcon.add(gh.x, gh.y, 0, 32, 32, gIcon, tint[0], tint[1], tint[2], 0.9);
+    const m3 = R.opts.view3d ? R.m : null;
+    if (m3) { // [OS3] 3D view: the turret itself, translucent and tinted green (fits) or red (does not)
+      plinth3d(m3.ghost, gh.x, gh.y, tint[0] * 0.45, tint[1] * 0.45, tint[2] * 0.45);
+      turretShape3d(m3.ghost, gh.kind, gh.x, gh.y, rot, [tint[0], tint[1], tint[2]], [1, 1, 1]);
+      if (isMod && gIcon) b.ghostIcon.addAt(gh.x, gh.y, PLINTH_H + 5.3, 0, 0, 0, 30, 30, gIcon, tint[0], tint[1], tint[2], 0.9);
+    } else {
+      b.ghostBase.add(gh.x, gh.y, 0, 64, 64, c.tb[idx], tint[0], tint[1], tint[2], 0.78);
+      const gws = isMod ? 50 : 64;
+      b.ghostWeap.add(gh.x, gh.y, rot, gws, gws, c.tw[idx], tint[0], tint[1], tint[2], 0.78);
+      if (isMod && gIcon) b.ghostIcon.add(gh.x, gh.y, 0, 32, 32, gIcon, tint[0], tint[1], tint[2], 0.9);
+    }
     b.ringTop.add(gh.x, gh.y, 22, px(2.4), 0, 0.15, 14, col[0], col[1], col[2], 0.95);
   }
 }

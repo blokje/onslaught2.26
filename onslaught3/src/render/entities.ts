@@ -8,6 +8,7 @@ import type { RGB } from './util.ts';
 import type { TurretState } from '../types.ts';
 import { ENEMIES } from '../data/enemies.ts';
 import { drawVehicle } from './vehicles3d.ts';
+import type { ShapeSet } from './meshes.ts';
 import type { Res, Frame } from './context.ts';
 
 const rgbCache = new Map<string, RGB>();
@@ -39,6 +40,30 @@ const BARREL: Record<string, [number, number, number]> = {
   blue: [16, 6, 6], green: [18, 3.5, 3.5], red: [12, 12, 7], yellow: [10, 4, 4],
   targeter: [8, 8, 5], sniper: [28, 3, 3], fusion: [14, 7, 7], railgun: [30, 5, 4],
 };
+
+/** Turret parts above the plinth in the 3D view (the plinth itself is drawn by the caller). Also used for the build
+ *  preview with the translucent ghost batches. tc: body colour, w: weapon tint (freak-out warning). */
+export function turretShape3d(m3: ShapeSet, kind: string, kx: number, ky: number, rot: number, tc: RGB, w: RGB): void {
+  const k0 = PLINTH_H, [tr, tg, tb] = tc;
+  const def = TURRETS[kind];
+  if (def && def.category === 'modifier') {
+    m3.oct.add(kx, ky, k0, rot, 14, 14, 5, tr * 0.9, tg * 0.9, tb * 0.9);
+    m3.tor.add(kx, ky, k0 + 5.5, rot, 11, 11, 3, tr, tg, tb);
+  } else if (kind === 'comboOnly') {
+    m3.cyl.add(kx, ky, k0, 0, 7, 7, 5, 0.35, 0.37, 0.42);
+    m3.sph.add(kx, ky, k0 + 13, rot, 9, 9, 9, tr, tg, tb);
+    m3.tor.add(kx, ky, k0 + 13, rot, 13, 13, 4, tr * 0.8, tg * 0.8, tb * 0.8);
+  } else {
+    const bar = BARREL[kind] || [14, 5, 5];
+    m3.cyl.add(kx, ky, k0, 0, 11, 11, 8, tr * 0.75, tg * 0.75, tb * 0.75);
+    m3.sph.add(kx, ky, k0 + 10, rot, 8.5, 8.5, 7, tr, tg, tb);
+    const d = bar[0] / 2 + 3;
+    m3.box.add(kx + Math.cos(rot) * d, ky + Math.sin(rot) * d, k0 + 9.5 - bar[2] / 2 + 1, rot, bar[0], bar[1], bar[2], GUNMETAL[0] * w[0], GUNMETAL[1] * w[1], GUNMETAL[2] * w[2]);
+    if (kind === 'yellow') m3.tor.add(kx, ky, k0 + 10, 0, 10, 10, 4, 1, 0.9, 0.35);
+  }
+}
+/** Plinth of a turret in the 3D view. */
+export function plinth3d(m3: ShapeSet, x: number, y: number, r: number, g: number, b: number): void { m3.cyl.add(x, y, 0, 0, PLINTH_R, PLINTH_R, PLINTH_H, r, g, b); }
 
 /** Rendering tint for a turret kind (used for glow, rings). */
 export function turretColor(t: TurretState): RGB {
@@ -81,7 +106,7 @@ export function drawTurrets(R: Res, f: Frame): void {
     // base plate (tinted red and flashing during the freak-out warning)
     let br = 1, bg = 1, bb = 1;
     if (t.freak === 'warn') { const fl = calm ? 0.6 : 0.5 + 0.5 * Math.sin(t0 * 16); bg = bb = 1 - 0.55 * fl; }
-    if (m3) m3.cyl.add(x, y, 0, 0, PLINTH_R, PLINTH_R, PLINTH_H, 0.24 * br, 0.26 * bg, 0.3 * bb);
+    if (m3) plinth3d(m3, x, y, 0.24 * br, 0.26 * bg, 0.3 * bb);
     else b.tBase.add(x, y, 0, 64, 64, c.tb[idx], br, bg, bb, 1);
 
     // weapon
@@ -108,24 +133,8 @@ export function drawTurrets(R: Res, f: Frame): void {
     const ws = isMod ? 50 : 64; // modifier dishes are drawn smaller so the icon on top stays readable
     const icon = c.ti[t.kind];
     if (m3) {
-      const k0 = PLINTH_H, kx = x + jx, ky = y + jy;
-      const tr = col[0] * wr, tg = col[1] * wg, tb = col[2] * wb;
-      if (isMod) {
-        m3.oct.add(kx, ky, k0, rot, 14, 14, 5, tr * 0.9, tg * 0.9, tb * 0.9);
-        m3.tor.add(kx, ky, k0 + 5.5, rot, 11, 11, 3, tr, tg, tb);
-        if (icon) b.tIcon.addAt(x, y, k0 + 5.3, 0, 0, 0, 30, 30, icon, 1, 1, 1, 1);
-      } else if (t.kind === 'comboOnly') {
-        m3.cyl.add(kx, ky, k0, 0, 7, 7, 5, 0.35, 0.37, 0.42);
-        m3.sph.add(kx, ky, k0 + 13, rot, 9, 9, 9, tr, tg, tb);
-        m3.tor.add(kx, ky, k0 + 13, rot, 13, 13, 4, tr * 0.8, tg * 0.8, tb * 0.8);
-      } else {
-        const bar = BARREL[t.kind] || [14, 5, 5];
-        m3.cyl.add(kx, ky, k0, 0, 11, 11, 8, tr * 0.75, tg * 0.75, tb * 0.75);
-        m3.sph.add(kx, ky, k0 + 10, rot, 8.5, 8.5, 7, tr, tg, tb);
-        const d = bar[0] / 2 + 3;
-        m3.box.add(kx + Math.cos(rot) * d, ky + Math.sin(rot) * d, k0 + 9.5 - bar[2] / 2 + 1, rot, bar[0], bar[1], bar[2], GUNMETAL[0] * wr, GUNMETAL[1] * wg, GUNMETAL[2] * wb);
-        if (t.kind === 'yellow') m3.tor.add(kx, ky, k0 + 10, 0, 10, 10, 4, 1, 0.9, 0.35);
-      }
+      turretShape3d(m3, t.kind, x + jx, y + jy, rot, [col[0] * wr, col[1] * wg, col[2] * wb], [wr, wg, wb]);
+      if (isMod && icon) b.tIcon.addAt(x, y, PLINTH_H + 5.3, 0, 0, 0, 30, 30, icon, 1, 1, 1, 1);
     } else {
       b.tWeap.add(x + jx, y + jy, rot, ws, ws, c.tw[idx], wr, wg, wb, 1);
       if (isMod && icon) b.tIcon.add(x, y, 0, 32, 32, icon, wr, wg, wb, 1);

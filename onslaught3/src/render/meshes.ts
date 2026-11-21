@@ -79,6 +79,9 @@ function mantaOutline(): [number, number][] {
   return out.concat(back.reverse());
 }
 
+/** The shapes a turret is built from (the solid batches, or the translucent ghost set for the build preview). */
+export interface ShapeSet { cyl: MeshBatch; oct: MeshBatch; box: MeshBatch; sph: MeshBatch; tor: MeshBatch }
+
 export interface Meshes {
   /** Turret plinths (cylinder) and bodies. */
   cyl: MeshBatch;
@@ -99,6 +102,8 @@ export interface Meshes {
   /** Delta-wing and manta outlines extruded to height 1 (sizes in world units at scale 1). */
   delta: MeshBatch;
   manta: MeshBatch;
+  /** Translucent copies for the build preview (ghost), drawn after everything solid. */
+  ghost: ShapeSet;
   all: MeshBatch[];
   lights: THREE.Object3D[];
 }
@@ -120,8 +125,15 @@ export function buildMeshes(scene: THREE.Scene, order: number): Meshes {
     manta: new MeshBatch(slab(mantaOutline()), 800, order),
     all: [],
     lights: [],
+    ghost: null as unknown as ShapeSet, // filled right below (needs the geometries)
   };
-  m.all = [m.cyl, m.oct, m.box, m.sph, m.tet, m.dod, m.tor, m.wheel, m.delta, m.manta, m.shell];
+  const gOpt = { opacity: 0.6, emissive: 0.3 };
+  m.ghost = {
+    cyl: new MeshBatch(m.cyl.mesh.geometry, 8, order + 0.2, gOpt), oct: new MeshBatch(m.oct.mesh.geometry, 8, order + 0.2, gOpt),
+    box: new MeshBatch(m.box.mesh.geometry, 8, order + 0.2, gOpt), sph: new MeshBatch(m.sph.mesh.geometry, 8, order + 0.2, gOpt),
+    tor: new MeshBatch(m.tor.mesh.geometry, 8, order + 0.2, gOpt),
+  };
+  m.all = [m.cyl, m.oct, m.box, m.sph, m.tet, m.dod, m.tor, m.wheel, m.delta, m.manta, m.shell, m.ghost.cyl, m.ghost.oct, m.ghost.box, m.ghost.sph, m.ghost.tor];
   for (const b of m.all) scene.add(b.mesh);
   const amb = new THREE.AmbientLight(0xffffff, 1.35);
   const sun = new THREE.DirectionalLight(0xfff2dc, 2.1);

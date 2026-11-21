@@ -64,7 +64,7 @@ Setting `viewMode` ('top' | 'tilted' | '3d', default '3d') becomes the renderer 
   moves the target (`shakeX/Y`), picking ignores it.
 - **Shapes** (`meshes.ts`): 11 `MeshBatch`es (wrapping `THREE.InstancedMesh`) of unit geometries: cylinder, octagonal
   drum, box, sphere, tetrahedron, dodecahedron, torus, wheel, extruded delta and manta outlines and a transparent shield
-  sphere, so the 3D view adds 11 draw calls.
+  sphere (11 draw calls), plus 5 translucent ghost batches that only draw while a build preview shows.
   Lambert materials lit by an ambient and a directional light (from the upper left); they are `transparent` so three.js
   sorts them by `renderOrder` (6.5) between the ground layers and the projectiles. `entities.ts` draws into them when
   `R.opts.view3d`: turrets as a plinth (height `PLINTH_H` 5) with a body, a head and a barrel per kind (`BARREL`), modifier
@@ -78,7 +78,10 @@ Setting `viewMode` ('top' | 'tilted' | '3d', default '3d') becomes the renderer 
   depth)`: projectiles, smoke and beams at height 11, text billboarded at 24, HP bars billboarded above each unit
   (`attTop`), modifier icons and colour badges depth-tested on top of the shapes, the upgrade ring (`tRing`) lifted onto
   the plinth. Rings got `set3d(lift, depth)`. Line widths use `View3D.wpp()` (world units per pixel at the target).
-- Not done: shadow maps, a 3D ghost (the build preview stays a flat image on the ground) and 3D projectiles.
+- **Build preview**: in 3D the ghost is the turret itself (`turretShape3d` and `plinth3d` from `entities.ts`, shared with
+  the real turrets), drawn with the translucent `Meshes.ghost` batches (opacity 0.6, order 6.7), tinted green where it
+  fits and red where it does not; the range ring and footprint ring stay on the ground.
+- Not done: shadow maps and 3D projectiles (they are lifted sprites).
 
 ## Screen shake and kill impact (game feel)
 
