@@ -2,12 +2,23 @@
 
 - **`blackholed` vs `swallowed`:** `blackholed` means the engine stops moving the attacker along the road and it pays $0. `swallowed` (set by the black hole combo) also makes it untargetable. Tests pin attackers with `blackholed`, so targeting checks `swallowed`, not `blackholed`. Only targeting and the piercing laser skip swallowed attackers; line and area hits (the Railgun beam, `blast()`) still hit them on purpose.
 - **`comboReady` can be stale within a step.** `combos.ts` recomputes readiness (`comboCapable && cd <= 0 && time >= comboNext`) to avoid one partner serving two leads in the same step.
+- **Keys are physical (`KeyboardEvent.code`), not letters.** Since the keymap (phase 1) the defaults sit on the QWERTY
+  positions, so on AZERTY "Q" is the key labelled A. Players rebind in the Controls overlay; labels show the QWERTY name.
+  Do not add `e.key` checks for actions, put them in `KEY_ACTIONS` (`src/ui/keymap.ts`).
 - **Holding Esc does not toggle the menu repeatedly:** `App.onKey` ignores auto-repeat for Esc (and for most other keys).
 - **The frame loop in `main.ts` survives an exception:** it logs the first occurrence of each message and pauses the game instead of dying, so a broken frame does not freeze the page silently.
 - **Combo-only** never leads and never fires; it counts as its `comboColor` and is always combo-capable. Default colour is red.
 - **Colours for new weapons:** Sniper counts as blue, Fusion green, Railgun red in combos.
 - **`comboPartners`** excludes modifiers and Targeters.
-- **`spent` never decreases.** Sell refunds do not lower the score; the move cost is added to `spent` but not to the turret's `cashValue`.
+- **`spent` never decreases, except through undo.** Sell refunds do not lower the score; the move cost is added to `spent` but not to the turret's `cashValue`. The optional `game.undo()` takes the undone cost back out of `spent`.
+- **Every new UI text goes through `t()`** (or `tx()` in a table) with Dutch and German added to a `src/ui/lang/*.ts` pack, or the i18n check fails. Do not name a local variable `t` in UI files (it hides the import; hud.ts and dialogs.ts use `tu` for a turret).
+- **Service worker cache.** Pages are network-first, other files cache-first (hashed names). When you change `public/sw.js` or its `CORE` list, raise `CACHE` (`os226-v1`) so old caches are dropped. It never runs in `npm run dev`.
+- **A new player command must join `REPLAY_COMMANDS`** (`src/game/Game.ts`), or replays will miss it and drift. Anything that changes the game outside a logged command (a cheat, a test helper) breaks replay matching on purpose.
+- **Tutorial and tips only watch.** They read events and state and never send game commands; the player does everything. A long wave interval would make Send pay a huge early bonus, which is why the tutorial restores the normal interval before the first Send.
+- **In-game HUD buttons stay `tabindex: -1`.** Otherwise Space or Enter would press the last clicked button instead of sending a wave or building. Menus and dialogs keep normal tab order; a new dialog must go through `App.openModal` to get the dialog role, focus trap and focus return.
+- **New animations must respect reduce motion.** UI: add a `.os-root.os-rm` rule; renderer: check `R.opts.reduceMotion`. No infinite CSS animation should run with it on.
+- **The top bar can wrap.** At a large UI scale or a narrow window it takes two or three rows. Place things below it with `var(--top-h)` (set by `Hud`), not a fixed `em` offset.
+- **A new way for a turret to fire must call `game.markFired(t.id)`** (or emit `shot`), or the optional undo could take back a turret that already did damage.
 - **Beams age at `dt / speed`** so they stay visible at 8x; effects age in game ms. Beams are capped at 400, effects at 300.
 - **First wave** starts after one full `waveInterval`.
 - **`update()` drops backlog** beyond 8 x speed steps per call (tab switches do not fast-forward the game).

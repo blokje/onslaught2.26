@@ -5,6 +5,178 @@ See [docs/claude/documentation.md](docs/claude/documentation.md).
 
 ## Unreleased
 
+### Added
+- OnSlaught 3 started in `onslaught3/` as a copy of this game (with its own docs, storage prefix `os3.` and the npm
+  scripts `dev:os3`, `typecheck:os3`, `build:os3`, `build:os3:single`, `test:os3`); see `onslaught3/CHANGELOG.md`.
+  OnSlaught2.26 itself is unchanged. Docs: `CLAUDE.md`, `README.md`.
+
+### Added (2026 roadmap, phase 7: platform)
+- Dutch and German: all UI text (HUD, menu, dialogs, How to play, tutorial, tips, Codex, achievements, controls, error
+  bubbles, turret blurbs; 534 texts) through `t()` in the new `src/ui/i18n.ts`, with packs in `src/ui/lang/`. Setting
+  "Language" (automatic from the browser by default; the page reloads to switch). Proper names stay English. The undo
+  tooltip now builds its label from parts (`UndoInfo` in `src/game/Game.ts` gained kind, turret, stat, levels) so it can
+  be translated. New sim-test checks (i18n) that fail on any missing or inconsistent translation. Translations written
+  with the help of three parallel agents and reviewed for conflicting terms (four harmonised). Checked in Chromium in
+  Dutch and German (menu, HUD, panel, Codex, Controls, no text overflowing its button, no console errors) and the
+  earlier English checks again. The Dutch and German wording has not been reviewed by a native speaker.
+  Docs: `ARCHITECTURE.md`, `README.md`, `docs/claude/ui.md`, `docs/claude/gotchas.md`, `docs/claude/testing.md`.
+- Save slots and save files: Menu > Saves (also in the in-game menu) shows the autosave and three slots with Load, Save
+  here, Delete and Export (a JSON file), and imports a save file (shape-checked, then validated by `Game.deserialize`).
+  New storage `os226.slot1..3`, `cleanSaveWrapper`, `App.saveWrapper/loadWrapper`. New sim-test checks (plat). Checked in
+  Chromium (save to slot 1, load, export, import the file into a fresh profile, no console errors).
+  Docs: `ARCHITECTURE.md`, `README.md`, `docs/claude/ui.md`, `docs/claude/testing.md`.
+- Gamepad support (standard mapping): the left stick moves a cursor with a crosshair, A clicks, B goes back, X builds
+  the highlighted turret, Y/LT/RT upgrade, LB/RB and the D-pad walk the rack or change speed, View sends a wave, Menu
+  pauses; listed in the Controls overlay. New `src/ui/gamepad.ts`. New sim-test checks (plat). Checked in Chromium with
+  a fake pad (crosshair moves, X builds, A selects, Y upgrades, Start pauses, no console errors); not with a real pad.
+  Docs: `SPEC.md` §8, `README.md`, `docs/claude/ui.md`, `docs/claude/testing.md`.
+- Phones: a compact layout below 760 px wide (one-column menu, scrolling build rack, the turret panel as a bottom sheet,
+  or a narrow right column on short landscape screens), larger touch targets, portrait support instead of the "rotate"
+  notice, and a long press on a rack slot to see a turret's info. Checked in Chromium with iPhone 13 emulation in
+  portrait and landscape (no overflow, tap to build, panel placement, long press; the first landscape try showed the
+  panel covering the field, fixed) and the desktop scale check. Not checked on a real phone.
+  Docs: `ARCHITECTURE.md`, `README.md`, `docs/claude/ui.md`, `docs/claude/testing.md`.
+- Installable app and offline play (PWA): web manifest, a service worker (pages network-first, other files cache-first)
+  registered only in the production build over http(s), and original app icons (`public/icons/icon.svg` plus PNGs from
+  the new `scripts/make-icons.ts`; adding these files was approved). Checked with `vite preview` in Chromium: the worker
+  activates, the manifest is valid, the menu and a game load offline, no console errors.
+  Docs: `CLAUDE.md` rule 4, `README.md`, `docs/claude/testing.md`, `docs/claude/gotchas.md`.
+
+### Added (2026 roadmap, phase 5: motivation)
+- Replays: the game logs every player command with its step (`commandLog`, saved with the game, plus `startOpts`), and a
+  replay plays the same commands at the same steps, so it ends in exactly the same state. Save replay (file) and Copy
+  replay code (gzip + base64url) at game over; Menu > Replays to watch one, with speed and pause only. New
+  `src/game/replay.ts`, `src/ui/replayCode.ts`, `game.stepHook`, `game.stepLimit`, optional `AppOptions.replays`.
+  The replay test found that `cycleTargetMode` was logged twice (it calls `setTargetMode`); only the outermost command is
+  logged now. New sim-test checks (rep). Checked in Chromium: a played game, its code copied, watched from the menu,
+  building refused while watching, "exactly as recorded" at the end, no console errors.
+  Docs: `ARCHITECTURE.md`, `README.md`, `docs/claude/simulation.md`, `docs/claude/ui.md`, `docs/claude/gotchas.md`,
+  `docs/claude/testing.md`.
+- Daily challenge: one map, difficulty and seed per UTC day (from a hash of the date), started from a card in the menu,
+  with its own top 10 per day (`os226.daily`, last 30 days) and the rank shown at game over. Continue keeps it a daily.
+  New `src/ui/daily.ts`, optional `meta.daily` in the autosave. New sim-test checks (mot). Checked in Chromium (card,
+  start on the right map, score and rank stored, card shows the best score, Daily Habit earned; that last one failed at
+  first because achievements were checked before the score was stored, fixed). Docs: `SPEC.md` §9, `ARCHITECTURE.md`,
+  `README.md`, `docs/claude/ui.md`, `docs/claude/testing.md`.
+- Map stars: 1 to 3 stars per map for the selected difficulty (best Normal-mode wave reaching 25, 50, 100), shown in the
+  map grid and updated with the difficulty buttons. New sim-test check (mot). Checked in Chromium with stored scores
+  (2 stars on Medium, 3 on Hard where expected, no console errors). Docs: `README.md`, `docs/claude/ui.md`, `docs/claude/testing.md`.
+- Achievements: 22 local goals (first kill and combo, Nuke, Black Hole, 10 and 20 combos discovered, freak-out, a fully
+  upgraded weapon, all modifiers, 50 turrets, $100K, waves 25/50/100, Hard and Extreme goals, a clean run to wave 30, an
+  extra map, every map, a billion points, a daily challenge). Toast and log on earning, an overview in the menu. Sandbox
+  never counts for wave, score or cash goals. New `src/ui/achievements.ts`, storage `os226.achievements` and
+  `os226.stats`; Reset progress clears them. New sim-test checks (mot). Checked in Chromium (First Blood toast on the
+  first kill, stored, listed 1 of 22 in the menu, no console errors).
+  Docs: `ARCHITECTURE.md`, `README.md`, `docs/claude/ui.md`, `docs/claude/testing.md`.
+
+### Added (2026 roadmap, phase 4: game feel)
+- Tilted view (setting, default off): the field as if seen at an angle (about 39 degrees) with drop shadows under the
+  turrets. Implemented as an exact vertical scale in the camera (`scaleY`, `setTilt`, `TILT_Y`), so building, selecting,
+  zooming and panning stay precise; new `tShadow` batch and `RenderOptions.tilted`. Checked in Chromium: build at a
+  point, zoom twice at it (the turret stays under the click) and pan (selection still hits it), no console errors.
+  Docs: `ARCHITECTURE.md`, `docs/claude/rendering.md`, `docs/claude/ui.md`.
+- Soft screen transitions: the menu and the HUD fade in, dialogs fade and pop in. None with reduce motion. CSS only.
+  Checked in Chromium (dialog focus and reduce-motion checks still pass, no console errors). Docs: `docs/claude/ui.md`.
+- Adaptive synthesized music (no audio files): a calm pad in the menu, and in a game layers and tempo follow the pressure
+  (attackers on the field, lives lost); silent while paused or after game over. New `src/ui/music.ts`, a third audio bus
+  and the setting "Music volume" (default 60%, 0 turns it off). New sim-test checks (feel). Checked in Chromium by
+  counting scheduled oscillators (menu, wave, none while paused, no console errors); the music itself was not listened to.
+  Docs: `ARCHITECTURE.md`, `docs/claude/ui.md`, `docs/claude/testing.md`.
+- Screen shake on big blasts and black holes (setting "Screen shake", default on, never with reduce motion) and a quick
+  impact ring on every kill. Presentation only (`R.shake` in the renderer, new `RenderOptions.screenShake`). Checked in
+  Chromium that a real Nuke and normal waves run without console errors; the shake itself was checked by code review,
+  not on screen. Docs: `ARCHITECTURE.md`, `docs/claude/rendering.md`, `docs/claude/ui.md`.
+
+### Added (2026 roadmap, phase 2: onboarding)
+- One-time tips in the coach card: the first leak, few lives left, the first modifier and late-weapon unlocks,
+  freak-out, a turret ready for combos, the first combo, and wave 10 without upgrades. Each shows once (stored in
+  `os226.hints`), never during the tutorial, closes with Got it or after 12 s. Settings: Tips on/off (`hints`) and Reset
+  tips. New `src/ui/hints.ts`. New sim-test checks (onb). Checked in Chromium (tip on the first leak, not repeated,
+  stored; no tips during the tutorial; steady highlight with reduce motion; no console errors).
+  Docs: `ARCHITECTURE.md`, `README.md`, `docs/claude/ui.md`, `docs/claude/testing.md`.
+- Interactive tutorial on the How to Play map: 8 steps you play (build, send a wave, upgrade, targeting, a second turret,
+  combos) in a coach card with Back, Next and Skip, the target element outlined, texts with your own keys and read out
+  for screen readers. First-start banner "New here? Play the tutorial", a Tutorial button in the menu and Replay in
+  Settings (setting `tutorialDone`). Wave 1 waits for the player; the first Send restores the normal interval so the
+  early bonus stays normal (a first try paid $592, found in the browser check). New `src/ui/tutorial.ts`, coach card in
+  the HUD, optional `AppGame.setWaveInterval`. New sim-test checks (onb). Checked in Chromium: banner, full walk-through
+  with keys and mouse, no wave before Send, $25 bonus, finish restores waves and hides the banner, no console errors.
+  Docs: `SPEC.md` §9, `ARCHITECTURE.md`, `README.md`, `docs/claude/ui.md`, `docs/claude/gotchas.md`, `docs/claude/testing.md`.
+- Combo Codex (K, the main menu, the in-game menu, or "All combos" in the Combos tab): all 20 recipes per lead colour
+  with partners as shape dots, recharge, a "new" badge for [NEW] recipes and the effect, generated from the recipe data
+  by `describeCombo` so text and numbers cannot drift apart. Combos you fire are counted over all games (`os226.codex`,
+  cleared by Reset progress) and marked as discovered. The shaped colour dot moved to `src/ui/colors.ts` (`colorDot`).
+  New sim-test checks (onb). Checked in Chromium (20 recipes from the menu; a real Nuke in Sandbox is counted and shown
+  as discovered; K and the Combos-tab link open it; no console errors).
+  Docs: `SPEC.md` §8, `ARCHITECTURE.md`, `README.md`, `docs/claude/ui.md`, `docs/claude/testing.md`.
+
+### Added (2026 roadmap, phase 3: accessibility)
+- Colour shapes, so combos never depend on colour vision alone: red triangle, green circle, blue square, yellow diamond.
+  Every weapon and Combo-only shows its shape as a small badge on the map (setting "Colour shapes on the map", default
+  on, new optional overlay field `colorSymbols`), and the colour dots in the Combos tab, the Combo-only button and How to
+  play use the same shapes. New `src/ui/colors.ts`, icon atlas grown to 4 x 3 for the shapes, badge in the existing icon
+  batch. Fixed the render demo's fake turrets, which had no weapon `comboColor`. New sim-test checks (acc). Checked in
+  Chromium (render demo, a real game, setting off, no console errors).
+  Docs: `ARCHITECTURE.md`, `README.md`, `docs/claude/rendering.md`, `docs/claude/ui.md`, `docs/claude/testing.md`.
+- Interface size (80% to 160%) and High contrast in Settings > Accessibility (settings `uiScale`, `highContrast`).
+  The docked turret panel now starts below the measured top bar, which wraps at large sizes; before it covered the speed
+  and pause buttons there. Checked in Chromium at 1024x640 and 1920x1080 with both ends of the scale (nothing off
+  screen, no console errors). Docs: `ARCHITECTURE.md`, `docs/claude/ui.md`, `docs/claude/gotchas.md`.
+- Reduce motion and flashes (setting `reduceMotion`, starts on when the system asks for less motion): no pulsing,
+  blinking or spinning in the UI, a calm leak cue, and on the map no freak-out jitter or blinking, a steady combo halo
+  and dimmer blasts with less debris. New optional `renderer.setOptions({ reduceMotion })` and type `RenderOptions`.
+  New sim-test checks (acc). Checked in Chromium with emulated `prefers-reduced-motion` (class set, no infinite
+  animations, calm leak cue, no console errors); the calmer blasts were checked by code review and type check only.
+  Docs: `ARCHITECTURE.md`, `docs/claude/rendering.md`, `docs/claude/ui.md`, `docs/claude/gotchas.md`, `docs/claude/testing.md`.
+- Separate volumes for game effects and interface sounds (settings `sfxVolume`, `uiVolume`), on top of the master volume.
+  The audio engine now has two buses before the compressor. New sim-test checks (acc). Checked in Chromium (sliders store
+  their values, no console errors); the sound itself could not be listened to here.
+  Docs: `ARCHITECTURE.md`, `docs/claude/ui.md`, `docs/claude/testing.md`.
+- Keyboard and screen-reader support in menus and dialogs: dialogs are real `role="dialog"` elements that take focus,
+  keep Tab inside and return focus on close; arrow keys move through the map grid; a visible focus ring; labelled icon
+  buttons and tab panels; a polite live region announces log lines, toasts, wave starts and leaks (at most once per
+  second). Checked in Chromium (keyboard-only map choice, focus trap and return, ARIA snapshot, live region, earlier
+  checks for the Controls dialog and undo still pass, no console errors). Not checked with a real screen reader.
+  Docs: `SPEC.md` §8, `docs/claude/ui.md`, `docs/claude/gotchas.md`, `docs/claude/testing.md`.
+
+### Added (2026 roadmap, phase 1: player information)
+- Incoming-wave preview in the top bar: "Wave N" with the HP and bounty of each attacker in the next wave, and a
+  tooltip for the next 5 waves. Backed by the new read-only command `game.wavePreview(n?)` (no rng, same formulas as
+  spawning; type `WavePreview`). No gameplay change. New sim-test checks (q).
+  Docs: `ARCHITECTURE.md`, `docs/claude/ui.md`, `docs/claude/testing.md`.
+- Upgrade preview: hovering a stat row in the Upgrades tab shows "now → after one more level" (modifiers and freak-out
+  included), and for range a dashed lime ring at the new range on the map. New read-only `game.upgradePreview(id, stat)`
+  (type `UpgradePreview`) and optional overlay field `previewRange`; the modifier sum moved into `Game._modSumFor`, shared
+  with `_recompute`. No gameplay change. New sim-test checks (q).
+  Docs: `ARCHITECTURE.md`, `docs/claude/ui.md`, `docs/claude/rendering.md`, `docs/claude/testing.md`.
+- Damage and DPS per turret: the General tab shows "Damage: 4.5M, DPS: 120K" for weapons. New optional turret field
+  `damageDealt` (effective damage, overkill not counted, combo damage for the lead; saved, old saves load 0) and the UI
+  helper `DpsTracker` (`src/ui/dps.ts`, last 10 s of game time). No gameplay change. New checks in combo-test (damage,
+  save) and sim-test (q). Docs: `ARCHITECTURE.md`, `docs/claude/simulation.md`, `docs/claude/ui.md`, `docs/claude/testing.md`.
+- End-of-run report in the game-over dialog: damage dealt, combos fired, game time, sparklines for cash, lives and damage
+  per wave, and the top 5 turrets by damage (MVP first). New optional state fields `history` (one record per started
+  wave) and `damageTotal`, both saved; old or broken saves load `[]` and 0. The dialog is now normal width.
+  No gameplay change. New sim-test checks (q). Checked in Chromium: report, upgrade preview, damage chip, no console errors.
+  Docs: `ARCHITECTURE.md`, `docs/claude/simulation.md`, `docs/claude/ui.md`, `docs/claude/testing.md`.
+- Auto-send waves (key A, Auto button, setting `autoSend`, default off): after the player starts wave 1, the next wave is
+  sent like Space (early bonus included) as soon as the field is clear. New read-only `game.waveActive()`. No rule change.
+  New sim-test check (q). Checked in Chromium (waves keep coming at 8x, A toggles, no console errors).
+  Docs: `SPEC.md` §8 and §9, `ARCHITECTURE.md`, `README.md`, `docs/claude/ui.md`, `docs/claude/testing.md`.
+- Controls overlay and rebindable keys: `?` (or `/`, or Settings > Keys...) lists every control; click a key and press the
+  new one (Esc cancels, reserved keys are refused, a used key swaps). Saved in the new setting `keys` (overrides only).
+  All key handling now comes from one table, `src/ui/keymap.ts`, which also generates the How to play key list, so help
+  and handler can no longer drift apart. Key hints in the HUD follow the bindings. Behaviour change: keys are now matched
+  by physical position (`KeyboardEvent.code`), so on AZERTY and similar layouts the defaults sit on the QWERTY positions.
+  New sim-test checks (q). Checked in Chromium (rebind, swap, reserved key, persistence, reset, no console errors).
+  Docs: `SPEC.md` §8, `ARCHITECTURE.md`, `README.md`, `docs/claude/ui.md`, `docs/claude/gotchas.md`, `docs/claude/testing.md`.
+- Optional undo ([NEW] relaxed rule, setting "Relaxed: undo", off by default): U or the Undo button takes back the last
+  build or upgrade with a full refund until that turret fires. New `game.undo()`, `game.undoInfo()`, event `undo`,
+  `game.markFired(id)` and the saved flag `state.undoUsed`; high scores of such games carry a U mark (`ScoreEntry.undo`).
+  The original rules stay the default. New sim-test checks (u). Checked in Chromium (toast with the setting off, build
+  undone with full refund, refused after firing, U mark in the high scores, no console errors).
+  Docs: `SPEC.md` §8 and §9, `ARCHITECTURE.md`, `README.md`, `docs/claude/simulation.md`, `docs/claude/ui.md`,
+  `docs/claude/gotchas.md`, `docs/claude/testing.md`.
+
 ### Fixed
 - A rate change (rate upgrade, or a rate modifier built or sold nearby) during a combo recharge no longer shortens or
   lengthens it: the lead and partners now always stay quiet for exactly the recipe's recharge (Nuke 7.4 s). Normal shot

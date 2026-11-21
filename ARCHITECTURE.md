@@ -69,9 +69,14 @@ The constructor's default `seed` is a fixed constant, so callers that want a dif
                joinedTo /*Targeter: turret id or null*/, comboColor /*'red'|'green'|'blue'|'yellow' or null: weapons have their own colour, Combo-only the chosen one, else null*/,
                modRange /*modifiers: current influence radius*/,
                combosFired, combosAssisted,           // combos led / joined as partner (weapons and Combo-only)
+               damageDealt /*optional: effective damage done, overkill not counted, combo damage counts for the lead*/,
                comboLog: [ { id /*recipe id*/, time /*game ms*/, role: 'lead'|'partner' } ] /*newest first, max COMBO_LOG_MAX*/ } ],
 
   focusId,              // optional: attacker id under focus fire, or null (renderer draws a reticle on it)
+  history,              // optional: [ { wave, time, cash, lives, kills, spent, damage } ], one per started wave, taken as it starts
+                        //   (damage = damageTotal at that moment; max HISTORY_MAX 5000, oldest dropped; saved, missing/broken -> [])
+  undoUsed,             // optional: true once game.undo() was used (saved; high scores get a U mark)
+  damageTotal,          // optional: effective damage of all turrets this game, sold ones included (saved, missing -> 0)
   projectiles: [ { id, kind, x, y, angle, armed? } ],   // armed (mines only): false while travelling, true once placed
     // kind: 'shell' | 'rocket' | 'nuke' | 'poisonRocket' | 'laserRocket' | 'napalmRocket' | 'tazerRocket'
     //       | 'bfg' | 'clusterBomb' | 'cluster' | 'mine'
@@ -99,6 +104,8 @@ game.canBuild(kind, x, y)            // checks cash, unlock, field bounds, road,
 game.build(kind, x, y)               // -> { ok, id }
 game.upgrade(id, stat, toMax=false)  // stat: 'damage'|'range'|'rate'; modifiers: 'range' only; -> { ok, levels } (levels bought)
 game.upgradeCost(id, stat)           // -> number | null (null = maxed / not upgradable)
+game.upgradePreview(id, stat)        // read-only, no rng: { stat, cost, from, to } effective stats now and after one more level
+                                     //   (current modifiers and freak-out included; modifiers: range = influence); null when maxed
 game.sell(id)                        // refund 70% of cashValue
 game.move(id, x, y)                  // costs $500, same placement checks
 game.setTargetMode(id, mode)         // or game.cycleTargetMode(id)
@@ -112,6 +119,10 @@ game.comboPreview(id)                // read-only, no rng: { leads, partners: [{
                                      //   recipes: [{ id, name, isNew, needs, missing, exactBlocked, wait }], next: { id, name, wait } | null }
                                      //   wait = earliest ms until it could fire (Infinity = not possible), for the panel's Combos tab
 game.sendWave()                      // early wave, adds early bonus; refused while paused ('Game is paused')
+game.undo()                          // relaxed rule: take back the last build/upgrade, full refund, until that turret fires (SPEC.md 9)
+game.undoInfo()                      // read-only: { label, refund } of what undo() would take back, or null
+game.waveActive()                    // read-only: true while a wave is still spawning or any attacker is alive (auto-send)
+game.wavePreview(n?)                 // read-only, no rng: { wave, type, hp, bounty, count } of wave n (default: the next wave, state.wave + 1)
 game.setSpeed(s); game.togglePause(); game.setPaused(bool)
 game.setWaveInterval(ms)             // fails unless ms is a finite number >= 1000; clamps nextWaveIn
 game.advance(steps)                  // exactly `steps` 1/60 s steps, ignores speed and pause (tests and tools)
@@ -119,12 +130,20 @@ game.addAttacker(a)                  // push a ready-made attacker (tests); game
 game.turretAt(x, y)                  // -> id | null (within TURRET_SIZE/2)
 ```
 
+Replays (`src/game/replay.ts`): every successful command in `REPLAY_COMMANDS` (build, upgrade, sell, move, the targeting
+commands, join, setComboColor, sendWave, setWaveInterval, undo) is logged in `game.commandLog` as `{ s: stepCount, c, a }`
+(outermost command only; saved). `game.startOpts` keeps the start options (saved). `game.stepHook(step)` runs at the start
+of every step and `game.stepLimit` stops `update()` (both not saved). `makeReplay(game)` -> `{ v, opts, log, end, result }`,
+`validateReplay(raw)` throws `Error('Invalid replay: ...')`, `runReplay(r)` plays headless, `startPlayback(r)` gives a live
+game for the UI, `replayMatches(game, r)`. The App gets them through the optional `AppOptions.replays` (`ReplaySupport`,
+wired in `src/main.ts`), so `src/ui` still never imports `Game`.
+
 ### 1.3 Events (`game.on(name, fn)`; payload object)
 
 `shot {kind, turretId}`, `hit {attackerId}`, `kill {attackerId, x, y, bounty}`, `leak {lives}`,
 `wave {wave}`, `blast {size, x, y}`, `combo {id, name, turretId, partnerIds}`, `build {id, kind}`, `sell {id, refund}`,
 `upgrade {id, stat, levels}`, `move {id, x, y}`, `unlock {kind}`, `freakout {id, stage}`, `message {text}`, `gameover {score, kills, wave}`,
-`error {reason}` (failed command, for UI feedback).
+`error {reason}` (failed command, for UI feedback), `undo {id, kind: 'build'|'upgrade', refund}`.
 
 ### 1.4 Rules the simulation must follow
 Everything in `SPEC.md` sections 2 to 6 and 9, using the data files. Target modes: near, far (furthest along the path),
@@ -146,10 +165,13 @@ r.setOverlay({                              // UI-driven overlays, call whenever
   showRanges: 'selected' | 'all',           // R key toggles to 'all'
   showCombo: bool,                          // C key: lines from selected turret to comboPartners
   joinFromId: id | null,                    // Targeter join mode: line to cursor
+  previewRange: { id, range } | null,       // optional: dashed lime ring, the selected turret's range after the hovered upgrade
+  colorSymbols: bool,                       // optional, default true: shape badge of each turret's comboColor (accessibility)
 });
 r.resetView();                              // fit field to screen
 r.setViewInsets({ top, right, bottom, left }) // optional: CSS px covered by HUD panels, the fitted field avoids them
 r.getZoom()                                 // -> current zoom factor
+r.setOptions({ reduceMotion, screenShake, tilted }) // optional presentation options, partial objects merge; never touches game state
 r.dispose();                                // remove listeners and the canvas, release WebGL
 r.canvas                                    // the canvas element
 ```
@@ -183,15 +205,22 @@ pooled meshes for attackers/projectiles).
   updates `renderer.setOverlay`.
 - **Persistence** (`src/ui/storage.ts`, localStorage key prefix `os226.`, all access in try/catch):
   settings, unlocks (Extreme after reaching wave 100 on Medium, Sandbox after wave 50 on anything),
-  high scores per map+difficulty (top 10), autosave of the running game every 10 s and on page hide.
+  high scores per map+difficulty (top 10), autosave of the running game every 10 s and on page hide,
+  the Combo Codex counts (`os226.codex`, times each recipe was fired over all games), the ids of tips already shown (`os226.hints`),
+  earned achievements (`os226.achievements`, id -> date) and lifetime stats (`os226.stats`: maps started, dailies finished),
+  daily challenge scores (`os226.daily`, top 10 per UTC day, newest 30 days); the autosave meta carries `daily` for a daily game;
+  three manual save slots (`os226.slot1` to `slot3`, the same wrapper as the autosave, checked by `cleanSaveWrapper`).
 - **Settings**: master volume / mute, wave interval override, snap-to-grid toggle (grid 22 units), unlock-all switch,
-  show FPS, `autoPause` (pause while the tab is hidden), `panelPos` (moved turret panel). `getSettings()` drops stored values
+  show FPS, `autoPause` (pause while the tab is hidden), `autoSend` (send the next wave when the field is clear, see
+  `game.waveActive()`), `panelPos` (moved turret panel), `keys` (rebound keys: `{ action: KeyboardEvent.code }`, only
+  the ones that differ from `src/ui/keymap.ts`), `undo` (Relaxed: undo, off by default), `colorSymbols` (shape badges on the map, default on), `uiScale` (0.8 to 1.6, `clampScale`), `highContrast`, `reduceMotion` (first start follows `prefers-reduced-motion`), `sfxVolume`, `uiVolume` and `musicVolume` (bus volumes on top of the master volume), `language` ('' = from the browser, else en/nl/de; a change reloads the page), `tutorialDone` (tutorial finished or skipped), `screenShake` (default on, never with reduce motion), `tiltedView` (renderer option `tilted`, default off), `hints` (one-time tips, default on). `getSettings()` drops stored values
   whose type does not match the default.
 - **Audio** (`src/ui/audio.ts`): Web Audio synthesized SFX driven by game events (cannon pop, laser zap, rocket whoosh,
   spark crackle, blasts by size, nuke boom, kill tick, leak alarm, wave horn, combo chord, UI clicks). Rate-limit
   per sound so 8× speed stays pleasant. Starts after the first user gesture.
-- Layout must work from 1024 × 640 up to 4K, and on iPad landscape (touch: tap = left click; a "pan mode" is not
-  needed because two-finger gestures pan/zoom). Show a "rotate to landscape" notice in portrait.
+- Layout must work from 1024 × 640 up to 4K, on iPad, and on phones in portrait and landscape (touch: tap = left click;
+  a "pan mode" is not needed because two-finger gestures pan/zoom). Below 760 px wide the phone layout applies; portrait is
+  supported, the old "rotate to landscape" notice is no longer shown.
 
 ## 4. `src/main.ts` (coordinator)
 

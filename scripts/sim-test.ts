@@ -3,6 +3,26 @@ import { Game, STEP_MS } from '../src/game/Game.ts';
 import { MAPS } from '../src/data/maps.ts';
 import { DIFFICULTIES, WAVES, WEAVE } from '../src/data/rules.ts';
 import { waveHp, waveBounty, laneOffset } from '../src/game/Attacker.ts';
+import { ladderValue } from '../src/game/modifiers.ts';
+import { DpsTracker } from '../src/ui/dps.ts';
+import { COLOR_SYMBOL } from '../src/ui/colors.ts';
+import { clampScale, getSettings, getCodex, recordCombo, saveSlot, getSlot, clearSlot, cleanSaveWrapper } from '../src/ui/storage.ts';
+import { describeCombo, partnerList, COMBO_COUNT } from '../src/ui/codex.ts';
+import { Tutorial, TUTORIAL_STEPS } from '../src/ui/tutorial.ts';
+import { Hints, HINTS, cleanHintIds } from '../src/ui/hints.ts';
+import { musicStep, musicTempo, musicIntensity } from '../src/ui/music.ts';
+import { ACHIEVEMENTS, newlyEarned, cleanEarned, starsForWave, bestWave } from '../src/ui/achievements.ts';
+import { dailyFor } from '../src/ui/daily.ts';
+import { makeReplay, runReplay, validateReplay, replayMatches, startPlayback } from '../src/game/replay.ts';
+import { GamepadReader, PAD_BUTTONS } from '../src/ui/gamepad.ts';
+import { t, setLang, detectLang, DICT } from '../src/ui/i18n.ts';
+import { TURRETS } from '../src/data/turrets.ts';
+import { encodeReplay, decodeReplay } from '../src/ui/replayCode.ts';
+import { COMBOS } from '../src/data/combos.ts';
+import { formatNum } from '../src/ui/format.ts';
+import { AudioEngine, UI_SOUNDS, busOf } from '../src/ui/audio.ts';
+import { COLOR_SHAPES } from '../src/render/atlas.ts';
+import { KEY_ACTIONS, RESERVED_CODES, cleanKeyOverrides, codeLookup, keyLabel, rebind, resolveBindings } from '../src/ui/keymap.ts';
 import type { Turret } from '../src/game/Turret.ts';
 import type { Attacker, GameEvents, KeyColor, Projectile, Result, Stat, TargetMode } from '../src/types.ts';
 
@@ -434,6 +454,472 @@ function makePlayer(game: Game, spots: Spot[]): () => void {
   check('(late) spawned wave-130 attacker uses the late curve', a && a.wave === 130 && near(a.maxHp, waveHp(130, 1.125)) && a.bounty === waveBounty(130),
     a ? `${a.maxHp.toExponential(2)} HP, $${a.bounty}` : 'no attacker');
   if (a) { const c = gm.state.cash; gm.damageAttacker(a, a.hp + 1, null); check('(late) kill pays the late bounty', gm.state.cash - c === waveBounty(130) && paid === waveBounty(130)); }
+}
+
+// ------------------------------------------------------------------ (q) player information (read-only previews)
+{
+  for (const d of ['medium', 'hard'] as const) {
+    const g = new Game({ mapId: 'map1', difficulty: d, seed: 5 });
+    const growth = DIFFICULTIES[d].hpGrowth;
+    const first = g.wavePreview();
+    check(`(q) ${d}: wavePreview() before wave 1 is wave 1`, first.wave === 1 && first.count === WAVES.size && first.type === 0);
+    let same = true;
+    for (const n of [1, 50, 100, 150]) {
+      const p = g.wavePreview(n);
+      same &&= p.wave === n && p.hp === waveHp(n, growth) && p.bounty === waveBounty(n) && p.type === (n - 1) % WAVES.types;
+    }
+    check(`(q) ${d}: wavePreview(n) matches the wave formulas (1, 50, 100, 150)`, same);
+    const rng0 = g.rng.s;
+    g.wavePreview(77);
+    check(`(q) ${d}: wavePreview draws no random numbers`, g.rng.s === rng0);
+    g.sendWave();
+    g.advance(2);
+    const a = g.state.attackers[0];
+    check(`(q) ${d}: preview of wave 1 equals the spawned attacker`, a && a.maxHp === first.hp && a.bounty === first.bounty && a.type === first.type);
+    check(`(q) ${d}: after wave 1 starts the preview moves to wave 2`, g.wavePreview().wave === 2);
+  }
+
+  // upgradePreview: equals the real stats after the upgrade, modifiers included, and changes nothing
+  const g = new Game({ mapId: 'map1', mode: 'sandbox', seed: 6 });
+  /** First legal spot within `r` of (cx, cy). */
+  const spotNear = (kind: string, cx: number, cy: number, r: number): { x: number; y: number } => {
+    for (let x = cx - r; x <= cx + r; x += 4) for (let y = cy - r; y <= cy + r; y += 4) {
+      if (Math.hypot(x - cx, y - cy) <= r && g.canBuild(kind, x, y).ok) return { x, y };
+    }
+    throw new Error('no spot near ' + cx + ',' + cy);
+  };
+  const s0 = spotNear('red', 360, 225, 300);
+  const red = must(g.build('red', s0.x, s0.y)).id;
+  const s1 = spotNear('damageUp', s0.x, s0.y, 70);
+  const boom = must(g.build('damageUp', s1.x, s1.y)).id;
+  const s2 = spotNear('rangeUp', s0.x, s0.y, 75);
+  must(g.build('rangeUp', s2.x, s2.y));
+  let allSame = true, untouched = true, detail = '';
+  for (const stat of ['damage', 'range', 'rate'] as const) {
+    for (let i = 0; i < 3; i++) {
+      const before = JSON.stringify(g.serialize());
+      const pv = g.upgradePreview(red, stat);
+      untouched &&= JSON.stringify(g.serialize()) === before;
+      if (!pv) { allSame = false; detail = 'null preview'; break; }
+      const cost = g.upgradeCost(red, stat);
+      must(g.upgrade(red, stat));
+      const st = tur(g, red).stats;
+      const same = pv.cost === cost && near(pv.to.damage, st.damage) && near(pv.to.range, st.range) && near(pv.to.rate, st.rate);
+      if (!same) detail = `${stat}: preview ${JSON.stringify(pv.to)} real ${JSON.stringify(st)}`;
+      allSame &&= same;
+    }
+  }
+  check('(q) upgradePreview equals the stats after the real upgrade (inside Boom and Ranger auras)', allSame, detail);
+  check('(q) upgradePreview changes no game state', untouched);
+  const tr = tur(g, red);
+  check('(q) upgradePreview includes modifier bonuses (Boom +40%)',
+    near(tr.stats.damage, ladderValue('red', 'damage', tr.levels.damage) * 1.4) && g.upgradePreview(red, 'damage')!.from.damage === tr.stats.damage);
+  g.upgrade(red, 'damage', true);
+  check('(q) upgradePreview is null for a maxed stat and a missing turret', g.upgradePreview(red, 'damage') === null && g.upgradePreview(99999, 'range') === null);
+  // DPS tracker (src/ui/dps.ts, pure): 100 damage per game second -> 100 DPS; null before one second is measured
+  const dt = new DpsTracker(), fake = { ...tur(g, red), damageDealt: 0 };
+  let dpsEarly: number | null = 0;
+  for (let ms = 0; ms <= 15000; ms += 100) {
+    fake.damageDealt = ms / 10;
+    dt.sample(g, ms, [fake]);
+    if (ms === 500) dpsEarly = dt.dps(fake, ms);
+  }
+  const dps = dt.dps(fake, 15000);
+  check('(q) DPS tracker: 100 damage/s reads 100 DPS, null in the first second', dpsEarly === null && dps != null && near(dps, 100), String(dps));
+  dt.sample(g, 16000, []);
+  check('(q) DPS tracker forgets sold turrets at its next sample', dt.dps(fake, 16000) === null);
+
+  const mp = g.upgradePreview(boom, 'range');
+  check('(q) modifier preview: influence 80 -> 130', !!mp && mp.from.range === 80 && mp.to.range === 130, JSON.stringify(mp));
+}
+
+// ------------------------------------------------------------------ (q) keymap (src/ui/keymap.ts, pure)
+{
+  const codes = KEY_ACTIONS.map((a) => a.code);
+  check('(q) keymap: defaults are unique and none is reserved', new Set(codes).size === codes.length && codes.every((c) => !RESERVED_CODES.has(c)));
+  const def = codeLookup(resolveBindings({}));
+  check('(q) keymap: default keys match SPEC.md section 8', def.get('KeyQ') === 'upDamage' && def.get('KeyW') === 'upRange' && def.get('KeyE') === 'upRate'
+    && def.get('Space') === 'sendWave' && def.get('KeyA') === 'autoSend' && def.get('KeyP') === 'pause' && def.get('KeyG') === 'settings' && def.get('KeyD') === 'cone');
+  const o1 = rebind({}, 'sell', 'KeyZ');
+  check('(q) keymap: rebind to a free key stores only that override', JSON.stringify(o1) === '{"sell":"KeyZ"}' && codeLookup(resolveBindings(o1)).get('KeyZ') === 'sell'
+    && !codeLookup(resolveBindings(o1)).has('KeyS'));
+  const o2 = rebind(o1, 'pause', 'KeyZ');
+  const b2 = resolveBindings(o2);
+  check('(q) keymap: taking a used key swaps the two actions', b2.pause === 'KeyZ' && b2.sell === 'KeyP');
+  check('(q) keymap: binding back to the default drops the override', JSON.stringify(rebind(o1, 'sell', 'KeyS')) === '{}');
+  const clean = cleanKeyOverrides({ sell: 'KeyZ', pause: 'Escape', bogus: 'KeyK', move: 42, __proto__: { x: 1 } });
+  check('(q) keymap: stored overrides are cleaned (unknown actions, reserved keys, non-strings dropped)', JSON.stringify(clean) === '{"sell":"KeyZ"}'
+    && JSON.stringify(cleanKeyOverrides('junk')) === '{}' && JSON.stringify(cleanKeyOverrides(['KeyQ'])) === '{}');
+  check('(q) keymap: labels', keyLabel('KeyQ') === 'Q' && keyLabel('Space') === 'Space' && keyLabel('Slash') === '/' && keyLabel('Digit9') === '9');
+}
+
+// ------------------------------------------------------------------ (u) undo (optional relaxed rule, SPEC.md section 9)
+{
+  const g = new Game({ mapId: 'map1', mode: 'sandbox', seed: 10 });
+  const [sp1, sp2] = bestSpots('map1', 2);
+  const snap = () => ({ cash: g.state.cash, spent: g.state.spent, score: g.state.score, n: g.state.turrets.length });
+  const s0 = snap();
+  check('(u) nothing to undo in a fresh game', g.undoInfo() === null && !g.undo().ok);
+  let ev = null as GameEvents['undo'] | null;
+  g.on('undo', (e) => { ev = e; });
+  const id = must(g.build('green', sp1.x, sp1.y)).id;
+  const info = g.undoInfo();
+  const r = g.undo();
+  const s1 = snap();
+  check('(u) undo a build: full refund, spent and score back, turret gone, undo event',
+    info !== null && info.refund === 15 && r.ok && s1.cash === s0.cash && s1.spent === s0.spent && s1.score === s0.score && s1.n === 0
+    && !g.turretMap.has(id) && ev !== null && ev!.kind === 'build' && ev!.id === id, JSON.stringify({ s0, s1 }));
+  check('(u) the game is flagged undoUsed, and it survives save/restore', g.state.undoUsed === true && Game.deserialize(g.serialize()).state.undoUsed === true);
+  check('(u) a second undo has nothing left', !g.undo().ok);
+
+  // upgrade to max, then undo: levels, cashValue, stats and freak state come back exactly
+  const blue = must(g.build('blue', sp1.x, sp1.y)).id;
+  const t = tur(g, blue);
+  const look = () => JSON.stringify({ levels: t.levels, stats: t.stats, cashValue: t.cashValue, freak: t.freak, freakAt: t.freakAt, cc: t.comboCapable, cash: g.state.cash, spent: g.state.spent, score: g.state.score });
+  const fresh = look();
+  must(g.upgrade(blue, 'damage', true));
+  const afterDamage = look();
+  must(g.upgrade(blue, 'rate', true)); // the last action wins: only this one can be undone
+  check('(u) the blue is now freak-out capable and damage-maxed', t.freak !== 'off' && t.comboCapable);
+  must(g.undo());
+  check('(u) undo takes back only the last upgrade (rate): turret, freak state, cash, spent, score as after the damage upgrade',
+    look() === afterDamage, look());
+  const g5 = new Game({ mapId: 'map1', mode: 'sandbox', seed: 10 });
+  const b5 = must(g5.build('blue', sp1.x, sp1.y)).id;
+  const t5 = tur(g5, b5);
+  const look5 = () => JSON.stringify({ levels: t5.levels, stats: t5.stats, cashValue: t5.cashValue, freak: t5.freak, cc: t5.comboCapable, cash: g5.state.cash, spent: g5.state.spent });
+  const fresh5 = look5();
+  must(g5.upgrade(b5, 'damage', true));
+  must(g5.undo());
+  check('(u) undo of a damage-to-max upgrade restores the fresh turret (combo capability gone again)', look5() === fresh5 && !t5.comboCapable && fresh.length > 0);
+
+  // once the turret fires, it is too late
+  const g2 = new Game({ mapId: 'map1', mode: 'sandbox', seed: 11 });
+  const cid = must(g2.build('blue', sp2.x, sp2.y)).id;
+  const ct = tur(g2, cid);
+  g2.spawnAttacker(1, 1e9);
+  const a = g2.state.attackers[0];
+  freeze(a, ct.x + 40, ct.y);
+  let fired = false;
+  g2.on('shot', (e) => { if (e.turretId === cid) fired = true; });
+  for (let i = 0; i < 120 && !fired; i++) g2.advance(1);
+  check('(u) after the turret fires undo is refused', fired && g2.undoInfo() === null && !g2.undo().ok && g2.turretMap.has(cid));
+  // sell, move and a new build end the chance for the previous action
+  const g3 = new Game({ mapId: 'map1', mode: 'sandbox', seed: 12 });
+  const x1 = must(g3.build('blue', sp1.x, sp1.y)).id;
+  const x2 = must(g3.build('blue', sp2.x, sp2.y)).id;
+  must(g3.undo());
+  check('(u) only the newest build can be undone', g3.turretMap.has(x1) && !g3.turretMap.has(x2) && !g3.undo().ok);
+  must(g3.upgrade(x1, 'range'));
+  must(g3.sell(x1));
+  check('(u) a sell ends the chance to undo', !g3.undo().ok);
+  const keep = new Game({ mapId: 'map1', mode: 'sandbox', seed: 13 });
+  must(keep.build('blue', sp1.x, sp1.y));
+  const k2 = Game.deserialize(keep.serialize());
+  check('(u) a restored game starts without an undo (it is not saved)', k2.undoInfo() === null && keep.undoInfo() !== null);
+}
+
+// ------------------------------------------------------------------ (acc) accessibility tables (src/ui, src/render; pure)
+{
+  const cols = ['red', 'green', 'blue', 'yellow'] as const;
+  const shapes = cols.map((c) => COLOR_SYMBOL[c]);
+  check('(acc) every combo colour has its own shape', new Set(shapes).size === 4 && shapes.every(Boolean));
+  check('(acc) UI shapes and map badge shapes are the same table', cols.every((c) => COLOR_SHAPES[c] === COLOR_SYMBOL[c]));
+  check('(acc) interface size is clamped to 0.8..1.6 in steps of 0.1, junk -> 1',
+    clampScale(0.5) === 0.8 && clampScale(3) === 1.6 && clampScale(1.23) === 1.2 && clampScale('big') === 1 && clampScale(NaN) === 1);
+  const proto = AudioEngine.prototype as unknown as Record<string, unknown>;
+  const sounds = Object.getOwnPropertyNames(AudioEngine.prototype).filter((n) => n.startsWith('s_')).map((n) => n.slice(2));
+  check('(acc) audio: every interface sound exists, shots/blasts/combos/alarm go to the effects bus',
+    [...UI_SOUNDS].every((n) => typeof proto['s_' + n] === 'function') && sounds.filter((n) => busOf(n) === 'ui').length === UI_SOUNDS.size
+    && ['shot_cannon', 'blast_huge', 'combo', 'alarm', 'horn', 'kill'].every((n) => busOf(n) === 'sfx'));
+  const ae = new AudioEngine();
+  ae.setBusVolume('ui', 2); ae.setBusVolume('sfx', Number.NaN);
+  check('(acc) audio: bus volume is clamped to 0..1, junk -> 1', ae.busVol.ui === 1 && ae.busVol.sfx === 1);
+  const st = getSettings(); // Node: no localStorage, no matchMedia
+  check('(acc) accessibility defaults: shapes on, size 1, contrast and reduce motion off', st.colorSymbols === true && st.uiScale === 1
+    && st.highContrast === false && st.reduceMotion === false && st.sfxVolume === 1 && st.uiVolume === 1);
+}
+
+// ------------------------------------------------------------------ (onb) onboarding: Combo Codex (src/ui/codex.ts, pure)
+{
+  const all = Object.values(COMBOS).flat();
+  check('(onb) codex: 20 recipes', COMBO_COUNT === 20 && all.length === 20);
+  let ok = true, bad = '';
+  for (const r of all) {
+    const d = describeCombo(r);
+    const num = r.fx.hit != null ? formatNum(r.fx.hit) : r.fx.shockwave ? formatNum(r.fx.shockwave.damage) : r.fx.blackHole ? String(r.fx.blackHole.radius) : formatNum(r.fx.laser!.damage);
+    const good = d.length > 20 && d.endsWith('.') && d.includes(num) && !d.includes('undefined') && !d.includes('NaN');
+    if (!good) { ok = false; bad = r.id + ': ' + d; }
+  }
+  check('(onb) codex: every recipe gets a description with its main number', ok, bad);
+  check('(onb) codex: partner list follows the recipe', partnerList(all.find((r) => r.id === 'nuke')!).join() === 'blue,blue'
+    && partnerList(all.find((r) => r.id === 'bigLaserClusterMine')!).join() === 'red,red,green,blue');
+  const c0 = getCodex();
+  recordCombo('nuke'); recordCombo('nuke'); recordCombo('notACombo');
+  const c1 = getCodex();
+  check('(onb) codex storage counts known recipes only (in-memory fallback in Node)', c1.nuke === (c0.nuke || 0) + 2 && !('notACombo' in c1));
+}
+
+// ------------------------------------------------------------------ (onb) tutorial step machine on a real Game
+{
+  const g = new Game({ mapId: 'tutorial', difficulty: 'easy', seed: 21, waveInterval: 600000 });
+  const t = new Tutorial();
+  const names = ['shot', 'kill', 'leak', 'wave', 'build', 'sell', 'upgrade', 'combo'] as const;
+  for (const n of names) g.on(n, (p: object) => { const k = (p as { kind?: unknown }).kind; t.observe(n, typeof k === 'string' ? k : undefined); });
+  const ctx = () => ({ state: g.state, tab: null });
+  const seen: string[] = [t.step.id];
+  const step = () => { if (t.check(ctx())) seen.push(t.step.id); };
+  check('(onb) tutorial: starts at welcome, Next is needed there', t.step.id === 'welcome' && !t.check(ctx()));
+  t.next(); seen.push(t.step.id);
+  const [a, b] = bestSpots('tutorial', 2);
+  const blue = must(g.build('blue', a.x, a.y)).id; step();
+  check('(onb) tutorial: building a Cannon finishes the build step', t.step.id === 'wave');
+  g.advance(60 * 5); step();
+  check('(onb) tutorial: no wave comes by itself on the tutorial map', g.state.wave === 0 && t.step.id === 'wave');
+  must(g.sendWave()); step();
+  must(g.upgrade(blue, 'damage')); step();
+  must(g.cycleTargetMode(blue)); step();
+  check('(onb) tutorial: wave, upgrade and target steps follow the game', t.step.id === 'second', seen.join(' > '));
+  must(g.build('green', b.x, b.y)); step();
+  check('(onb) tutorial: a second turret leads to the manual combos step', t.step.id === 'combos');
+  t.back();
+  check('(onb) tutorial: Back returns to the previous step', t.step.id === 'second');
+  t.go(t.count - 2); t.next(); t.next();
+  check('(onb) tutorial: Next on the last step ends it', t.over && !t.check(ctx()));
+  const t2 = new Tutorial(); t2.skip();
+  check('(onb) tutorial: Skip ends it', t2.over);
+  check('(onb) tutorial: every step text is non-empty and names the bound keys', TUTORIAL_STEPS.every((s) => s.text((k) => '<' + k + '>').length > 30)
+    && TUTORIAL_STEPS.find((s) => s.id === 'upgrade')!.text((k) => '<' + k + '>').includes('<upDamage>'));
+}
+
+// ------------------------------------------------------------------ (onb) one-time tips (src/ui/hints.ts, pure)
+{
+  const hs = new Hints(['freakout']);
+  hs.onEvent('leak', { lives: 9 }); hs.onEvent('leak', { lives: 8 });
+  hs.onEvent('unlock', { kind: 'rangeUp' }); hs.onEvent('unlock', { kind: 'blue' });
+  const ids = () => { const out: string[] = []; for (let h = hs.next(); h; h = hs.next()) out.push(h.id); return out; };
+  check('(onb) tips: a leak and a modifier unlock queue their tip once, a basic unlock none', ids().join() === 'leak,modifier');
+  const g = new Game({ mapId: 'map1', mode: 'sandbox', seed: 22 });
+  const [p1] = bestSpots('map1', 1);
+  const id = must(g.build('blue', p1.x, p1.y)).id;
+  g.state.wave = 10;
+  hs.onState(g.state);
+  check('(onb) tips: wave 10 without any upgrade queues the upgrade tip', ids().join() === 'noUpgrades');
+  must(g.upgrade(id, 'damage', true)); must(g.upgrade(id, 'rate', true));
+  hs.onState(g.state);
+  check('(onb) tips: a damage-maxed weapon queues comboReady; freak-out was already seen', ids().join() === 'comboReady');
+  hs.onState(g.state); hs.onEvent('leak', {});
+  check('(onb) tips: nothing comes twice', hs.next() === null);
+  check('(onb) tips: stored ids are cleaned', cleanHintIds(['leak', 'nope', 3, null]).join() === 'leak' && cleanHintIds('x').length === 0);
+  check('(onb) tips: every tip has text that names bound keys where it mentions them', HINTS.every((h) => h.text((k) => '<' + k + '>').length > 40)
+    && HINTS.find((h) => h.id === 'comboReady')!.text((k) => '<' + k + '>').includes('<combo>'));
+}
+
+// ------------------------------------------------------------------ (feel) adaptive music (src/ui/music.ts, pure parts)
+{
+  const voices = (i: number): Set<string> => { const v = new Set<string>(); for (let st = 0; st < 64; st++) for (const n of musicStep(st, i)) v.add(n.voice); return v; };
+  const calm = voices(0), mid = voices(0.5), hot = voices(1);
+  check('(feel) music: calm is only the pad, layers join with intensity', calm.size === 1 && calm.has('pad') && mid.has('kick') && mid.has('bass') && mid.has('arp') && !mid.has('hat') && hot.has('hat'));
+  check('(feel) music: tempo 96 bpm calm, 132 bpm at full intensity, clamped', near(musicTempo(0), 96 / 15) && near(musicTempo(1), 132 / 15) && near(musicTempo(5), musicTempo(1)));
+  const all = Array.from({ length: 64 }, (_, st) => musicStep(st, 1)).flat();
+  check('(feel) music: notes are sane (pitch 30..96, length >= 1, velocity 0..1)', all.every((n) => (n.midi === 0 || (n.midi >= 30 && n.midi <= 96)) && n.len >= 1 && n.vel > 0 && n.vel <= 1));
+  const base = { attackers: [] as { dead?: boolean }[], lives: 10, wave: 0, over: false };
+  check('(feel) music: intensity is low before wave 1, rises with attackers and lost lives, stays in 0..1',
+    musicIntensity(base, 10) <= 0.15 && musicIntensity({ ...base, wave: 3 }, 10) < musicIntensity({ ...base, wave: 3, attackers: Array(30).fill({}) }, 10)
+    && musicIntensity({ ...base, wave: 3, lives: 2, attackers: Array(50).fill({}) }, 10) <= 1);
+}
+
+// ------------------------------------------------------------------ (mot) achievements (src/ui/achievements.ts, pure)
+{
+  const ids = (xs: { id: string }[]): string => xs.map((x) => x.id).sort().join();
+  const base = { codex: new Set<string>(), mapsPlayed: new Set<string>(), tutorialDone: false, startLives: 10, dailies: 0 };
+  const g = new Game({ mapId: 'map1', difficulty: 'medium', seed: 30 });
+  check('(mot) achievements: nothing for a fresh game', ids(newlyEarned({}, { ...base, state: g.state })) === '');
+  check('(mot) achievements: first kill and first combo from events', ids(newlyEarned({}, { ...base, state: g.state, event: { name: 'kill', payload: {} } })) === 'firstKill'
+    && ids(newlyEarned({}, { ...base, state: g.state, event: { name: 'combo', payload: { id: 'nuke' } } })) === 'firstCombo,nuke');
+  g.state.wave = 30;
+  check('(mot) achievements: wave 30 on Medium with all lives earns wave25 and clean30, not wave50', ids(newlyEarned({}, { ...base, state: g.state })) === 'clean30,wave25');
+  g.state.lives = 9;
+  check('(mot) achievements: a lost life blocks clean30', !newlyEarned({}, { ...base, state: g.state }).some((x) => x.id === 'clean30'));
+  check('(mot) achievements: already earned ones are not repeated', ids(newlyEarned({ wave25: 'x' }, { ...base, state: g.state })) === '');
+  const sb = new Game({ mapId: 'map1', mode: 'sandbox', seed: 31 });
+  sb.state.wave = 120; sb.state.cash = 1e7;
+  check('(mot) achievements: sandbox never counts for wave or cash goals', ids(newlyEarned({}, { ...base, state: sb.state })) === '');
+  const allCodex = new Set(Object.values(COMBOS).flat().map((r) => r.id));
+  check('(mot) achievements: codex, maps, tutorial and daily goals', ids(newlyEarned({}, { ...base, state: null, codex: allCodex, mapsPlayed: new Set(MAPS.map((m) => m.id)), tutorialDone: true, dailies: 1 }))
+    === 'allMaps,blackHole,combos10,combos20,daily,firstCombo,nuke,tutorial');
+  check('(mot) map stars: 0 below 25, then 1/2/3 at waves 25/50/100; best wave from a score list', starsForWave(24) === 0 && starsForWave(25) === 1
+    && starsForWave(99) === 2 && starsForWave(250) === 3 && bestWave([{ wave: 12 }, { wave: 61 }, { wave: NaN }]) === 61 && bestWave([]) === 0);
+  check('(mot) achievements: stored data is cleaned', JSON.stringify(cleanEarned({ nuke: '2026', bogus: 'x', wave25: 5 })) === '{"nuke":"2026"}' && ACHIEVEMENTS.length >= 20);
+}
+
+// ------------------------------------------------------------------ (mot) daily challenge (src/ui/daily.ts, pure)
+{
+  const d1 = dailyFor(new Date('2026-11-20T08:00:00Z')), d2 = dailyFor(new Date('2026-11-20T23:59:00Z')), d3 = dailyFor(new Date('2026-11-21T00:01:00Z'));
+  check('(mot) daily: same UTC day gives the same challenge, the next day another seed', JSON.stringify(d1) === JSON.stringify(d2) && d1.key === '2026-11-20' && d3.seed !== d1.seed);
+  const days = Array.from({ length: 60 }, (_, i) => dailyFor(new Date(Date.UTC(2026, 0, 1 + i))));
+  check('(mot) daily: valid maps (never the tutorial) and difficulties, and some variety over 60 days',
+    days.every((d) => MAPS.some((m) => m.id === d.mapId) && d.mapId !== 'tutorial' && ['easy', 'medium', 'hard'].includes(d.difficulty))
+    && new Set(days.map((d) => d.mapId)).size >= 8 && new Set(days.map((d) => d.difficulty)).size === 3);
+  const play = () => { const g = new Game({ mapId: d1.mapId, difficulty: d1.difficulty, seed: d1.seed }); g.sendWave(); g.advance(60 * 20); return JSON.stringify(g.serialize()); };
+  check('(mot) daily: the same seed plays out the same game', play() === play());
+}
+
+// ------------------------------------------------------------------ (rep) replays (src/game/replay.ts)
+{
+  const core = (g: Game): string => { const d = JSON.parse(JSON.stringify(g.serialize())); delete d.acc; delete d.state.speed; delete d.state.paused; delete d.opts; delete d.startOpts; return JSON.stringify(d); };
+  const spots = bestSpots('map1', 4);
+  let g = new Game({ mapId: 'map1', difficulty: 'medium', seed: 77 });
+  g.setSpeed(4);
+  const a = must(g.build('blue', spots[0].x, spots[0].y)).id;
+  for (let i = 0; i < 40; i++) g.update(1000 / 60);
+  must(g.sendWave());
+  for (let i = 0; i < 300; i++) {
+    g.update(1000 / 60);
+    if (i === 30) g.upgrade(a, 'damage');
+    if (i === 80) g.build('red', spots[1].x, spots[1].y);
+    if (i === 120) g.cycleTargetMode(a);
+    if (i === 150) g.setWaveInterval(9000);
+    if (i === 200) { const b = must(g.build('green', spots[2].x, spots[2].y)).id; g.undo(); void b; }
+  }
+  // save and restore halfway: the log travels with the save
+  g = Game.deserialize(JSON.parse(JSON.stringify(g.serialize())));
+  for (let i = 0; i < 400; i++) { g.update(1000 / 60); if (i === 100) g.sendWave(); if (i === 250) g.upgrade(a, 'rate', true); }
+  const r = makeReplay(g);
+  check('(rep) the game logged its commands (build, upgrade, target, interval, undo, waves)', r.log.length >= 8 && r.log.some((e) => e.c === 'undo') && r.log.some((e) => e.c === 'setWaveInterval'), String(r.log.length));
+  check('(rep) the replay keeps the start options, not the changed wave interval', r.opts.waveInterval === null && g.opts.waveInterval === 9000);
+  const p = runReplay(validateReplay(JSON.parse(JSON.stringify(r))));
+  check('(rep) playing the replay back gives the identical game (state, entities, rng, log)', core(p) === core(g) && replayMatches(p, r), `steps ${r.end}, wave ${g.state.wave}, kills ${g.state.kills}`);
+  const t1 = JSON.parse(JSON.stringify(r)); t1.log[2].s = -1;
+  const t2 = JSON.parse(JSON.stringify(r)); t2.log.push({ s: 5, c: 'cheat', a: [] });
+  const t3 = JSON.parse(JSON.stringify(r)); t3.opts.mapId = 'nope';
+  let refused = 0;
+  for (const t of [t1, t2, t3, null, 'x', { v: 2 }]) { try { validateReplay(t); } catch (e) { refused++; } }
+  check('(rep) broken or tampered replays are refused', refused === 6);
+  const t4 = JSON.parse(JSON.stringify(r)); t4.log[0].a[1] += 200; // build the first turret somewhere else
+  check('(rep) a changed command gives a different result, so the recorded result exposes it', !replayMatches(runReplay(validateReplay(t4)), r) || core(runReplay(validateReplay(t4))) !== core(g));
+  const code = await encodeReplay(r);
+  const back = validateReplay(await decodeReplay(code));
+  check('(rep) a replay survives the text code (gzip + base64url) and plain JSON', code.startsWith('OS1.') && JSON.stringify(back) === JSON.stringify(r)
+    && JSON.stringify(validateReplay(await decodeReplay(JSON.stringify(r)))) === JSON.stringify(r), `${code.length} chars for ${r.log.length} commands`);
+  let badCode = 0;
+  for (const c of ['OS1.!!!', 'hello', 'OS0.' + btoa('{"v":1}')]) { try { validateReplay(await decodeReplay(c)); } catch (e) { badCode++; } }
+  check('(rep) broken codes are refused', badCode === 3);
+  const pb = startPlayback(r);
+  pb.game.setSpeed(8);
+  for (let i = 0; i < 2000 && !pb.done(); i++) pb.game.update(1000 / 60);
+  check('(rep) live playback with update() at 8x stops exactly at the end and matches', pb.done() && pb.game.stepCount === r.end && pb.matches(), `${pb.game.stepCount} / ${r.end}`);
+  const old = JSON.parse(JSON.stringify(g.serialize())); delete old.commandLog; delete old.startOpts;
+  const og = Game.deserialize(old);
+  check('(rep) an older save without a log loads with an empty log and its opts as start options', og.commandLog.length === 0 && og.startOpts.mapId === 'map1');
+}
+
+// ------------------------------------------------------------------ (plat) gamepad reader (src/ui/gamepad.ts, pure)
+{
+  const pad = (pressed: number[], axes: number[] = [0, 0]) => ({ buttons: Array.from({ length: 17 }, (_, i) => ({ pressed: pressed.includes(i) })), axes });
+  const rd = new GamepadReader();
+  const r1 = rd.poll(pad([0, 3]), 16), r2 = rd.poll(pad([0, 3]), 16), r3 = rd.poll(pad([]), 16), r4 = rd.poll(pad([0]), 16);
+  check('(plat) gamepad: an action fires once per press (edge), again after release', r1.actions.join() === 'click,upDamage' && r2.actions.length === 0 && r3.actions.length === 0 && r4.actions.join() === 'click');
+  const still = rd.poll(pad([], [0.1, -0.15]), 16), full = rd.poll(pad([], [1, 0]), 100), slow = rd.poll(pad([], [0.5, 0]), 100);
+  check('(plat) gamepad: dead zone, full tilt moves 90 px per 100 ms, half tilt much less (fine control)', still.dx === 0 && still.dy === 0 && near(full.dx, 90) && slow.dx > 0 && slow.dx < 30);
+  check('(plat) gamepad: triggers count by value, every standard button 0..15 has an action', rd.poll({ buttons: [{ pressed: false }, { pressed: false }, { pressed: false }, { pressed: false }, { pressed: false }, { pressed: false }, { pressed: false, value: 0.9 }], axes: [0, 0] }, 16).actions.join() === 'upRange'
+    && Array.from({ length: 16 }, (_, i) => PAD_BUTTONS[i]).every(Boolean));
+}
+
+// ------------------------------------------------------------------ (plat) save slots (src/ui/storage.ts)
+{
+  const g = new Game({ mapId: 'map3', difficulty: 'hard', seed: 41 });
+  g.sendWave(); g.advance(120);
+  const w = { v: 1, at: 123, meta: { mapId: 'map3', difficulty: 'hard', mode: 'normal', wave: g.state.wave }, data: g.serialize() };
+  saveSlot(2, w); // in Node it lands in the in-memory fallback and reports false (no localStorage)
+  check('(plat) slots: save, read back, clear; out-of-range slots refused', getSlot(2)!.meta.wave === 1 && !saveSlot(4, w) && getSlot(0) === null
+    && (clearSlot(2), getSlot(2) === null));
+  check('(plat) slots: an imported file is shape-checked (junk refused, extra fields dropped)', cleanSaveWrapper('x') === null && cleanSaveWrapper({ meta: { mapId: 1 }, data: {} }) === null
+    && JSON.stringify(Object.keys(cleanSaveWrapper({ ...w, evil: 1 })!)) === '["v","at","meta","data"]');
+  check('(plat) slots: a saved wrapper restores the same game', JSON.stringify(Game.deserialize(cleanSaveWrapper(JSON.parse(JSON.stringify(w)))!.data).serialize()) === JSON.stringify(g.serialize()));
+}
+
+// ------------------------------------------------------------------ (i18n) translations cover every t('...') key
+{
+  const { readdirSync, readFileSync } = await import('node:fs');
+  const dir = new URL('../src/ui/', import.meta.url);
+  const files = readdirSync(dir).filter((f) => f.endsWith('.ts') && !['mock.ts', 'ui-demo.ts', 'i18n.ts'].includes(f));
+  const keys = new Map<string, string>(), dynamic: string[] = [];
+  const re = /\btx?\(\s*(['"`])((?:\\.|(?!\1)[^\\])*)\1/g; // t('...') and tx('...')
+  for (const f of files) {
+    const src = readFileSync(new URL(f, dir), 'utf8');
+    for (const m of src.matchAll(re)) {
+      if (m[1] === '`' && m[2].includes('${')) { dynamic.push(f + ': ' + m[2].slice(0, 40)); continue; }
+      keys.set(m[2].replace(/\\(.)/g, '$1'), f);
+    }
+  }
+  for (const d of Object.values(TURRETS)) keys.set(d.blurb, 'data/turrets.ts'); // turret blurbs are shown with t(def.blurb)
+  const ph = (x: string): string => [...x.matchAll(/\{(\w+)\}/g)].map((p) => p[1]).sort().join();
+  const missing: string[] = [], badPh: string[] = [];
+  for (const [k, f] of keys) for (const l of ['nl', 'de'] as const) {
+    const v = DICT[l][k];
+    if (v == null) missing.push(`${l} ${f}: ${k.slice(0, 50)}`);
+    else if (ph(v) !== ph(k)) badPh.push(`${l}: ${k.slice(0, 40)}`);
+  }
+  const unused = Object.keys(DICT.nl).filter((k) => !keys.has(k));
+  check('(i18n) every t() key has a Dutch and a German text', missing.length === 0, missing.length + ' missing, e.g. ' + missing.slice(0, 3).join(' | '));
+  check('(i18n) translations keep the {placeholders} of the English text', badPh.length === 0, badPh.slice(0, 3).join(' | '));
+  check('(i18n) t() is only called with literal text (template parts go into {placeholders})', dynamic.length === 0, dynamic.slice(0, 3).join(' | '));
+  check('(i18n) no translation is left without a t() key in the code', unused.length === 0, unused.length + ' unused, e.g. ' + unused.slice(0, 3).join(' | '));
+  check('(i18n) no em dash in any text', ![...Object.values(DICT.nl), ...Object.values(DICT.de)].some((v) => v.includes('\u2014')));
+  setLang('nl'); const nlSend = t('Send wave'); setLang('de'); const deFill = t('Wave {n} started', { n: 7 }); setLang('en');
+  check('(i18n) t() translates, fills placeholders and falls back to English', t('Not a known text {x}', { x: 1 }) === 'Not a known text 1' && (keys.has('Send wave') ? nlSend !== 'Send wave' : true) && (keys.has('Wave {n} started') ? deFill.includes('7') : true)
+    && detectLang(['de-AT', 'en']) === 'de' && detectLang(['fr', 'nl-BE']) === 'nl' && detectLang(['fr']) === 'en', `${keys.size} keys`);
+}
+
+// ------------------------------------------------------------------ (q) waveActive (auto-send)
+{
+  const g = new Game({ mapId: 'map1', difficulty: 'medium', seed: 9 });
+  const idle = !g.waveActive();
+  g.sendWave();
+  const queued = g.waveActive();          // spawner queued, nothing spawned yet
+  g.advance(60);                          // some attackers out, more to come
+  const spawning = g.waveActive() && g.spawners.length > 0;
+  g.advance(60 * 8);                      // all 10 spawned
+  for (const a of [...g.state.attackers]) g.damageAttacker(a, a.hp + 1, null);
+  const cleared = !g.waveActive() && g.spawners.length === 0;
+  const rng0 = g.rng.s;
+  g.waveActive();
+  check('(q) waveActive: false before wave 1, true while spawning or attackers live, false once cleared, no rng',
+    idle && queued && spawning && cleared && g.rng.s === rng0, `${idle} ${queued} ${spawning} ${cleared}`);
+}
+
+// ------------------------------------------------------------------ (q) run history (end-of-run report)
+{
+  const g = new Game({ mapId: 'map1', difficulty: 'medium', seed: 8 });
+  for (const sp of bestSpots('map1', 3)) must(g.build('blue', sp.x, sp.y));
+  const atStart: { cash: number; kills: number }[] = [];
+  g.on('wave', () => atStart.push({ cash: g.state.cash, kills: g.state.kills }));
+  for (let w = 0; w < 6; w++) { g.sendWave(); g.advance(60 * 8); }
+  const h = g.state.history!;
+  check('(q) history: one record per started wave, in order', h.length === g.state.wave && h.every((r, i) => r.wave === i + 1), `${h.length} records, wave ${g.state.wave}`);
+  check('(q) history: records hold the economy at the wave start', h.every((r, i) => r.cash === atStart[i].cash && r.kills === atStart[i].kills));
+  check('(q) history: damage only grows and damageTotal equals the turrets\' damageDealt (nothing sold)',
+    h.every((r, i) => i === 0 || r.damage >= h[i - 1].damage) && g.state.damageTotal! > 0
+    && near(g.state.damageTotal!, g.state.turrets.reduce((n, t) => n + (t.damageDealt || 0), 0)));
+  const total = g.state.damageTotal!;
+  must(g.sell(g.state.turrets[0].id));
+  check('(q) damageTotal keeps the damage of sold turrets', g.state.damageTotal === total);
+
+  const save = JSON.parse(JSON.stringify(g.serialize()));
+  const g2 = Game.deserialize(save);
+  check('(q) history and damageTotal survive save/restore', JSON.stringify(g2.state.history) === JSON.stringify(h) && g2.state.damageTotal === total);
+  g.sendWave(); g2.sendWave(); g.advance(300); g2.advance(300);
+  check('(q) restored game keeps recording identically', JSON.stringify(g.serialize()) === JSON.stringify(g2.serialize()));
+  const old = JSON.parse(JSON.stringify(save));
+  delete old.state.history; delete old.state.damageTotal;
+  const g3 = Game.deserialize(old);
+  const bad = JSON.parse(JSON.stringify(save));
+  bad.state.history[2].cash = 'lots'; bad.state.damageTotal = null;
+  const g4 = Game.deserialize(bad);
+  check('(q) a save without (or with a broken) history loads [] and damageTotal 0',
+    Array.isArray(g3.state.history) && g3.state.history.length === 0 && g3.state.damageTotal === 0
+    && g4.state.history!.length === 0 && g4.state.damageTotal === 0);
 }
 
 // ------------------------------------------------------------------ (m) extra maps (SPEC.md section 7a)

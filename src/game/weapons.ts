@@ -102,6 +102,7 @@ function spawnOrbiter(game: Game, t: TurretState): void {
     sourceId: t.id, orbiting: true, ttl: null,
   });
   t.holding++;
+  game.markFired(t.id);
 }
 
 /** Turn an orbiting rocket into a diving one. */
@@ -137,6 +138,7 @@ export function chainBonus(game: Game, lead: TurretState, visited: Set<number>, 
     sum += (g.stats.damage + sub) * mult;
     if (consume) {
       g.cd = fireInterval(g);
+      game.markFired(g.id);
       game.addBeam('chain', g.x, g.y, lead.x, lead.y, 160);
     }
   }

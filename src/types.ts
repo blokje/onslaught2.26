@@ -138,6 +138,8 @@ export interface TurretState {
   comboLog: ComboLogEntry[];
   // optional additions (src/game/Turret.ts)
   kills: number;
+  /** Effective damage this turret has done (overkill not counted; combo damage counts for the lead). */
+  damageDealt?: number;
   category: Category;
   color: KeyColor | null;
   cd: number;
@@ -215,7 +217,16 @@ export interface GameState {
   projectiles: Projectile[];
   beams: Beam[];
   effects: Effect[];
+  /** Optional: one entry per started wave, taken just before it starts (for the end-of-run report). */
+  history?: WaveRecord[];
+  /** Optional: effective damage done by all turrets this game, sold ones included. */
+  damageTotal?: number;
+  /** Optional: true once game.undo() was used (high scores mark such games). */
+  undoUsed?: boolean;
 }
+
+/** Snapshot taken when a wave starts (state.history). `damage` is state.damageTotal at that moment. */
+export interface WaveRecord { wave: number; time: number; cash: number; lives: number; kills: number; spent: number; damage: number }
 
 export interface GameOptions {
   mapId?: string;
@@ -237,6 +248,12 @@ export interface ComboPreview {
   next: { id: string; name: string; wait: number } | null;
 }
 
+/** Outlook for one wave (game.wavePreview). */
+export interface WavePreview { wave: number; type: number; hp: number; bounty: number; count: number }
+
+/** Effective stats before and after one more level of `stat` (game.upgradePreview). */
+export interface UpgradePreview { stat: Stat; cost: number; from: StatValues; to: StatValues }
+
 // ------------------------------------------------------------------ events (ARCHITECTURE.md 1.3)
 export interface GameEvents {
   shot: { kind: string; turretId: number };
@@ -255,6 +272,8 @@ export interface GameEvents {
   message: { text: string };
   gameover: { score: number; kills: number; wave: number };
   error: { reason: string };
+  /** A build or upgrade was taken back (game.undo); `id` is the turret (removed for a build). */
+  undo: { id: number; kind: 'build' | 'upgrade'; refund: number };
 }
 export type GameEventName = keyof GameEvents;
 
@@ -266,6 +285,20 @@ export interface Overlay {
   showRanges: 'selected' | 'all';
   showCombo: boolean;
   joinFromId: number | null;
+  /** Optional: range the selected turret would have after the hovered range upgrade (dashed ring). */
+  previewRange?: { id: number; range: number } | null;
+  /** Optional (default true): draw the shape badge of each turret's combo colour (accessibility). */
+  colorSymbols?: boolean;
+}
+
+/** Presentation options (renderer.setOptions). */
+export interface RenderOptions {
+  /** Accessibility: no jitter or blinking, dimmer and shorter blast flashes, fewer debris particles. */
+  reduceMotion: boolean;
+  /** Shake the view on big blasts and black holes (ignored while reduceMotion is on). */
+  screenShake?: boolean;
+  /** Tilted view: the field drawn as if seen at an angle (vertical squash) with turret drop shadows. */
+  tilted?: boolean;
 }
 
 export interface ViewInsets { top: number; right: number; bottom: number; left: number }

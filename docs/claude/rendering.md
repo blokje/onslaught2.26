@@ -26,6 +26,48 @@ three.js 0.160.0, orthographic top-down. Contract: `ARCHITECTURE.md` section 2. 
 - Never consume left-button or single-touch events: those belong to the UI.
 - DPR is capped at 2. Antialiasing is off because edges are shader or texture antialiased.
 
+## Tilted view (game feel, optional)
+
+`setOptions({ tilted })` calls `CameraController.setTilt`. An orthographic camera tilted over a flat field shows it
+squashed vertically by cos(angle), so the tilt is implemented exactly as a vertical scale: `camera.scaleY = scale * ys`
+with `ys = TILT_Y` (0.78, about 39 degrees). Every y conversion uses `scaleY` (`screenToWorld`, `worldToScreen`, fit,
+clamp, zoom at the cursor, pan, pinch) and `render()` sets the frustum half-height to `H / 2 / scaleY`. No raycasting,
+so clicks stay exact; the Playwright check builds at a point, zooms at it and pans, and the turret stays under the
+click. Turrets get a soft drop shadow in the new `tShadow` batch (order 3.4, under the turret bases). Turrets and rings
+show as ellipses, which is what a tilted flat field looks like. A real perspective camera was not used: it would make
+picking, pan clamping and the screen-constant line widths much harder for little gain.
+
+## Screen shake and kill impact (game feel)
+
+`R.shake` (0..1) is raised on the first frame of a big blast (radius > 70: +0.45, nuke and BFG size +0.75) and of a
+black hole (+0.5), and decays by 1 per 600 ms of real time. `render()` offsets the camera by `shake^2 * 7` CSS px with
+two fast sines, so small hits barely move it. Off when `opts.screenShake` is false or `opts.reduceMotion` is on (the
+energy still decays). `screenToWorld` ignores the offset (at most 7 px, only for a moment).
+Every kill with a bounty gets a short expanding ring (first quarter of its `cash` effect).
+
+## Reduce motion (accessibility)
+
+`renderer.setOptions({ reduceMotion })` stores the flag in `R.opts`. When on: the combo halo stays at a steady alpha,
+the freak-out warning tints instead of blinking, a freaking-out turret gets a steady glow instead of jitter and shimmer
+copies (`drawTurrets`), and blasts keep a dimmer white core (35%), skip the star flash and spawn half the debris
+(`drawEffects`). There is no full-screen flash anywhere, keep it that way. Any new blinking, pulsing or shaking effect
+must check `R.opts.reduceMotion`.
+
+## Colour symbols (accessibility)
+
+Combo colours are also shapes: red triangle, green circle, blue square, yellow diamond (`COLOR_SHAPES` in `atlas.ts`, the
+same table as `COLOR_SYMBOL` in `src/ui/colors.ts`; sim-test (acc) keeps them equal). The shapes are white cells 8 to 11
+of the icon atlas (now 4 x 3, `symbolUV(color)`), tinted with `COMBO_COLOR` at draw time. `drawTurrets` puts one badge on
+every turret with a `comboColor` (weapons and Combo-only), `SYMBOL_SIZE` 15 units, `SYMBOL_DY` 14 below the centre, so it
+stays inside the upgrade ring. It uses the existing `tIcon` batch (no extra draw call). Off when `overlay.colorSymbols`
+is false. The render demo's fake turrets now carry their weapon colour as `comboColor`, like real ones.
+
+## Range preview ring
+
+`overlay.previewRange` (`{ id, range }`, set by the UI while a stat row in the Upgrades tab is hovered) draws a dashed
+lime ring (48 dashes, `ringUnder`) around the selected turret at the range it would have after one more range level.
+Only drawn when `id` is the selected turret (`drawOverlay` in `fxlayer.ts`).
+
 ## Upgrade ring
 
 Every upgradable turret has a ring around it (`drawTurrets` in `entities.ts`, `RingBatch` `tRing` at order 5.4, capacity 1600), replacing the old 3 bars and their `tTop` sprite batch:

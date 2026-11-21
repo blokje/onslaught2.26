@@ -216,11 +216,20 @@ Every extra map keeps a legal 5-turret combo cluster within reach of the road (c
 
 ## 8. Controls [ORIG + SITE]
 
+A standard gamepad works too [NEW]: left stick cursor, A click, B back, X build the highlighted turret, Y/LT/RT
+upgrades, LB/RB rack, View send wave, Menu pause, D-pad speed and rack (`PAD_BUTTONS` in `src/ui/gamepad.ts`).
+Menus and dialogs also work with the keyboard alone (Tab, Shift+Tab, Enter, Space, arrows in the map grid) [NEW].
+Default keys. [NEW] Every letter and Space below can be rebound in the Controls overlay (`?` key, or Settings); digits,
+arrows, Esc and Enter are fixed. Keys are physical positions (QWERTY names).
+
 | Key | Action |
 |---|---|
+| ? or / | controls overview and key rebinding [NEW] |
+| K | Combo Codex: all combos with partners, recharge and effect [NEW] |
 | 1-8, Shift+1-8 | pick turret to build |
 | Q / W / E | upgrade damage / range / rate (Shift = as far as affordable) |
 | S | sell (70%) |
+| U | undo the last build or upgrade, only with the Relaxed: undo setting [NEW] |
 | M | move ($500) |
 | R | toggle range rings |
 | C | toggle combo-in-range display |
@@ -230,6 +239,7 @@ Every extra map keeps a legal 5-turret combo cluster within reach of the road (c
 | B / Enter | build the armed (or rack-highlighted) turret at the cursor, stays armed [CHOICE] |
 | Left / Right arrows | step the build rack to the previous / next unlocked turret [CHOICE] |
 | Space | send the next wave now |
+| A | auto-send on/off: send the next wave as soon as the field is clear [NEW] |
 | P | pause |
 | I | info panel |
 | Drag panel header | move the info panel, double-click to dock it again [CHOICE] |
@@ -250,6 +260,26 @@ Every extra map keeps a legal 5-turret combo cluster within reach of the road (c
 | Wave interval | 25 s | 20 s | 17 s | 15 s |
 
 **Early-wave bonus** [NEW]: sending the next wave early with Space pays $1 (`WAVES.earlyBonusPerSec`) per whole second left on the countdown. Refused while paused.
+
+**Auto-send** [NEW, UI convenience, no rule change]: with the setting on (A key or the Auto button), the UI sends the next
+wave exactly like Space as soon as no wave is spawning and no attacker is alive, so the early-wave bonus is paid as usual.
+It never starts wave 1 (the player does) and waits while paused, while a dialog is open and after game over.
+
+**Tutorial** [NEW, UI only]: the How to Play map always runs the interactive tutorial (Easy, Normal mode). Until the
+player sends wave 1 the game holds the first wave (wave interval 600 s); the first Send restores the normal interval
+first, so the early-wave bonus is the usual one, and later waves come by themselves. Skipping or finishing also restores
+the interval. Nothing else changes.
+
+**Daily challenge** [NEW]: each UTC day has one challenge for everyone: map (never the tutorial), difficulty (Easy,
+Medium or Hard) and random seed come from a hash of the date (`src/ui/daily.ts`). Normal mode, no unlock-all, the
+difficulty's own wave interval. The game is deterministic, so the same moves give the same game. Scores are kept per day
+(top 10, last 30 days) next to the normal high scores.
+
+**Relaxed: undo** [NEW, optional, off by default]: with the setting on, U (or the Undo button) takes back the last build
+or upgrade with a full refund; `spent` and the score go back too. Only the newest build or upgrade counts, and only until
+that turret fires (a normal shot, a laser-chain contribution, a holding-pattern rocket or a combo); a later build,
+upgrade, sell or move also ends the chance. A game that used undo is flagged (`undoUsed`) and its high score shows a U
+mark, so the original rules (70% back on a sell) stay the default and scores stay comparable.
 
 **Sandbox** (unlockable): $10,000,000 start cash, everything unlocked (the original's own debug mode does exactly this).
 

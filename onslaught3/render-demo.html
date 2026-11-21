@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+  <title>OnSlaught2.26 renderer demo</title>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #120e0b; font: 12px/1.4 system-ui, sans-serif; color: #f0e6d8; }
+    #game { position: fixed; inset: 0; }
+    #hud { position: fixed; left: 8px; top: 8px; padding: 6px 10px; background: rgba(20,14,10,.78); border-radius: 6px; pointer-events: none; white-space: pre; }
+  </style>
+</head>
+<body>
+  <div id="game"></div>
+  <div id="hud"></div>
+  <script type="module" src="/src/render/render-demo.ts"></script>
+</body>
+</html>

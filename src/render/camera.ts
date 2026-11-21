@@ -14,6 +14,8 @@ interface Pair { mx: number; my: number; dist: number }
 type Handlers = Record<string, EventListener>;
 
 export const ZOOM_MIN = 0.5, ZOOM_MAX = 4;
+/** Vertical squash of the tilted view: cos(about 39 degrees). */
+export const TILT_Y = 0.78;
 
 export class CameraController {
   canvas: HTMLCanvasElement;
@@ -42,6 +44,15 @@ export class CameraController {
   }
 
   get scale(): number { return this.fitScale * this.zoom; }
+  /**
+   * Vertical CSS pixels per world unit. Equal to `scale`, except in the tilted view: an orthographic camera tilted
+   * over the flat field shows it squashed vertically by cos(angle), so the tilt is exactly this extra y factor and every
+   * conversion stays exact (no raycasting needed).
+   */
+  get scaleY(): number { return this.fitScale * this.zoom * this.ys; }
+  /** Vertical squash: 1 top-down, TILT_Y in the tilted view. */
+  ys = 1;
+  setTilt(on: boolean): void { this.ys = on ? TILT_Y : 1; this._fit(); this._clamp(); }
 
   /** Free-area centre offset (px) from the canvas centre, caused by UI insets. */
   _offset(): { x: number; y: number } { return { x: (this.insets.left - this.insets.right) / 2, y: (this.insets.top - this.insets.bottom) / 2 }; }
@@ -57,49 +68,49 @@ export class CameraController {
     const m = Math.max(10, Math.min(this.W, this.H) * 0.03);
     const aw = Math.max(50, this.W - this.insets.left - this.insets.right - 2 * m);
     const ah = Math.max(50, this.H - this.insets.top - this.insets.bottom - 2 * m);
-    this.fitScale = Math.min(aw / FIELD.width, ah / FIELD.height);
+    this.fitScale = Math.min(aw / FIELD.width, ah / (FIELD.height * this.ys));
   }
 
   reset(): void { this.zoom = 1; this.cx = FIELD.width / 2; this.cy = FIELD.height / 2; this._clamp(); }
 
   /** Keep at least `keep` pixels of the field visible on each axis. */
   _clamp(): void {
-    const s = this.scale;
+    const s = this.scale, sy = this.scaleY;
     const keep = Math.min(160, Math.min(this.W, this.H) * 0.25);
-    const cl = (c: number, size: number, half: number): number => {
-      const lo = -half + keep / s, hi = size + half - keep / s;
+    const cl = (c: number, size: number, half: number, k: number): number => {
+      const lo = -half + keep / k, hi = size + half - keep / k;
       return lo > hi ? size / 2 : clamp(c, lo, hi);
     };
     // world centre of the canvas = cx - offset/scale (free-area centre is cx). Clamp the canvas-centre world point.
     const off = this._offset();
-    let wx = this.cx - off.x / s, wy = this.cy - off.y / s;
-    wx = cl(wx, FIELD.width, this.W / 2 / s); wy = cl(wy, FIELD.height, this.H / 2 / s);
-    this.cx = wx + off.x / s; this.cy = wy + off.y / s;
+    let wx = this.cx - off.x / s, wy = this.cy - off.y / sy;
+    wx = cl(wx, FIELD.width, this.W / 2 / s, s); wy = cl(wy, FIELD.height, this.H / 2 / sy, sy);
+    this.cx = wx + off.x / s; this.cy = wy + off.y / sy;
   }
 
   /** World point at the centre of the canvas (what the three.js camera looks at). */
-  center(): { x: number; y: number } { const off = this._offset(); return { x: this.cx - off.x / this.scale, y: this.cy - off.y / this.scale }; }
+  center(): { x: number; y: number } { const off = this._offset(); return { x: this.cx - off.x / this.scale, y: this.cy - off.y / this.scaleY }; }
 
   screenToWorld(clientX: number, clientY: number): { x: number; y: number } {
     const r = this.canvas.getBoundingClientRect(), c = this.center(), s = this.scale;
-    return { x: c.x + (clientX - r.left - this.W / 2) / s, y: c.y + (clientY - r.top - this.H / 2) / s };
+    return { x: c.x + (clientX - r.left - this.W / 2) / s, y: c.y + (clientY - r.top - this.H / 2) / this.scaleY };
   }
   worldToScreen(x: number, y: number): { x: number; y: number } {
     const r = this.canvas.getBoundingClientRect(), c = this.center(), s = this.scale;
-    return { x: r.left + this.W / 2 + (x - c.x) * s, y: r.top + this.H / 2 + (y - c.y) * s };
+    return { x: r.left + this.W / 2 + (x - c.x) * s, y: r.top + this.H / 2 + (y - c.y) * this.scaleY };
   }
 
   /** Zoom to `newZoom` keeping the world point under client (px, py) fixed. */
   zoomAt(newZoom: number, clientX: number, clientY: number): void {
     const before = this.screenToWorld(clientX, clientY);
     this.zoom = clamp(newZoom, ZOOM_MIN, ZOOM_MAX);
-    const r = this.canvas.getBoundingClientRect(), s = this.scale, off = this._offset();
+    const r = this.canvas.getBoundingClientRect(), s = this.scale, sy = this.scaleY, off = this._offset();
     // canvas-centre world = before - (client - rect - W/2) / s ; free-area centre = that + off/s
     this.cx = before.x - (clientX - r.left - this.W / 2) / s + off.x / s;
-    this.cy = before.y - (clientY - r.top - this.H / 2) / s + off.y / s;
+    this.cy = before.y - (clientY - r.top - this.H / 2) / sy + off.y / sy;
     this._clamp();
   }
-  panBy(dxPx: number, dyPx: number): void { this.cx -= dxPx / this.scale; this.cy -= dyPx / this.scale; this._clamp(); }
+  panBy(dxPx: number, dyPx: number): void { this.cx -= dxPx / this.scale; this.cy -= dyPx / this.scaleY; this._clamp(); }
 
   // ------------------------------------------------------------ events
   _bind(): void {
@@ -191,9 +202,9 @@ export class CameraController {
     // zoom about the previous midpoint, then translate so the same world point follows the new midpoint
     const worldAtPrev = this.screenToWorld(g.mx, g.my);
     this.zoom = clamp(this.zoom * n.dist / g.dist, ZOOM_MIN, ZOOM_MAX);
-    const r = this.canvas.getBoundingClientRect(), s = this.scale, off = this._offset();
+    const r = this.canvas.getBoundingClientRect(), s = this.scale, sy = this.scaleY, off = this._offset();
     this.cx = worldAtPrev.x - (n.mx - r.left - this.W / 2) / s + off.x / s;
-    this.cy = worldAtPrev.y - (n.my - r.top - this.H / 2) / s + off.y / s;
+    this.cy = worldAtPrev.y - (n.my - r.top - this.H / 2) / sy + off.y / sy;
     this._clamp();
     this.gesture = n;
   }

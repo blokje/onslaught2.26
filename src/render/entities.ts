@@ -24,6 +24,9 @@ const RING_ACC_W = 1;                            // inner stat-colour arc
 const RING_ACC_R = RING_R - RING_W / 2 - 0.4 - RING_ACC_W / 2;
 const RING_GAP = 1.8;                            // gap between stat segments (world units of arc)
 const RING_MIN_TICK_PX = 2.5;                    // narrower ticks merge into a solid arc
+// colour-symbol badge: drawn size of the 32-unit icon cell (shape about 9 units) and its offset below the centre
+const SYMBOL_SIZE = 15;
+const SYMBOL_DY = 14;
 
 /** Rendering tint for a turret kind (used for glow, rings). */
 export function turretColor(t: TurretState): RGB {
@@ -42,6 +45,7 @@ export function rangeOf(t: TurretState): number {
 export function drawTurrets(R: Res, f: Frame): void {
   const { b, c } = R, t0 = f.t;
   const wpp = f.wpp;
+  const calm = R.opts.reduceMotion; // accessibility: no blinking, jitter or pulsing
   for (const t of f.state.turrets) {
     const idx = KIND_INDEX[t.kind];
     if (idx === undefined) continue;
@@ -51,15 +55,18 @@ export function drawTurrets(R: Res, f: Frame): void {
     const seed = t.id * 0.731;
     const x = t.x, y = t.y;
 
+    // tilted view: a soft drop shadow below and in front of the turret, so it reads as standing on the field
+    if (R.opts.tilted) b.tShadow.add(x + 2, y + 7, 0, 54, 40, c.fx.glow, 0, 0, 0, 0.55);
+
     // halo when a combo is possible
     if (t.comboCapable) {
-      const a = 0.26 + 0.1 * Math.sin(t0 * 2.2 + seed);
+      const a = calm ? 0.3 : 0.26 + 0.1 * Math.sin(t0 * 2.2 + seed);
       b.tGlow.add(x, y, 0, 74, 74, c.fx.glow, col[0], col[1], col[2], a);
     }
 
     // base plate (tinted red and flashing during the freak-out warning)
     let br = 1, bg = 1, bb = 1;
-    if (t.freak === 'warn') { const fl = 0.5 + 0.5 * Math.sin(t0 * 16); bg = bb = 1 - 0.55 * fl; }
+    if (t.freak === 'warn') { const fl = calm ? 0.6 : 0.5 + 0.5 * Math.sin(t0 * 16); bg = bb = 1 - 0.55 * fl; }
     b.tBase.add(x, y, 0, 64, 64, c.tb[idx], br, bg, bb, 1);
 
     // weapon
@@ -68,9 +75,11 @@ export function drawTurrets(R: Res, f: Frame): void {
     else if (t.kind === 'comboOnly') rot = t0 * 0.4 + seed;
     let wr = 1, wg = 1, wb = 1;
     if (t.kind === 'comboOnly') { wr = col[0]; wg = col[1]; wb = col[2]; }
-    if (t.freak === 'warn') { const fl = 0.5 + 0.5 * Math.sin(t0 * 16); wg = wb = 1 - 0.45 * fl; }
+    if (t.freak === 'warn') { const fl = calm ? 0.6 : 0.5 + 0.5 * Math.sin(t0 * 16); wg = wb = 1 - 0.45 * fl; }
     let jx = 0, jy = 0;
-    if (t.freak === 'on') { // heat jitter + shimmer copies + glow
+    if (t.freak === 'on' && calm) { // steady glow instead of jitter and shimmer
+      b.tGlow.add(x, y, 0, 92, 92, c.fx.glow, 1, 0.45, 0.1, 0.38);
+    } else if (t.freak === 'on') { // heat jitter + shimmer copies + glow
       jx = (Math.random() - 0.5) * 1.3; jy = (Math.random() - 0.5) * 1.3;
       const fl = 0.8 + 0.2 * Math.random();
       b.tGlow.add(x, y, 0, 92, 92, c.fx.glow, 1, 0.45, 0.1, 0.42 * fl);
@@ -85,6 +94,11 @@ export function drawTurrets(R: Res, f: Frame): void {
     b.tWeap.add(x + jx, y + jy, rot, ws, ws, c.tw[idx], wr, wg, wb, 1);
     const icon = c.ti[t.kind];
     if (isMod && icon) b.tIcon.add(x, y, 0, 32, 32, icon, wr, wg, wb, 1);
+    // colour-symbol badge (accessibility): the combo colour as a shape, low on the base, inside the upgrade ring
+    if (R.overlay.colorSymbols !== false && t.comboColor) {
+      const sym = c.sym[t.comboColor];
+      if (sym) { const sc = rgb(COMBO_COLOR[t.comboColor]); b.tIcon.add(x, y + SYMBOL_DY, 0, SYMBOL_SIZE, SYMBOL_SIZE, sym, sc[0], sc[1], sc[2], 1); }
+    }
 
     // freak indicators
     if (t.freak === 'available') {

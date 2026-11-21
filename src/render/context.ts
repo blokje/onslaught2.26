@@ -1,6 +1,6 @@
 // Types shared by the renderer modules (types only, no runtime code).
 
-import type { GameState, Overlay, TurretState, Effect } from '../types.ts';
+import type { GameState, Overlay, TurretState, Effect, RenderOptions } from '../types.ts';
 import type { SpriteBatch, RingBatch, Cell } from './batches.ts';
 import type { Particles } from './particles.ts';
 import type { TextAtlas } from './atlas.ts';
@@ -22,12 +22,13 @@ export interface Cells {
   tb: Cell[];                        // turret base plates by KIND_INDEX
   tw: Cell[];                        // turret weapons by KIND_INDEX
   ti: Record<string, Cell | null>;   // modifier icons by kind
+  sym: Record<string, Cell | null>;  // colour-symbol badges by combo colour (icon atlas)
 }
 
 /** The ~25 instanced batches, in draw order (see Renderer). */
 export interface Batches {
   ringUnder: RingBatch;
-  tGlow: SpriteBatch; tBase: SpriteBatch; tWeap: SpriteBatch; tWeapAdd: SpriteBatch; tIcon: SpriteBatch; tRing: RingBatch;
+  tShadow: SpriteBatch; tGlow: SpriteBatch; tBase: SpriteBatch; tWeap: SpriteBatch; tWeapAdd: SpriteBatch; tIcon: SpriteBatch; tRing: RingBatch;
   groundRing: RingBatch;
   groundFx: SpriteBatch; groundFxAdd: SpriteBatch;
   attSh: SpriteBatch; attGlow: SpriteBatch; att: SpriteBatch; attTop: SpriteBatch;
@@ -50,6 +51,9 @@ export interface Res {
   game: RenderGame | null;
   trailSeen: Map<number, { x: number; y: number; s: number }>; // projectile id -> last trail point + frame stamp
   fxSeen: Map<number, number>;                                  // effect id -> frame stamp
+  opts: RenderOptions;                                          // renderer.setOptions (reduceMotion, screenShake)
+  /** Screen-shake energy 0..1 (added by big blasts, decays each frame; see Renderer.render). */
+  shake: number;
 }
 
 /** Per-frame values shared by the draw functions. */

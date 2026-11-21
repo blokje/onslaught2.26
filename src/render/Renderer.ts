@@ -11,20 +11,20 @@
 import * as THREE from 'three';
 import { FIELD } from '../data/rules.ts';
 import { SpriteBatch, RingBatch } from './batches.ts';
-import { buildFxAtlas, buildUnitAtlas, buildTurretAtlases, TextAtlas, cellUV, modIconUV, MOD_KINDS, FX, KIND_INDEX } from './atlas.ts';
+import { buildFxAtlas, buildUnitAtlas, buildTurretAtlases, TextAtlas, cellUV, modIconUV, symbolUV, MOD_KINDS, FX, KIND_INDEX } from './atlas.ts';
 import { Terrain } from './terrain.ts';
 import { CameraController } from './camera.ts';
 import { Particles } from './particles.ts';
 import { drawTurrets, drawAttackers, drawProjectiles } from './entities.ts';
 import { drawBeams, drawEffects, drawOverlay } from './fxlayer.ts';
 import { clamp } from './util.ts';
-import type { Overlay, ViewInsets } from '../types.ts';
+import type { Overlay, ViewInsets, RenderOptions } from '../types.ts';
 import type { RenderGame, Res, Batches, Frame, FxCells } from './context.ts';
 import type { TurretState, Effect } from '../types.ts';
 
 export type { RenderGame } from './context.ts';
 
-const DEFAULT_OVERLAY: Overlay = { ghost: null, selectedId: null, hoverId: null, showRanges: 'selected', showCombo: false, joinFromId: null };
+const DEFAULT_OVERLAY: Overlay = { ghost: null, selectedId: null, hoverId: null, showRanges: 'selected', showCombo: false, joinFromId: null, previewRange: null, colorSymbols: true };
 const CLEAR = 0x120e0b;
 
 export class Renderer {
@@ -91,6 +91,7 @@ export class Renderer {
         tb: Array.from({ length: nKinds }, (_, i) => cellUV(i)),
         tw: Array.from({ length: nKinds }, (_, i) => cellUV(i)),
         ti: Object.fromEntries(MOD_KINDS.map((k) => [k, modIconUV(k)])),
+        sym: Object.fromEntries(['red', 'green', 'blue', 'yellow'].map((k) => [k, symbolUV(k)])),
       },
       b: null as unknown as Batches, // filled right below, once the batches exist
       particles: new Particles(2600),
@@ -100,12 +101,15 @@ export class Renderer {
       game: null,
       trailSeen: new Map(),
       fxSeen: new Map(),
+      opts: { reduceMotion: false, screenShake: true },
+      shake: 0,
     };
     const mk = <T extends SpriteBatch | RingBatch>(batch: T): T => { this.scene.add(batch.mesh); return batch; };
     const FXT = fxA.texture, UT = unitA.texture, TB = turA.base, TW = turA.weapon, TI = turA.icon, TT = this.text.texture;
     this.terrain = new Terrain(this.scene, FXT);
     const b: Batches = {
       ringUnder: mk(new RingBatch(600, { order: 3 })),
+      tShadow: mk(new SpriteBatch(FXT, 400, { order: 3.4 })), // tilted view: turret drop shadows under everything else
       tGlow: mk(new SpriteBatch(FXT, 600, { additive: true, order: 3.5 })),
       tBase: mk(new SpriteBatch(TB, 400, { order: 4 })),
       tWeap: mk(new SpriteBatch(TW, 400, { order: 5 })),
@@ -133,7 +137,7 @@ export class Renderer {
       ovAdd: mk(new SpriteBatch(FXT, 800, { additive: true, order: 12.6 })),
     };
     this.res.b = b;
-    this.sprites = ['tGlow', 'tBase', 'tWeap', 'tWeapAdd', 'tIcon', 'groundFx', 'groundFxAdd', 'attSh', 'attGlow', 'att', 'attTop', 'smoke', 'proj', 'projAdd', 'beams', 'blastAdd', 'text', 'ghostBase', 'ghostWeap', 'ghostIcon', 'ovAdd'].map((n) => b[n as keyof Batches] as SpriteBatch);
+    this.sprites = ['tShadow', 'tGlow', 'tBase', 'tWeap', 'tWeapAdd', 'tIcon', 'groundFx', 'groundFxAdd', 'attSh', 'attGlow', 'att', 'attTop', 'smoke', 'proj', 'projAdd', 'beams', 'blastAdd', 'text', 'ghostBase', 'ghostWeap', 'ghostIcon', 'ovAdd'].map((n) => b[n as keyof Batches] as SpriteBatch);
     this.rings = (['ringUnder', 'tRing', 'groundRing', 'ringAdd', 'ringTop'] as const).map((n) => b[n]);
 
     // --- camera + input
@@ -166,6 +170,13 @@ export class Renderer {
   screenToWorld(clientX: number, clientY: number): { x: number; y: number } { return this.view.screenToWorld(clientX, clientY); }
   worldToScreen(x: number, y: number): { x: number; y: number } { return this.view.worldToScreen(x, y); }
 
+  /** Presentation options (accessibility); partial objects merge. Never touches game state. */
+  setOptions(o: Partial<RenderOptions>): void {
+    const was = !!this.res.opts.tilted;
+    Object.assign(this.res.opts, o);
+    if (!!this.res.opts.tilted !== was) this.view.setTilt(!!this.res.opts.tilted);
+  }
+
   /** Merge overlay settings (full or partial objects both work). */
   setOverlay(o?: Partial<Overlay> | null): void { Object.assign(this.overlay, o || {}); }
 
@@ -187,10 +198,20 @@ export class Renderer {
 
     // camera
     const view = this.view, s = view.scale, c = view.center();
-    const hw = view.W / 2 / s, hh = view.H / 2 / s;
+    const hw = view.W / 2 / s, hh = view.H / 2 / view.scaleY; // taller world window when tilted (scaleY < scale)
     const cam = this.camera;
     cam.left = -hw; cam.right = hw; cam.top = hh; cam.bottom = -hh;
-    cam.position.x = c.x; cam.position.y = -c.y;
+    // screen shake: offset grows with shake^2 (small blasts barely move it), max 7 CSS px, decays in about 0.6 s real time
+    let sx = 0, sy = 0;
+    if (R.shake > 0) {
+      if (R.opts.screenShake !== false && !R.opts.reduceMotion) {
+        const amp = R.shake * R.shake * 7 / s; // world units (x scale; close enough for y)
+        sx = amp * Math.sin(this.t * 61.7) * Math.cos(this.t * 17.3);
+        sy = amp * Math.sin(this.t * 53.1 + 1.3);
+      }
+      R.shake = Math.max(0, R.shake - dt / 600);
+    }
+    cam.position.x = c.x + sx; cam.position.y = -c.y + sy;
     cam.updateProjectionMatrix();
     const wpp = 1 / s;
 

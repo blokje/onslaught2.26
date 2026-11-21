@@ -8,7 +8,7 @@ import { COMBOS, COMBO_LOG_MAX } from '../data/combos.ts';
 import type { AppGame, AppRenderer, CommandResult } from './appTypes.ts';
 import type {
   GameState, GameOptions, GameEvents, GameEventName, Attacker, TurretState, Result, Fail, ComboPreview,
-  Overlay, Stat, DifficultyId, ModeId, TargetMode, DirectionalMode, KeyColor, ColorCounts, ComboRecipe,
+  Overlay, Stat, DifficultyId, ModeId, TargetMode, DirectionalMode, KeyColor, ColorCounts, ComboRecipe, WavePreview, UpgradePreview,
 } from '../types.ts';
 
 const STATS: Stat[] = ['damage', 'range', 'rate'];
@@ -147,6 +147,7 @@ class MockGame implements AppGame {
       t.targetId = target.id;
       this.emit('shot', { kind: t.kind, turretId: t.id });
       s.beams.push({ kind: def.weapon === 'laser' ? 'laser' : 'spark', x1: t.x, y1: t.y, x2: target.x, y2: target.y, age: 0, ttl: 120 });
+      t.damageDealt = (t.damageDealt || 0) + Math.min(t.stats.damage, Math.max(0, target.hp));
       target.hp -= t.stats.damage;
       this.emit('hit', { attackerId: target.id });
       if (target.hp <= 0) this.kill(target);
@@ -183,6 +184,7 @@ class MockGame implements AppGame {
     const s = this.state;
     const diff = DIFFICULTIES[s.difficulty] || DIFFICULTIES.medium;
     s.wave++;
+    (s.history ||= []).push({ wave: s.wave, time: s.time, cash: s.cash, lives: s.lives, kills: s.kills, spent: s.spent, damage: s.turrets.reduce((n, t) => n + (t.damageDealt || 0), 0) });
     const hp = waveHp(s.wave, diff.hpGrowth);
     for (let i = 0; i < WAVES.size; i++) this.queue.push({ type: (s.wave - 1) % 9, hp, bounty: waveBounty(s.wave) });
     this.spawnClock = 0;
@@ -289,6 +291,17 @@ class MockGame implements AppGame {
     return lv >= lad.length ? null : lad[lv].cost;
   }
 
+  upgradePreview(id: number, stat: Stat): UpgradePreview | null {
+    const t = this.find(id);
+    const cost = this.upgradeCost(id, stat);
+    if (!t || cost == null) return null;
+    const next: TurretState = { ...t, levels: { ...t.levels, [stat]: t.levels[stat] + 1 }, stats: { ...t.stats } };
+    this.recompute(next);
+    const from = TURRETS[t.kind].category === 'modifier' ? { ...t.stats, range: t.modRange } : { ...t.stats };
+    const to = TURRETS[t.kind].category === 'modifier' ? { ...next.stats, range: next.modRange } : next.stats;
+    return { stat, cost, from, to };
+  }
+
   upgrade(id: number, stat: Stat, toMax = false): CommandResult {
     const t = this.find(id);
     if (!t) return this.fail('No such turret');
@@ -377,6 +390,14 @@ class MockGame implements AppGame {
     s.cash += Math.floor(s.nextWaveIn / 1000) * WAVES.earlyBonusPerSec;
     this.startWave(true);
     return { ok: true };
+  }
+  undo(): CommandResult { return this.fail('Nothing to undo'); }
+  undoInfo(): null { return null; }
+  waveActive(): boolean { return this.queue.length > 0 || this.state.attackers.some((a) => !a.dead); }
+  wavePreview(n?: number): WavePreview {
+    const w = Math.max(1, Math.floor(n ?? this.state.wave + 1));
+    const diff = DIFFICULTIES[this.state.difficulty] || DIFFICULTIES.medium;
+    return { wave: w, type: (w - 1) % 9, hp: waveHp(w, diff.hpGrowth), bounty: waveBounty(w), count: WAVES.size };
   }
   setSpeed(v: number): CommandResult { this.state.speed = v; return { ok: true }; }
   togglePause(): CommandResult { this.state.paused = !this.state.paused; return { ok: true }; }

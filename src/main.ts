@@ -1,5 +1,7 @@
 import { Game } from './game/Game.ts';
 import { Renderer } from './render/Renderer.ts';
+import { makeReplay, validateReplay, startPlayback } from './game/replay.ts';
+import type { ReplayData } from './game/replay.ts';
 import { App } from './ui/App.ts';
 
 let renderer: Renderer | null = null;
@@ -22,6 +24,12 @@ if (renderer) {
     createGame: (opts) => new Game({ seed: (Math.random() * 0x100000000) >>> 0, ...opts }),
     restoreGame: (save) => Game.deserialize(save),
     renderer,
+    replays: {
+      make: (g) => (g instanceof Game ? makeReplay(g) : null),
+      validate: (raw) => validateReplay(raw),
+      play: (data) => startPlayback(data as ReplayData),
+      info: (data) => { const r = data as ReplayData; return { mapId: r.opts.mapId, difficulty: r.opts.difficulty, wave: r.result.wave, score: r.result.score }; },
+    },
   });
 
   // narrowed copies: the closure below runs later, where TS no longer knows these are set
@@ -46,4 +54,10 @@ if (renderer) {
     }
   };
   requestAnimationFrame(frame);
+}
+
+// Offline play and installing as an app (PWA): only for the real build served over http(s); never in the dev server,
+// where cached modules would hide changes, and not for the single-file build opened from disk.
+if (import.meta.env.PROD && 'serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js').catch((e) => console.warn('Service worker not registered:', e)); });
 }

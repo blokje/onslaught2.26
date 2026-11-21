@@ -3,13 +3,20 @@ import { WAVES } from '../data/rules.ts';
 import { createAttacker } from './Attacker.ts';
 import type { Game } from './Game.ts';
 
+/** Most wave records kept in state.history (older ones are dropped); far above any real game. */
+export const HISTORY_MAX = 5000;
+
 /** A wave being spawned: `left` attackers to go, next one in `t` ms. */
 export interface Spawner { wave: number; left: number; t: number }
 
-/** Advances the wave counter and queues a spawner for the new wave. */
+/** Advances the wave counter, records a history entry and queues a spawner for the new wave. */
 export function startWave(game: Game): void {
   const s = game.state;
   s.wave += 1;
+  // end-of-run report data (state.history): the economy just before this wave's attackers appear
+  const h = (s.history ||= []);
+  h.push({ wave: s.wave, time: s.time, cash: s.cash, lives: s.lives, kills: s.kills, spent: s.spent, damage: s.damageTotal || 0 });
+  if (h.length > HISTORY_MAX) h.shift();
   game.spawners.push({ wave: s.wave, left: WAVES.size, t: 0 });
   game.emit('wave', { wave: s.wave });
 }

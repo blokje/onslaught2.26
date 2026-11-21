@@ -54,13 +54,13 @@ import { SpatialGrid } from './grid.ts';
 import { Turret, assignSafe } from './Turret.ts';
 import { emptyMods, addMod, computeStats, nextUpgradeCost, modRangeAt, STATS } from './modifiers.ts';
 import type { ModSum } from './modifiers.ts';
-import { createAttacker, moveAttackers, applyPoison } from './Attacker.ts';
-import { startWave, updateSpawners } from './Waves.ts';
+import { createAttacker, moveAttackers, applyPoison, waveHp, waveBounty } from './Attacker.ts';
+import { startWave, updateSpawners, HISTORY_MAX } from './Waves.ts';
 import { stepTurret, chainBonus, releaseOrbiter } from './weapons.ts';
 import { updateProjectiles } from './projectiles.ts';
 import type {
   Attacker, Beam, BeamKind, BlastSize, ComboPreview, DifficultyId, DirectionalMode, Effect, EffectKind, Fail, GameEventName, GameEvents,
-  GameOptions, GameState, KeyColor, ModeId, Projectile, ProjectileKind, Result, Stat, TargetMode, TurretState,
+  GameOptions, GameState, KeyColor, ModeId, Projectile, ProjectileKind, Result, Stat, StatValues, TargetMode, TurretState, UpgradePreview, WavePreview, WaveRecord,
 } from '../types.ts';
 import type { Spawner } from './Waves.ts';
 import { Combos } from './combos.ts';
@@ -73,6 +73,8 @@ const DEFAULT_SEED = 0x2261;
 const SAVE_VERSION = 1;
 const SAVE_LIMITS = { turrets: 2000, attackers: 5000, projectiles: 20000, beams: 5000, effects: 5000, spawners: 1000 };
 const isObj = (v: unknown): v is Record<string, any> => v !== null && typeof v === 'object' && !Array.isArray(v);
+/** A well-formed command log entry (untrusted saves and replay files). */
+export const isCommandEntry = (e: unknown): e is CommandEntry => isObj(e) && Number.isInteger(e.s) && e.s >= 0 && typeof e.c === 'string' && (REPLAY_COMMANDS as readonly string[]).includes(e.c) && Array.isArray(e.a) && e.a.length <= 4;
 const MAX_BEAMS = 400;
 const MAX_EFFECTS = 300;
 const DIRECTIONAL_ORDER = Object.keys(DIRECTIONAL) as DirectionalMode[]; // D cycle order
@@ -81,6 +83,21 @@ const COMBO_COLORS: KeyColor[] = ['red', 'green', 'blue', 'yellow'];
 export interface GameOpts {
   mapId: string; difficulty: string; mode: string; unlockAll: boolean;
   seed: number; waveInterval: number | null;
+}
+
+/** What game.undo() would take back: an English label, the refund, and the parts for a translated label. */
+export interface UndoInfo { label: string; refund: number; kind: 'build' | 'upgrade'; turret: string; stat?: Stat; levels?: number }
+
+/** The last build or upgrade, as game.undo() needs it (in memory only). */
+interface UndoRecord {
+  kind: 'build' | 'upgrade';
+  id: number;
+  cost: number;            // full refund
+  fired: boolean;          // the turret fired since: too late
+  label: string;           // for the UI ("build Cannon", "damage upgrade x3 (Laser)")
+  stat?: Stat;
+  levels?: number;
+  before?: { levels: StatValues; cashValue: number; freak: TurretState['freak']; freakAt: number };
 }
 
 /** Serialised game (output of Game.serialize, plain JSON). */
@@ -94,14 +111,29 @@ export interface SaveData {
   focusId: number | null;
   spawners: Spawner[];
   waveInterval: number;
-  state: Pick<GameState, 'time' | 'speed' | 'paused' | 'over' | 'cash' | 'lives' | 'kills' | 'spent' | 'wave' | 'nextWaveIn' | 'score' | 'unlocked'>;
+  state: Pick<GameState, 'time' | 'speed' | 'paused' | 'over' | 'cash' | 'lives' | 'kills' | 'spent' | 'wave' | 'nextWaveIn' | 'score' | 'unlocked' | 'history' | 'damageTotal' | 'undoUsed'>;
   turrets: TurretState[];
   attackers: Attacker[];
   projectiles: Projectile[];
   beams: Beam[];
   effects: Effect[];
   combos: unknown;
+  /** Optional (since replays): every successful player command with its step, for replays. */
+  commandLog?: CommandEntry[];
+  /** Optional (since replays): the options at game start. */
+  startOpts?: GameOpts;
 }
+
+/** Player commands that change the game; replays log and re-run exactly these (src/game/replay.ts). */
+export const REPLAY_COMMANDS = [
+  'build', 'upgrade', 'sell', 'move', 'setTargetMode', 'cycleTargetMode', 'toggleLock', 'focusFire',
+  'setDirectional', 'cycleDirectional', 'join', 'setComboColor', 'sendWave', 'setWaveInterval', 'undo',
+] as const;
+export type ReplayCommand = typeof REPLAY_COMMANDS[number];
+/** One logged command: the step it ran before (stepCount at that moment), its name and its arguments. */
+export interface CommandEntry { s: number; c: ReplayCommand; a: unknown[] }
+/** Most commands a save keeps for its replay (a long game uses a few thousand). */
+export const COMMAND_LOG_MAX = 50000;
 
 export class Game {
   opts: GameOpts;
@@ -124,6 +156,18 @@ export class Game {
   state: GameState;
   _nextUnlock: number;
   combos: Combos;
+  /** Successful player commands with their step (saved), see REPLAY_COMMANDS. */
+  commandLog: CommandEntry[] = [];
+  /** The options this game started with (replays); `opts` can change later (setWaveInterval). */
+  startOpts: GameOpts;
+  /** update() never steps past this stepCount (replay playback stops at the replay's end). Not saved. */
+  stepLimit = Infinity;
+  /** Nesting depth of running replay commands (only depth 0 is logged). */
+  _cmdDepth = 0;
+  /** Called at the start of every step with stepCount (replay playback), or null. Not saved. */
+  stepHook: ((step: number) => void) | null = null;
+  /** Last build/upgrade that undo() can take back (not saved: a restored game starts without one). */
+  _undo: UndoRecord | null = null;
 
   constructor(options: GameOptions = {}) {
     const o = { mapId: 'map1', difficulty: 'medium', mode: 'normal', unlockAll: false, ...options };
@@ -138,6 +182,7 @@ export class Game {
       mapId: o.mapId, difficulty: o.difficulty, mode: o.mode, unlockAll: !!o.unlockAll,
       seed: o.seed, waveInterval: o.waveInterval ?? null,
     };
+    this.startOpts = { ...this.opts }; // replays start from these (setWaveInterval later changes opts)
 
     this.rng = new RNG(o.seed);
     this.events = new Emitter();
@@ -174,9 +219,33 @@ export class Game {
       },
       attackers: [], turrets: [], projectiles: [], beams: [], effects: [],
       focusId: null,
+      history: [], damageTotal: 0, undoUsed: false,
     };
     this._nextUnlock = this._computeNextUnlock();
     this.combos = new Combos(this);
+    // undo ends once the turret fires (normal shots and combos; chain and holding call markFired directly)
+    this.on('shot', (p) => this.markFired(p.turretId));
+    this.on('combo', (p) => { this.markFired(p.turretId); for (const id of p.partnerIds) this.markFired(id); });
+    this._wrapCommands();
+  }
+
+  /**
+   * Log every successful replay command with the current stepCount (commandLog). Wrapping the instance methods keeps
+   * the commands themselves untouched; a command run by a replay is logged the same way, so logs compare equal.
+   */
+  _wrapCommands(): void {
+    const self = this as unknown as Record<string, (...a: unknown[]) => unknown>; // method table, looked up by name
+    for (const name of REPLAY_COMMANDS) {
+      const orig = self[name];
+      self[name] = (...args: unknown[]): unknown => {
+        // only the outermost command is logged (cycleTargetMode calls setTargetMode; replaying both would cycle twice)
+        this._cmdDepth++;
+        let r: { ok?: boolean } | null;
+        try { r = orig.apply(this, args) as { ok?: boolean } | null; } finally { this._cmdDepth--; }
+        if (this._cmdDepth === 0 && r && r.ok && this.commandLog.length < COMMAND_LOG_MAX) this.commandLog.push({ s: this.stepCount, c: name, a: JSON.parse(JSON.stringify(args)) });
+        return r;
+      };
+    }
   }
 
   /** Focus-fire target; mirrored to state.focusId for the renderer. */
@@ -201,7 +270,7 @@ export class Game {
     this.acc += realDtMs * s.speed;
     const maxSteps = 8 * s.speed;
     let n = 0;
-    while (this.acc >= STEP_MS && n < maxSteps && !s.over) {
+    while (this.acc >= STEP_MS && n < maxSteps && !s.over && this.stepCount < this.stepLimit) {
       this.step(STEP_MS);
       this.acc -= STEP_MS;
       n++;
@@ -215,6 +284,7 @@ export class Game {
   }
 
   step(dt: number): void {
+    if (this.stepHook) this.stepHook(this.stepCount); // replays run the commands logged for this step first
     const s = this.state;
     s.time += dt;
     this.stepCount++;
@@ -297,6 +367,19 @@ export class Game {
     return { ok: true, bonus };
   }
 
+  /** Read-only: true while a wave is still spawning or any attacker is alive (auto-send waits for false). */
+  waveActive(): boolean {
+    if (this.spawners.length > 0) return true;
+    for (const a of this.state.attackers) if (!a.dead) return true;
+    return false;
+  }
+
+  /** Read-only outlook for wave n (default: the next wave). Same formulas as createAttacker, no rng. */
+  wavePreview(n?: number): WavePreview {
+    const w = Math.max(1, Math.floor(n ?? this.state.wave + 1));
+    return { wave: w, type: (w - 1) % WAVES.types, hp: waveHp(w, this.hpGrowth), bounty: waveBounty(w), count: WAVES.size };
+  }
+
   /** Add an attacker to the field (used by waves; also handy for tests). */
   addAttacker(a: Attacker): Attacker {
     this.state.attackers.push(a);
@@ -326,6 +409,12 @@ export class Game {
   /** Returns true if the attacker died from this hit. */
   damageAttacker(a: Attacker, dmg: number, sourceTurret: TurretState | null | undefined, poison = 0): boolean {
     if (a.dead) return false;
+    // effective damage for the turret's stats: overkill is not counted
+    if (sourceTurret && dmg > 0) {
+      const eff = Math.min(dmg, Math.max(0, a.hp));
+      sourceTurret.damageDealt = (sourceTurret.damageDealt || 0) + eff;
+      this.state.damageTotal = (this.state.damageTotal || 0) + eff;
+    }
     a.hp -= dmg;
     if (poison > 1) applyPoison(a, poison);
     this.emit('hit', { attackerId: a.id });
@@ -486,10 +575,54 @@ export class Game {
     s.spent += def.cost;
     s.turrets.push(t);
     this.turretMap.set(t.id, t);
+    this._undo = { kind: 'build', id: t.id, cost: def.cost, fired: false, label: 'build ' + def.name };
     this._recompute();
     this._refreshScore();
     this.emit('build', { id: t.id, kind });
     return { ok: true, id: t.id };
+  }
+
+  // ------------------------------------------------------------------ undo (optional relaxed rule, SPEC.md section 9)
+  /** A turret fired (shot, chain contribution, holding rocket, combo): it can no longer be undone. */
+  markFired(id: number): void { if (this._undo && this._undo.id === id) this._undo.fired = true; }
+
+  /** What `undo()` would take back, or null. Read-only. */
+  undoInfo(): UndoInfo | null {
+    const u = this._undo;
+    const t = u ? this.turretMap.get(u.id) : undefined;
+    if (!u || !t || u.fired || this.state.over) return null;
+    return { label: u.label, refund: u.cost, kind: u.kind, turret: t.kind, stat: u.stat, levels: u.levels };
+  }
+
+  /**
+   * Take back the last build or upgrade with a full refund, while that turret has not fired since (any later build,
+   * upgrade, sell or move ends the chance). `spent` and the score go back too, and `state.undoUsed` is set for good.
+   */
+  undo(): Result<{ refund: number }> {
+    const u = this._undo;
+    const t = u ? this.turretMap.get(u.id) : undefined;
+    if (!u || !t || this.state.over) return this._fail('Nothing to undo');
+    if (u.fired) return this._fail('It has fired since, too late to undo');
+    const s = this.state;
+    this._undo = null;
+    s.cash += u.cost;
+    s.spent -= u.cost;
+    s.undoUsed = true;
+    if (u.kind === 'build') {
+      s.turrets.splice(s.turrets.indexOf(t), 1);
+      this.turretMap.delete(t.id);
+      for (const o of s.turrets) if (o.joinedTo === t.id) o.joinedTo = null;
+    } else {
+      const b = u.before!;
+      t.levels = { ...b.levels };
+      t.cashValue = b.cashValue;
+      t.freak = b.freak;
+      t.freakAt = b.freakAt;
+    }
+    this._recompute();
+    this._refreshScore();
+    this.emit('undo', { id: t.id, kind: u.kind, refund: u.cost });
+    return { ok: true, refund: u.cost };
   }
 
   turretAt(x: number, y: number): number | null {
@@ -509,12 +642,30 @@ export class Game {
     return nextUpgradeCost(t.kind, stat, t.levels[stat]);
   }
 
+  /**
+   * Read-only: effective stats now and after one more level of `stat` (modifiers and freak-out included, as they
+   * are right now). Null when the turret is missing or the stat is maxed / not upgradable. No rng, no state change.
+   */
+  upgradePreview(id: number, stat: Stat): UpgradePreview | null {
+    const t = this.turretMap.get(id);
+    if (!t || !STATS.includes(stat)) return null;
+    const cost = nextUpgradeCost(t.kind, stat, t.levels[stat]);
+    if (cost == null) return null;
+    const mods = this.state.turrets.filter((m) => m.category === 'modifier');
+    const sum = this._modSumFor(t, mods);
+    const pick = (e: StatValues): StatValues => ({ damage: e.damage, range: e.range, rate: e.rate });
+    const from = pick(computeStats(t, sum));
+    const to = pick(computeStats({ kind: t.kind, freak: t.freak, levels: { ...t.levels, [stat]: t.levels[stat] + 1 } }, sum));
+    return { stat, cost, from, to };
+  }
+
   upgrade(id: number, stat: Stat, toMax = false): Result<{ levels: number }> {
     const t = this.turretMap.get(id);
     if (this.state.over) return this._fail('Game over');
     if (!t) return this._fail('No such turret');
     if (!STATS.includes(stat)) return this._fail('Unknown stat');
     const s = this.state;
+    const before = { levels: { ...t.levels }, cashValue: t.cashValue, freak: t.freak, freakAt: t.freakAt };
     let n = 0, reason = 'Fully upgraded';
     for (;;) {
       const cost = nextUpgradeCost(t.kind, stat, t.levels[stat]);
@@ -528,6 +679,10 @@ export class Game {
       if (!toMax) break;
     }
     if (n === 0) return this._fail(reason);
+    this._undo = {
+      kind: 'upgrade', id, cost: t.cashValue - before.cashValue, fired: false, stat, levels: n, before,
+      label: `${stat} upgrade${n > 1 ? ' x' + n : ''} (${TURRETS[t.kind].name})`,
+    };
     this._recompute();
     this._refreshScore();
     this.emit('upgrade', { id, stat, levels: n });
@@ -552,6 +707,7 @@ export class Game {
       }
     }
     const refund = Math.floor(t.cashValue * SELL_REFUND);
+    this._undo = null;
     s.cash += refund;
     s.turrets.splice(s.turrets.indexOf(t), 1);
     this.turretMap.delete(id);
@@ -571,6 +727,7 @@ export class Game {
     if (s.cash < MOVE_COST) return this._fail('Not enough cash');
     s.cash -= MOVE_COST;
     s.spent += MOVE_COST;
+    this._undo = null;
     t.x = x; t.y = y;
     t.targetId = null;
     this._recompute();
@@ -662,6 +819,16 @@ export class Game {
   }
 
   // ------------------------------------------------------------------ derived turret state
+  /** Summed bonuses of the modifiers whose aura reaches a weapon (null for modifiers and support turrets). */
+  _modSumFor(t: TurretState, mods: TurretState[]): ModSum | null {
+    if (t.category !== 'weapon') return null;
+    const sum = emptyMods();
+    for (const m of mods) {
+      if (Math.hypot(m.x - t.x, m.y - t.y) <= m.modRange) addMod(sum, TURRETS[m.kind].mod!);
+    }
+    return sum;
+  }
+
   /** Recompute modifiers, effective stats, links, joins, combo capability and freak eligibility. */
   _recompute(): void {
     const s = this.state;
@@ -673,13 +840,7 @@ export class Game {
     const greens: TurretState[] = [];
     for (const t of turrets) {
       const def = TURRETS[t.kind];
-      let sum: ModSum | null = null;
-      if (t.category === 'weapon') {
-        sum = emptyMods();
-        for (const m of mods) {
-          if (Math.hypot(m.x - t.x, m.y - t.y) <= m.modRange) addMod(sum, TURRETS[m.kind].mod!);
-        }
-      }
+      const sum = this._modSumFor(t, mods);
       // freak-out eligibility
       if (def.freakout) {
         const ok = t.levels.damage >= def.freakout.damage && t.levels.rate >= def.freakout.rate;
@@ -742,6 +903,7 @@ export class Game {
     return JSON.parse(JSON.stringify({
       version: SAVE_VERSION,
       opts: this.opts,
+      startOpts: this.startOpts,
       rng: this.rng.s,
       nextId: this.nextId,
       acc: this.acc,
@@ -753,10 +915,12 @@ export class Game {
         time: s.time, speed: s.speed, paused: s.paused, over: s.over,
         cash: s.cash, lives: s.lives, kills: s.kills, spent: s.spent, wave: s.wave,
         nextWaveIn: s.nextWaveIn, score: s.score, unlocked: s.unlocked,
+        history: s.history, damageTotal: s.damageTotal, undoUsed: s.undoUsed,
       },
       turrets: s.turrets, attackers: s.attackers, projectiles: s.projectiles,
       beams: s.beams, effects: s.effects,
       combos: this.combos.serialize ? this.combos.serialize() : null,
+      commandLog: this.commandLog,
     }));
   }
 
@@ -787,6 +951,8 @@ export class Game {
       for (const o of d[key]) if (!isObj(o)) throw bad(`${key} holds a non-object`);
     }
     const g = new Game(d.opts);
+    g.startOpts = { ...g.opts };
+    if (isObj(d.startOpts)) { try { g.startOpts = { ...new Game(d.startOpts).opts }; } catch (e) { /* unknown map etc.: keep opts */ } } // validated by the constructor
     g.rng.s = d.rng;
     g.nextId = d.nextId;
     g.acc = d.acc;
@@ -796,6 +962,14 @@ export class Game {
     g.waveInterval = d.waveInterval;
     const s = g.state;
     assignSafe(s, d.state);
+    // optional fields added after save version 1: dropped (not rejected) when missing or malformed
+    const keys: (keyof WaveRecord)[] = ['wave', 'time', 'cash', 'lives', 'kills', 'spent', 'damage'];
+    s.history = Array.isArray(s.history) && s.history.length <= HISTORY_MAX
+      && s.history.every((r) => isObj(r) && keys.every((k) => Number.isFinite(r[k])))
+      ? s.history.map((r) => ({ wave: r.wave, time: r.time, cash: r.cash, lives: r.lives, kills: r.kills, spent: r.spent, damage: r.damage }))
+      : [];
+    if (!Number.isFinite(s.damageTotal)) s.damageTotal = 0;
+    s.undoUsed = s.undoUsed === true;
     for (const o of d.turrets) { const t = Turret.fromJSON(o); s.turrets.push(t); g.turretMap.set(t.id, t); }
     for (const a of d.attackers) { s.attackers.push(a); g.attackerMap.set(a.id, a); }
     s.projectiles.push(...d.projectiles);
@@ -803,6 +977,8 @@ export class Game {
     s.effects.push(...d.effects);
     g._nextUnlock = g._computeNextUnlock();
     if (g.combos.deserialize && d.combos != null) g.combos.deserialize(d.combos);
+    // optional since replays: an old save simply has no log (its replay starts empty); a broken one is dropped
+    g.commandLog = Array.isArray(d.commandLog) && d.commandLog.length <= COMMAND_LOG_MAX && d.commandLog.every(isCommandEntry) ? d.commandLog : [];
     return g;
   }
 }

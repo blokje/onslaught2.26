@@ -4,7 +4,8 @@ A browser tower-defense game. Protect your base from endless waves by building t
 upgrading them, boosting them with modifiers and arranging them into combos (nukes, black holes, cluster bombs and more).
 It remakes the mechanics of a classic 2007 Flash game, with all-new code, art and sound.
 
-Runs full-window in any modern browser, with zoom and pan. Built for desktop (mouse and keyboard); iPad works in landscape.
+Runs full-window in any modern browser, with zoom and pan. Built for desktop (mouse and keyboard); tablets and phones work
+in both orientations.
 
 ## About this project
 
@@ -30,6 +31,8 @@ npm install
 npm run dev          # open http://localhost:5226
 ```
 
+The online version can be installed as an app (browser menu: Install) and then also works offline.
+
 Or build one self-contained file you can double-click:
 
 ```bash
@@ -45,11 +48,20 @@ npm run build:single # writes dist-single/index.html
   - 7 modifiers that boost nearby turrets: Ranger, Boom, SpeedEx, RangerEx, Speed, BigBang, BigBangEx.
   - 5 extra weapons: Targeter, Sniper, Fusion, Railgun, Combo-only.
   - Modifiers and extra weapons unlock as your kill count grows.
-- **20 combos:** fully upgraded turrets standing close together fire a combined special attack. Which one depends on the colour of the turret that fires first.
+- **20 combos:** fully upgraded turrets standing close together fire a combined special attack. Which one depends on the colour of the turret that fires first. The **Combo Codex** (K, or from the menu) lists every recipe and marks the ones you have fired.
+- **Interactive tutorial** on the How to Play map (or Tutorial in the menu): 8 short steps that you play, not read.
+  Afterwards short one-time tips appear the first time something new happens (can be turned off in Settings).
 - **Turret panel tabs** (General, Upgrades, Combos, Freakout). The Combos tab shows combos fired and assisted, partners in range, the time until the next combo, every recipe with the partners it still needs, and the last 5 combos.
 - **Specials:** laser chains with piercing beams, a rocket holding pattern, cannon and tazer freak-outs, poison slow.
 - **4 difficulties** (Easy, Medium, Hard, Extreme), plus a **Sandbox** mode with unlimited cash.
 - **Score** = total kills × total cash spent.
+- Accessibility: every combo colour also has a shape (on the map and in the panels).
+- **Replays:** save or copy a replay at game over and watch it again from the menu; it plays out exactly the same.
+- **Daily challenge:** one map, difficulty and seed per day for everyone, with its own score list.
+- **Map stars:** 1 to 3 stars per map and difficulty for reaching wave 25, 50 and 100.
+- **Achievements:** 22 goals, from the first kill to all 20 combos and wave 100 on Hard.
+- **Languages:** English, Dutch and German (Settings, or automatic from the browser).
+- Saves: three save slots next to the autosave, with export and import of save files (move a game to another device).
 - Saving: the game autosaves and you can continue later. High scores per map and difficulty.
 
 ## Controls
@@ -59,13 +71,22 @@ npm run build:single # writes dist-single/index.html
 | 1 to 8, Shift+1 to 8 | Pick a turret to build (click to place, Shift+click keeps building) |
 | Q / W / E | Upgrade damage / range / rate (Shift: as far as you can afford) |
 | S / M | Sell (70% back) / move ($500) |
+| U | Undo the last build or upgrade (optional, turn on Relaxed: undo in Settings) |
 | T | Cycle target: nearest, furthest, weakest, strongest, slowest, fastest, oldest, newest |
 | L / F / D | Lock target / focus fire on an attacker / directional cone (Shift+D aims at the cursor) |
 | J / X | Join a Targeter to a turret / pick a Combo-only colour |
 | R / C | Show all ranges / show combo partners |
 | Space | Send the next wave now (bonus cash) |
+| A | Auto-send: the next wave starts as soon as the field is clear |
 | P, G, I, Esc | Pause, settings, info panel, cancel |
+| ? | All controls; click a key there to change it |
 | Mouse wheel, right-drag | Zoom, pan (two fingers on touch) |
+| Gamepad | Left stick cursor, A click, B back, X build, Y/LT/RT upgrade, LB/RB rack, View wave, Menu pause |
+
+## OnSlaught 3
+
+[`onslaught3/`](onslaught3/README.md) holds OnSlaught 3, the free successor: the same engine and improvements, but the
+original numbers are no longer frozen there (new enemies, mutators, new balance). `npm run dev:os3` runs it.
 
 ## Project docs
 

@@ -95,7 +95,8 @@ export function createDemoGame({ mapIndex = 0, seed = 1 }: { mapIndex?: number; 
       cashValue: def.cost, comboCapable: levels.damage >= maxLevels.damage && maxLevels.damage > 0, comboReady: false,
       freak: 'off', holding: 0, links: [], targetMode: def.target || 'near', locked: false, targetId: null,
       directional: { mode: 'normal', angle: 0 }, joinedTo: null,
-      comboColor: kind === 'comboOnly' ? (['red', 'green', 'blue', 'yellow'] as KeyColor[])[Math.floor(rnd() * 4)] : null,
+      // like the real Turret: Combo-only gets a chosen colour, weapons their own (ARCHITECTURE.md 1.1)
+      comboColor: kind === 'comboOnly' ? (['red', 'green', 'blue', 'yellow'] as KeyColor[])[Math.floor(rnd() * 4)] : (TURRETS[kind].color ?? null),
       modRange: isMod ? (levels.range ? MODIFIER_RANGE.upgraded : MODIFIER_RANGE.base) : 0,
       // fields the renderer never reads, present so the object satisfies TurretState
       kills: 0, combosFired: 0, combosAssisted: 0, comboLog: [], category: def.category, color: def.color || null, cd: 0, comboNext: 0, damageMult: 1, freakAt: 0, targeterId: null, ramp: 0, rampTarget: null,
